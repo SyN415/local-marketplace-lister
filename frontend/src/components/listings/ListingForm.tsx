@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { FormProvider, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronLeft, ChevronRight, Save, CheckCircle } from '@mui/icons-material';
+import { ChevronLeft, ChevronRight, Save, CheckCircle, AutoAwesome } from '@mui/icons-material';
 import type { ListingFormData, FormStep } from '../../schemas/listing.schema';
 import { ListingFormSchema } from '../../schemas/listing.schema';
 import type { UseFormOptions, FormEvents } from '../../types/forms';
@@ -292,12 +292,26 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     }
   }, [isEdit, listingId, events]);
 
+  // Handle AI Analysis Result
+  const handleAiAnalysis = useCallback((result: any) => {
+    if (result.title) setValue('title', result.title, { shouldValidate: true, shouldDirty: true });
+    if (result.description) setValue('description', result.description, { shouldValidate: true, shouldDirty: true });
+    if (result.price) setValue('price', result.price, { shouldValidate: true, shouldDirty: true });
+    if (result.category) setValue('category', result.category, { shouldValidate: true, shouldDirty: true });
+    if (result.condition) setValue('condition', result.condition, { shouldValidate: true, shouldDirty: true });
+    
+    // Show success message or toast here if needed
+  }, [setValue]);
+
   // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
         return (
           <Box sx={{ display: 'grid', gap: 3 }}>
+            <Alert severity="info" icon={<AutoAwesome />} sx={{ mb: 2 }}>
+              Tip: Upload photos in Step 2 to automatically fill these details!
+            </Alert>
             <TitleField name="title" label="Title" />
             <PriceField name="price" label="Price" />
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
@@ -316,6 +330,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
               label="Photos"
               required
               helperText="Add up to 10 photos. The first photo will be your cover image."
+              onAnalysisComplete={handleAiAnalysis}
             />
           </Box>
         );
@@ -433,20 +448,42 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
   return (
     <FormProvider {...methods}>
       <Container maxWidth="md" sx={{ py: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
+        <Paper
+          className="glass-card"
+          elevation={0}
+          sx={{
+            p: { xs: 3, md: 5 },
+            borderRadius: 4,
+            background: 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.5)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.05)',
+          }}
+        >
           {/* Header */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h4" component="h1" gutterBottom>
+          <Box sx={{ mb: 5, textAlign: 'center' }}>
+            <Typography
+              variant="h3"
+              component="h1"
+              gutterBottom
+              sx={{
+                fontWeight: 800,
+                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                mb: 1
+              }}
+            >
               {formConfig.title}
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
               {formConfig.description}
             </Typography>
           </Box>
 
           {/* Progress Indicator */}
           {formConfig.showProgress && (
-            <Box sx={{ mb: 4 }}>
+            <Box sx={{ mb: 6 }}>
               <Stepper activeStep={currentStep - 1} alternativeLabel>
                 {steps.map((step) => (
                   <Step
@@ -458,10 +495,20 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       '& .MuiStepLabel-root': {
                         cursor: step.number <= currentStep ? 'pointer' : 'default',
                       },
+                      '& .MuiStepIcon-root': {
+                        width: 28,
+                        height: 28,
+                      },
+                      '& .MuiStepIcon-root.Mui-active': {
+                        color: 'primary.main',
+                      },
+                      '& .MuiStepIcon-root.Mui-completed': {
+                        color: 'success.main',
+                      },
                     }}
                   >
                     <StepLabel>
-                      <Typography variant="subtitle2">{step.title}</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{step.title}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {step.description}
                       </Typography>
@@ -526,6 +573,17 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       endIcon={<ChevronRight />}
                       onClick={handleNext}
                       disabled={isSubmitting || isSaving}
+                      sx={{
+                        px: 4,
+                        py: 1,
+                        borderRadius: 2,
+                        background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)',
+                          boxShadow: '0 6px 16px rgba(99, 102, 241, 0.4)',
+                        }
+                      }}
                     >
                       Next
                     </Button>
@@ -541,6 +599,17 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                           <CheckCircle />
                         )
                       }
+                      sx={{
+                        px: 4,
+                        py: 1,
+                        borderRadius: 2,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+                        }
+                      }}
                     >
                       {isSubmitting ? formConfig.savingButtonText : formConfig.submitButtonText}
                     </Button>

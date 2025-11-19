@@ -64,24 +64,36 @@ const Navbar: React.FC = () => {
   
   return (
     <>
-      <AppBar position="static">
+      <AppBar
+        position="sticky"
+        elevation={0}
+        sx={{
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          color: 'text.primary'
+        }}
+      >
         <Toolbar>
           {/* Logo/Home Link */}
           <Typography
-            variant="h6"
+            variant="h5"
             component={RouterLink}
             to="/"
             sx={{
               flexGrow: 1,
               textDecoration: 'none',
-              color: 'inherit',
-              fontWeight: 'bold',
+              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontWeight: 800,
+              letterSpacing: '-0.5px',
               '&:hover': {
-                opacity: 0.8,
+                opacity: 0.9,
               },
             }}
           >
-            Local Marketplace
+            Marketplace Hustle
           </Typography>
           
           {/* Navigation Links */}
@@ -93,7 +105,7 @@ const Navbar: React.FC = () => {
               color="inherit"
               component={RouterLink}
               to="/"
-              sx={{ minWidth: 'auto' }}
+              sx={{ minWidth: 'auto', fontWeight: 600 }}
             >
               Home
             </Button>
@@ -102,7 +114,7 @@ const Navbar: React.FC = () => {
               color="inherit"
               component={RouterLink}
               to="/listings"
-              sx={{ minWidth: 'auto' }}
+              sx={{ minWidth: 'auto', fontWeight: 600 }}
             >
               Browse
             </Button>
@@ -114,7 +126,15 @@ const Navbar: React.FC = () => {
                   color="inherit"
                   component={RouterLink}
                   to="/create-listing"
-                  sx={{ minWidth: 'auto' }}
+                  sx={{
+                    minWidth: 'auto',
+                    fontWeight: 600,
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    color: 'primary.main',
+                    '&:hover': {
+                      background: 'rgba(99, 102, 241, 0.2)',
+                    }
+                  }}
                 >
                   Sell
                 </Button>
@@ -123,7 +143,7 @@ const Navbar: React.FC = () => {
                   color="inherit"
                   component={RouterLink}
                   to="/my-listings"
-                  sx={{ minWidth: 'auto' }}
+                  sx={{ minWidth: 'auto', fontWeight: 600 }}
                 >
                   My Listings
                 </Button>
@@ -203,25 +223,23 @@ const Navbar: React.FC = () => {
                 color="inherit"
                 component={RouterLink}
                 to="/login"
-                variant="outlined"
+                variant="text"
                 size="small"
-                sx={{
-                  borderColor: 'rgba(255, 255, 255, 0.5)',
-                  '&:hover': {
-                    borderColor: 'white',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                }}
+                sx={{ fontWeight: 600 }}
               >
                 Sign In
               </Button>
               
               <Button
-                color="secondary"
+                color="primary"
                 component={RouterLink}
                 to="/register"
                 variant="contained"
                 size="small"
+                sx={{
+                  fontWeight: 600,
+                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                }}
               >
                 Sign Up
               </Button>

@@ -13,19 +13,26 @@ import {
 import {
   CloudUpload,
   Delete,
+  AutoAwesome,
 } from '@mui/icons-material';
 import { useFormContext, Controller } from 'react-hook-form';
 import type { ImageUploadFieldProps } from '../../../types/forms';
+import { listingsAPI } from '../../../services/api';
+import { CircularProgress, Button } from '@mui/material';
 
 interface PreviewFile extends File {
   preview: string;
+}
+
+interface ExtendedImageUploadProps extends ImageUploadFieldProps {
+  onAnalysisComplete?: (data: any) => void;
 }
 
 /**
  * ImageUpload component with drag and drop functionality
  * Supports multiple file uploads, previews, and removal
  */
-const ImageUpload: React.FC<ImageUploadFieldProps> = ({
+const ImageUpload: React.FC<ExtendedImageUploadProps> = ({
   name = 'images',
   label = 'Images',
   required = false,
@@ -34,6 +41,7 @@ const ImageUpload: React.FC<ImageUploadFieldProps> = ({
   acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   helperText,
   error: customError,
+  onAnalysisComplete,
 }) => {
   const {
     control,
@@ -43,6 +51,7 @@ const ImageUpload: React.FC<ImageUploadFieldProps> = ({
 
   const currentFiles = watch(name) as File[] || [];
   const [previews, setPreviews] = useState<PreviewFile[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Generate previews for new files
   useEffect(() => {
@@ -76,6 +85,21 @@ const ImageUpload: React.FC<ImageUploadFieldProps> = ({
     const newFiles = currentFiles.filter((_, index) => index !== indexToRemove);
     setValue(name, newFiles, { shouldValidate: true, shouldDirty: true });
   }, [currentFiles, name, setValue]);
+
+  const handleAnalyze = async (file: File) => {
+    if (!onAnalysisComplete) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const result = await listingsAPI.analyzeImage(file);
+      onAnalysisComplete(result);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      // Could add a toast notification here
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
@@ -204,19 +228,59 @@ const ImageUpload: React.FC<ImageUploadFieldProps> = ({
                       actionPosition="right"
                     />
                     {index === 0 && (
-                      <ImageListItemBar
-                        title="Cover Image"
-                        position="bottom"
-                        sx={{
-                          background: 'rgba(0, 0, 0, 0.6)',
-                          borderBottomLeftRadius: 4,
-                          borderBottomRightRadius: 4,
-                          '& .MuiImageListItemBar-title': {
-                            fontSize: '0.75rem',
-                            textAlign: 'center',
-                          }
-                        }}
-                      />
+                      <>
+                        <ImageListItemBar
+                          title="Cover Image"
+                          position="bottom"
+                          sx={{
+                            background: 'rgba(0, 0, 0, 0.6)',
+                            borderBottomLeftRadius: 4,
+                            borderBottomRightRadius: 4,
+                            '& .MuiImageListItemBar-title': {
+                              fontSize: '0.75rem',
+                              textAlign: 'center',
+                            }
+                          }}
+                        />
+                        {onAnalysisComplete && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 2,
+                              opacity: 0,
+                              transition: 'opacity 0.2s',
+                              '.MuiImageListItem-root:hover &': {
+                                opacity: 1,
+                              },
+                            }}
+                          >
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={isAnalyzing ? <CircularProgress size={16} color="inherit" /> : <AutoAwesome />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAnalyze(file);
+                              }}
+                              disabled={isAnalyzing}
+                              sx={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                color: 'primary.main',
+                                '&:hover': {
+                                  background: '#fff',
+                                },
+                                whiteSpace: 'nowrap',
+                                boxShadow: 3,
+                              }}
+                            >
+                              {isAnalyzing ? 'Analyzing...' : 'Auto-fill Details'}
+                            </Button>
+                          </Box>
+                        )}
+                      </>
                     )}
                   </ImageListItem>
                 ))}

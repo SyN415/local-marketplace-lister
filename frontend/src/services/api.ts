@@ -2,6 +2,13 @@ import axios from 'axios';
 import type { AxiosResponse, AxiosError } from 'axios';
 import type { Listing, ListingFormData, User, ListingFilters } from '../types';
 
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
 // API base configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -81,24 +88,45 @@ export const authAPI = {
    * Login user
    */
   login: async (email: string, password: string): Promise<{ user: User; token: string }> => {
-    const response = await api.post('/api/auth/login', { email, password });
-    return response.data;
+    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string } }>>('/api/auth/login', { email, password });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Login failed');
+    }
+
+    return {
+      user: response.data.data.user,
+      token: response.data.data.session.access_token
+    };
   },
 
   /**
    * Register new user
    */
   signup: async (email: string, password: string, fullName?: string): Promise<{ user: User; token: string }> => {
-    const response = await api.post('/api/auth/signup', { email, password, fullName });
-    return response.data;
+    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string } }>>('/api/auth/signup', { email, password, fullName });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Signup failed');
+    }
+
+    return {
+      user: response.data.data.user,
+      token: response.data.data.session.access_token
+    };
   },
 
   /**
    * Get current user
    */
   getCurrentUser: async (): Promise<User> => {
-    const response = await api.get('/api/auth/me');
-    return response.data;
+    const response = await api.get<ApiResponse<User>>('/api/auth/me');
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to get current user');
+    }
+
+    return response.data.data;
   },
 
   /**
@@ -114,8 +142,13 @@ export const authAPI = {
    * Update user profile
    */
   updateProfile: async (updates: Partial<User>): Promise<User> => {
-    const response = await api.put('/api/auth/profile', updates);
-    return response.data;
+    const response = await api.put<ApiResponse<User>>('/api/auth/profile', updates);
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to update profile');
+    }
+
+    return response.data.data;
   },
 };
 
@@ -143,16 +176,34 @@ export const listingsAPI = {
       totalPages: number;
     };
   }> => {
-    const response = await api.get('/api/listings', { params });
-    return response.data;
+    const response = await api.get<ApiResponse<{
+      listings: Listing[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    }>>('/api/listings', { params });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch listings');
+    }
+
+    return response.data.data;
   },
 
   /**
    * Get single listing by ID
    */
   getListing: async (id: string): Promise<Listing> => {
-    const response = await api.get(`/api/listings/${id}`);
-    return response.data;
+    const response = await api.get<ApiResponse<Listing>>(`/api/listings/${id}`);
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch listing');
+    }
+
+    return response.data.data;
   },
 
   /**
@@ -189,12 +240,17 @@ export const listingsAPI = {
       });
     }
 
-    const response = await api.post('/api/listings', formData, {
+    const response = await api.post<ApiResponse<Listing>>('/api/listings', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create listing');
+    }
+
+    return response.data.data;
   },
 
   /**
@@ -229,12 +285,17 @@ export const listingsAPI = {
       });
     }
 
-    const response = await api.put(`/api/listings/${id}`, formData, {
+    const response = await api.put<ApiResponse<Listing>>(`/api/listings/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to update listing');
+    }
+
+    return response.data.data;
   },
 
   /**
@@ -254,8 +315,19 @@ export const listingsAPI = {
     totalValue: number;
     categoryBreakdown: Record<string, number>;
   }> => {
-    const response = await api.get('/api/listings/stats');
-    return response.data;
+    const response = await api.get<ApiResponse<{
+      totalListings: number;
+      activeListings: number;
+      soldListings: number;
+      totalValue: number;
+      categoryBreakdown: Record<string, number>;
+    }>>('/api/listings/stats');
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch stats');
+    }
+
+    return response.data.data;
   },
 
   /**
@@ -263,8 +335,44 @@ export const listingsAPI = {
    */
   searchListings: async (query: string, filters?: ListingFilters): Promise<Listing[]> => {
     const params = { q: query, ...filters };
-    const response = await api.get('/api/listings/search', { params });
-    return response.data;
+    const response = await api.get<ApiResponse<Listing[]>>('/api/listings/search', { params });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to search listings');
+    }
+
+    return response.data.data;
+  },
+  /**
+   * Analyze image using AI
+   */
+  analyzeImage: async (file: File): Promise<{
+    title?: string;
+    description?: string;
+    category?: string;
+    condition?: string;
+    price?: number;
+  }> => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await api.post<ApiResponse<{
+      title?: string;
+      description?: string;
+      category?: string;
+      condition?: string;
+      price?: number;
+    }>>('/api/ai/analyze', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to analyze image');
+    }
+
+    return response.data.data;
   },
 };
 

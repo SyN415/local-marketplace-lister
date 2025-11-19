@@ -110,14 +110,17 @@ const ListingCard: React.FC<{
 
   return (
     <Card
+      className="glass-card"
       sx={{
         cursor: 'pointer',
-        transition: 'all 0.2s ease-in-out',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 4,
+          transform: 'translateY(-8px)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
         },
         position: 'relative',
+        overflow: 'hidden',
+        borderRadius: 3,
       }}
       onClick={handleView}
     >
@@ -162,11 +165,15 @@ const ListingCard: React.FC<{
       {/* Image */}
       <CardMedia
         component="img"
-        height="200"
+        height="220"
         image={listing.imageUrl || '/api/placeholder/300/200'}
         alt={listing.title}
         sx={{
           backgroundColor: 'grey.100',
+          transition: 'transform 0.3s ease',
+          '&:hover': {
+            transform: 'scale(1.05)',
+          },
         }}
         onError={(e) => {
           const target = e.target as HTMLImageElement;
@@ -174,45 +181,75 @@ const ListingCard: React.FC<{
         }}
       />
 
-      <CardContent>
-        <Typography variant="h6" component="h2" noWrap>
+      <CardContent sx={{ p: 2.5 }}>
+        <Typography variant="h6" component="h2" noWrap sx={{ fontWeight: 700, mb: 0.5 }}>
           {listing.title}
         </Typography>
         
-        <Typography variant="h5" color="primary" sx={{ mt: 1, fontWeight: 'bold' }}>
+        <Typography
+          variant="h5"
+          sx={{
+            mt: 1,
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
           ${listing.price.toLocaleString()}
         </Typography>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mt: 1.5,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            minHeight: '2.5em',
+            lineHeight: 1.5
+          }}
+        >
           {listing.description || 'No description available'}
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 0.5, mt: 2, flexWrap: 'wrap' }}>
           <Chip
             label={listing.category}
             size="small"
-            variant="outlined"
-            color="secondary"
+            sx={{
+              borderRadius: '6px',
+              fontWeight: 500,
+              background: 'rgba(99, 102, 241, 0.1)',
+              color: 'primary.main',
+              border: 'none'
+            }}
           />
           <Chip
             label={listing.condition}
             size="small"
-            variant="outlined"
-            color="info"
+            sx={{
+              borderRadius: '6px',
+              fontWeight: 500,
+              background: 'rgba(236, 72, 153, 0.1)',
+              color: 'secondary.main',
+              border: 'none'
+            }}
           />
-          {listing.location && (
-            <Chip
-              label={listing.location}
-              size="small"
-              variant="outlined"
-              color="default"
-            />
-          )}
         </Box>
 
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          Posted {new Date(listing.createdAt).toLocaleDateString()}
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+          {listing.location && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+              📍 {listing.location}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary">
+            {new Date(listing.createdAt).toLocaleDateString()}
+          </Typography>
+        </Box>
       </CardContent>
 
       {showActions && (

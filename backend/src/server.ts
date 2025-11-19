@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { authRoutes } from './routes/auth.routes';
 import { listingRoutes } from './routes/listing.routes';
 import { healthRoutes } from './routes/health.routes';
+import { aiRoutes } from './routes/ai.routes';
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/health', healthRoutes);
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Serve static files from the frontend build directory
 const frontendPath = path.join(__dirname, '../../frontend/dist');
