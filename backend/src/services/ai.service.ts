@@ -2,18 +2,37 @@ import OpenAI from 'openai';
 import { config } from '../config/config';
 
 export class AIService {
-  private openai: OpenAI;
+  private openai: OpenAI | null = null;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    
+    if (apiKey) {
+      try {
+        this.openai = new OpenAI({
+          apiKey: apiKey,
+          baseURL: 'https://openrouter.ai/api/v1',
+          defaultHeaders: {
+            'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
+            'X-Title': 'Local Marketplace Lister',
+          },
+        });
+      } catch (error) {
+        console.warn('Failed to initialize OpenAI client:', error);
+      }
+    } else {
+      console.warn('OPENROUTER_API_KEY is missing. AI features will be disabled.');
+    }
   }
 
   async analyzeImage(imageBase64: string): Promise<any> {
+    if (!this.openai) {
+      throw new Error('AI service is not configured. Please check OPENROUTER_API_KEY.');
+    }
+
     try {
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "openai/gpt-4o",
         messages: [
           {
             role: "user",
