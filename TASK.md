@@ -25,7 +25,7 @@ This cross-listing hub application enables individual sellers to manage and post
 
 ### Phase 1: Core Dashboard (Weeks 1-2)
 **Frontend-First Approach**
-- [ ] User authentication system (sign up/login)
+- [x] User authentication system (sign up/login)
 - [ ] Main dashboard with statistics cards
 - [ ] List all listings view with filtering
 - [ ] Create listing form (basic functionality)
@@ -136,6 +136,20 @@ This cross-listing hub application enables individual sellers to manage and post
 - [x] Frontend: http://localhost:5173/ (React + Vite)
 - [x] Backend: http://localhost:3000 (Express + TypeScript)
 - [x] Health check endpoint: http://localhost:3000/health
+
+### November 18, 2025 - User Authentication Implementation 🔐
+**Session Summary:**
+- Implemented user signup functionality
+- Fixed backend auth service to correctly handle user profiles
+- Added Signup page to frontend
+- Verified user creation in local Supabase instance
+
+**Completed Tasks:**
+- [x] Created Signup page component
+- [x] Added routing for Signup page
+- [x] Updated Login page to link to Signup
+- [x] Fixed backend auth service profile creation (table name mismatch: `user_profiles` -> `profiles`)
+- [x] Verified successful user registration via API
 
 **Next Session Goals:**
 - [ ] Set up GitHub repository and initial commit
@@ -280,7 +294,7 @@ This cross-listing hub application enables individual sellers to manage and post
 ## Completed Features Checklist
 
 ### Phase 1: Core Dashboard
-- [ ] User authentication (sign up/login)
+- [x] User authentication (sign up/login)
 - [ ] Dashboard with stats (Total listings, Posted, Drafts, Sold)
 - [ ] List all listings view with filter/sort capabilities
 - [ ] Create listing form (basic functionality)

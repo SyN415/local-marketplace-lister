@@ -1,130 +1,156 @@
-import { Box, Typography, TextField, Button, Paper, Container, MenuItem } from '@mui/material';
-import { useForm } from 'react-hook-form';
-import type { ListingFormData } from '../types';
+import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Box, Alert, Snackbar } from '@mui/material';
+import { CheckCircle, Error } from '@mui/icons-material';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import ListingForm from '../components/listings/ListingForm';
+import { listingsAPI } from '../services/api';
+import type { ListingFormData } from '../schemas/listing.schema';
+import type { FormSubmissionData } from '../types/forms';
 
-const CreateListing = () => {
-  const { register, handleSubmit, formState: { errors } } = useForm<ListingFormData>();
+/**
+ * Create Listing Page
+ * Handles the creation of new listings with the multi-step form
+ */
+const CreateListing: React.FC = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
+  const [notification, setNotification] = React.useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
-  const onSubmit = (data: ListingFormData) => {
-    // TODO: Implement listing creation logic
-    console.log('Create listing form submitted:', data);
-  };
+  // Create listing mutation
+  const createListingMutation = useMutation({
+    mutationFn: async (formData: ListingFormData) => {
+      return listingsAPI.createListing(formData);
+    },
+    onSuccess: (listing) => {
+      // Invalidate and refetch listings
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
+      
+      // Show success notification
+      setNotification({
+        open: true,
+        message: 'Listing created successfully!',
+        severity: 'success',
+      });
 
-  const categories = [
-    'Electronics',
-    'Clothing',
-    'Home & Garden',
-    'Sports',
-    'Books',
-    'Toys',
-    'Automotive',
-    'Other'
-  ];
+      // Redirect to listing detail or dashboard after a delay
+      setTimeout(() => {
+        navigate(`/listings/${listing.id}`);
+      }, 2000);
+    },
+    onError: (error: any) => {
+      console.error('Failed to create listing:', error);
+      setNotification({
+        open: true,
+        message: error.message || 'Failed to create listing. Please try again.',
+        severity: 'error',
+      });
+    },
+  });
 
-  const conditions = [
-    'New',
-    'Like New',
-    'Good',
-    'Fair',
-    'Poor'
-  ];
+  // Handle form submission
+  const handleFormSubmit = useCallback(async (data: FormSubmissionData) => {
+    try {
+      await createListingMutation.mutateAsync(data.data);
+    } catch (error) {
+      // Error is handled by the mutation's onError callback
+      console.error('Form submission error:', error);
+    }
+  }, [createListingMutation]);
+
+  // Handle step changes for analytics
+  const handleStepChange = useCallback((step: number) => {
+    console.log('Step changed to:', step);
+    // Could track analytics here
+  }, []);
+
+  // Handle success callback
+  const handleSuccess = useCallback((listing: any) => {
+    console.log('Listing created successfully:', listing);
+  }, []);
+
+  // Handle error callback
+  const handleError = useCallback((error: Error) => {
+    console.error('Form error:', error);
+  }, []);
+
+  // Close notification
+  const handleCloseNotification = useCallback(() => {
+    setNotification(prev => ({ ...prev, open: false }));
+  }, []);
 
   return (
-    <Container maxWidth="md">
-      <Paper elevation={3} sx={{ p: 4, mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Create New Listing
-        </Typography>
-        
-        <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 3 }}>
-          <TextField
-            fullWidth
-            label="Title"
-            required
-            margin="normal"
-            {...register('title', { required: 'Title is required' })}
-            error={!!errors.title}
-            helperText={errors.title?.message}
-          />
-          
-          <TextField
-            fullWidth
-            label="Description"
-            multiline
-            rows={4}
-            margin="normal"
-            {...register('description')}
-          />
-          
-          <TextField
-            fullWidth
-            label="Price"
-            type="number"
-            required
-            margin="normal"
-            {...register('price', { 
-              required: 'Price is required',
-              min: { value: 0.01, message: 'Price must be greater than 0' }
-            })}
-            error={!!errors.price}
-            helperText={errors.price?.message}
-          />
-          
-          <TextField
-            fullWidth
-            select
-            label="Category"
-            required
-            margin="normal"
-            {...register('category', { required: 'Category is required' })}
-            error={!!errors.category}
-            helperText={errors.category?.message}
-          >
-            {categories.map((category) => (
-              <MenuItem key={category} value={category}>
-                {category}
-              </MenuItem>
-            ))}
-          </TextField>
-          
-          <TextField
-            fullWidth
-            select
-            label="Condition"
-            required
-            margin="normal"
-            {...register('condition', { required: 'Condition is required' })}
-            error={!!errors.condition}
-            helperText={errors.condition?.message}
-          >
-            {conditions.map((condition) => (
-              <MenuItem key={condition} value={condition}>
-                {condition}
-              </MenuItem>
-            ))}
-          </TextField>
-          
-          <TextField
-            fullWidth
-            label="Location"
-            margin="normal"
-            {...register('location')}
-          />
-          
-          <Box sx={{ mt: 3 }}>
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              fullWidth
-            >
-              Create Listing
-            </Button>
-          </Box>
-        </Box>
-      </Paper>
-    </Container>
+    <Box>
+      <ListingForm
+        isEdit={false}
+        onSubmit={handleFormSubmit}
+        onStepChange={handleStepChange}
+        onSuccess={handleSuccess}
+        onError={handleError}
+        config={{
+          title: 'Create New Listing',
+          description: 'Fill out the form to create a new listing',
+          submitButtonText: 'Create Listing',
+          savingButtonText: 'Creating...',
+          enableAutoSave: true,
+          enableKeyboardNavigation: true,
+        }}
+        events={{
+          onSubmit: handleFormSubmit,
+          onStepChange: handleStepChange,
+          onSuccess: handleSuccess,
+          onError: handleError,
+        }}
+      />
+
+      {/* Success/Error Notification */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={6000}
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleCloseNotification}
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+          icon={notification.severity === 'success' ? <CheckCircle /> : <Error />}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 };
 
 export default CreateListing;
+
+/**
+ * JSDoc
+ * 
+ * @remarks
+ * - Uses React Query for API mutations
+ * - Integrates with the multi-step ListingForm component
+ * - Handles form submission and success/error states
+ * - Provides navigation after successful creation
+ * - Shows user-friendly notifications
+ * 
+ * @example
+ * ```tsx
+ * // Route configuration
+ * <Route path="/create-listing" element={<CreateListing />} />
+ * 
+ * // Navigation from other components
+ * navigate('/create-listing');
+ * ```
+ */

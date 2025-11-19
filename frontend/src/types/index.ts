@@ -30,7 +30,14 @@ export interface ListingFormData {
   category: string;
   condition: string;
   images?: File[];
-  location?: string;
+  location?: {
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    latitude?: number;
+    longitude?: number;
+  };
 }
 
 export interface AuthState {

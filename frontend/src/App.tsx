@@ -1,25 +1,94 @@
+import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Container } from '@mui/material';
+import { AuthProvider } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Page components
 import Home from './pages/Home';
 import Listings from './pages/Listings';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import CreateListing from './pages/CreateListing';
 
-function App() {
+/**
+ * App Router Component
+ *
+ * Configures the application routing with:
+ * - Auth Provider for global authentication state
+ * - Protected routes for authenticated pages
+ * - Public routes for pages accessible without login
+ * - Proper loading states and error handling
+ */
+const AppRouter: React.FC = () => {
   return (
-    <>
+    <AuthProvider>
       <Navbar />
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Routes>
+          {/* Public Routes (accessible without authentication) */}
           <Route path="/" element={<Home />} />
           <Route path="/listings" element={<Listings />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/create-listing" element={<CreateListing />} />
+          <Route path="/signup" element={<Signup />} />
+          
+          {/* Protected Routes (require authentication) */}
+          <Route
+            path="/create-listing"
+            element={
+              <ProtectedRoute>
+                <CreateListing />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/my-listings"
+            element={
+              <ProtectedRoute>
+                {/* TODO: Create MyListings component */}
+                <div>My Listings (Coming Soon)</div>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                {/* TODO: Create Profile component */}
+                <div>Profile (Coming Soon)</div>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                {/* TODO: Create Settings component */}
+                <div>Settings (Coming Soon)</div>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Catch all route - redirect to home */}
+          <Route path="*" element={<Home />} />
         </Routes>
       </Container>
-    </>
+    </AuthProvider>
   );
+};
+
+/**
+ * Main App Component
+ *
+ * App component with routing and authentication.
+ * Note: QueryClientProvider is already provided in main.tsx
+ */
+function App() {
+  return <AppRouter />;
 }
 
 export default App;

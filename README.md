@@ -91,21 +91,19 @@ npm run build
 
 ### Supabase Setup
 
-1. Install Supabase CLI
-   ```bash
-   npm install -g supabase
-   ```
+The project is configured for local Supabase development. For detailed setup instructions, credentials, and dashboard URLs, see [SUPABASE_LOCAL_SETUP.md](./SUPABASE_LOCAL_SETUP.md).
 
-2. Initialize Supabase
-   ```bash
-   cd supabase
-   supabase init
-   ```
+**Quick Start:**
+```bash
+# Supabase CLI is already installed (v2.58.5)
+# Start local Supabase instance
+supabase start
 
-3. Start local Supabase
-   ```bash
-   supabase start
-   ```
+# Access Supabase Studio (Dashboard)
+# http://127.0.0.1:54323
+```
+
+All environment files (`.env`) have been created with local Supabase credentials. The local instance is ready to use.
 
 ## 🔧 Configuration
 
