@@ -16,8 +16,8 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: config.NODE_ENV === 'production' 
-    ? [config.FRONTEND_URL] 
+  origin: config.NODE_ENV === 'production'
+    ? [config.FRONTEND_URL, /\.onrender\.com$/]
     : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
 }));
@@ -59,7 +59,8 @@ if (config.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.NODE_ENV}`);
-    console.log(`📋 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔗 Frontend URL: ${config.FRONTEND_URL}`);
+    console.log(`� Health check: http://localhost:${PORT}/health`);
   });
 }
 
