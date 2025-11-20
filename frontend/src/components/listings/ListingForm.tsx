@@ -312,11 +312,11 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
             <Alert severity="info" icon={<AutoAwesome />} sx={{ mb: 2 }}>
               Tip: Upload photos in Step 2 to automatically fill these details!
             </Alert>
-            <TitleField name="title" label="Title" />
-            <PriceField name="price" label="Price" />
+            <TitleField id="title" name="title" label="Title" />
+            <PriceField id="price" name="price" label="Price" />
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
-              <CategorySelect name="category" label="Category" options={[]} />
-              <ConditionSelect name="condition" label="Condition" options={[]} />
+              <CategorySelect id="category" name="category" label="Category" options={[]} />
+              <ConditionSelect id="condition" name="condition" label="Condition" options={[]} />
             </Box>
           </Box>
         );
@@ -324,8 +324,9 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
       case 2:
         return (
           <Box sx={{ display: 'grid', gap: 3 }}>
-            <DescriptionField name="description" label="Description" />
+            <DescriptionField id="description" name="description" label="Description" />
             <ImageUpload
+              id="images"
               name="images"
               label="Photos"
               required

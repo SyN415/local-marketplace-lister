@@ -137,6 +137,8 @@ const Signup = () => {
         {/* Signup Form */}
         <Box component="form" onSubmit={handleSubmit} noValidate>
           <TextField
+            id="fullName"
+            name="fullName"
             fullWidth
             label="Full Name"
             value={formData.fullName}
@@ -147,6 +149,8 @@ const Signup = () => {
           />
           
           <TextField
+            id="email"
+            name="email"
             fullWidth
             label="Email Address"
             type="email"
@@ -160,6 +164,8 @@ const Signup = () => {
           />
           
           <TextField
+            id="password"
+            name="password"
             fullWidth
             label="Password"
             type="password"
@@ -173,6 +179,8 @@ const Signup = () => {
           />
           
           <TextField
+            id="confirmPassword"
+            name="confirmPassword"
             fullWidth
             label="Confirm Password"
             type="password"

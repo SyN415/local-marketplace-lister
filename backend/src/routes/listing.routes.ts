@@ -95,6 +95,116 @@ router.get('/', verifyToken, validateListingFilters, async (req: Request, res: R
 });
 
 /**
+ * @route   GET /api/listings/stats
+ * @desc    Get listing statistics for authenticated user
+ * @access  Private
+ * @headers { Authorization: 'Bearer <token>' }
+ */
+router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+      return;
+    }
+
+    const response = await listingService.getListingStats(req.user.id);
+
+    if (!response.success) {
+      res.status(400).json(response);
+      return;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Get listing stats route error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during statistics retrieval'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/listings/search
+ * @desc    Search listings by query and filters
+ * @access  Private
+ * @headers { Authorization: 'Bearer <token>' }
+ * @query   { q: string, page?: number, limit?: number, category?: string, condition?: string, status?: string, min_price?: number, max_price?: number, location_lat?: number, location_lng?: number, radius_km?: number }
+ */
+router.get('/search', verifyToken, validateListingFilters, async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+      return;
+    }
+
+    const query = req.query.q as string;
+    if (!query || query.trim().length < 2) {
+      res.status(400).json({
+        success: false,
+        error: 'Search query must be at least 2 characters long'
+      });
+      return;
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    // Build filters from query params
+    const filters: ListingFilters = {};
+    if (req.query.category) filters.category = req.query.category as string;
+    if (req.query.condition && LISTING_CONDITIONS.includes(req.query.condition as any)) {
+      filters.condition = req.query.condition as any;
+    }
+    if (req.query.status && LISTING_STATUSES.includes(req.query.status as any)) {
+      filters.status = req.query.status as any;
+    }
+    if (req.query.min_price) filters.min_price = parseFloat(req.query.min_price as string);
+    if (req.query.max_price) filters.max_price = parseFloat(req.query.max_price as string);
+    if (req.query.location_lat) filters.location_lat = parseFloat(req.query.location_lat as string);
+    if (req.query.location_lng) filters.location_lng = parseFloat(req.query.location_lng as string);
+    if (req.query.radius_km) filters.radius_km = parseFloat(req.query.radius_km as string);
+
+    const searchRequest = {
+      query: query.trim(),
+      filters,
+      page,
+      limit
+    };
+
+    const response = await listingService.searchListings(req.user.id, searchRequest);
+
+    if (!response.success) {
+      res.status(400).json(response);
+      return;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Search listings route error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during search'
+    });
+  }
+});
+
+// Health check endpoint for listing routes
+router.get('/health', (req: Request, res: Response): void => {
+  res.status(200).json({
+    success: true,
+    message: 'Listing routes are healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * @route   GET /api/listings/:id
  * @desc    Get single listing by ID (with ownership verification)
  * @access  Private
@@ -244,116 +354,6 @@ router.delete('/:id', verifyToken, async (req: Request, res: Response): Promise<
       error: 'Internal server error during listing deletion'
     });
   }
-});
-
-/**
- * @route   GET /api/listings/stats
- * @desc    Get listing statistics for authenticated user
- * @access  Private
- * @headers { Authorization: 'Bearer <token>' }
- */
-router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-      return;
-    }
-
-    const response = await listingService.getListingStats(req.user.id);
-
-    if (!response.success) {
-      res.status(400).json(response);
-      return;
-    }
-
-    res.status(200).json(response);
-  } catch (error) {
-    console.error('Get listing stats route error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error during statistics retrieval'
-    });
-  }
-});
-
-/**
- * @route   GET /api/listings/search
- * @desc    Search listings by query and filters
- * @access  Private
- * @headers { Authorization: 'Bearer <token>' }
- * @query   { q: string, page?: number, limit?: number, category?: string, condition?: string, status?: string, min_price?: number, max_price?: number, location_lat?: number, location_lng?: number, radius_km?: number }
- */
-router.get('/search', verifyToken, validateListingFilters, async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-      return;
-    }
-
-    const query = req.query.q as string;
-    if (!query || query.trim().length < 2) {
-      res.status(400).json({
-        success: false,
-        error: 'Search query must be at least 2 characters long'
-      });
-      return;
-    }
-
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-
-    // Build filters from query params
-    const filters: ListingFilters = {};
-    if (req.query.category) filters.category = req.query.category as string;
-    if (req.query.condition && LISTING_CONDITIONS.includes(req.query.condition as any)) {
-      filters.condition = req.query.condition as any;
-    }
-    if (req.query.status && LISTING_STATUSES.includes(req.query.status as any)) {
-      filters.status = req.query.status as any;
-    }
-    if (req.query.min_price) filters.min_price = parseFloat(req.query.min_price as string);
-    if (req.query.max_price) filters.max_price = parseFloat(req.query.max_price as string);
-    if (req.query.location_lat) filters.location_lat = parseFloat(req.query.location_lat as string);
-    if (req.query.location_lng) filters.location_lng = parseFloat(req.query.location_lng as string);
-    if (req.query.radius_km) filters.radius_km = parseFloat(req.query.radius_km as string);
-
-    const searchRequest = {
-      query: query.trim(),
-      filters,
-      page,
-      limit
-    };
-
-    const response = await listingService.searchListings(req.user.id, searchRequest);
-
-    if (!response.success) {
-      res.status(400).json(response);
-      return;
-    }
-
-    res.status(200).json(response);
-  } catch (error) {
-    console.error('Search listings route error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error during search'
-    });
-  }
-});
-
-// Health check endpoint for listing routes
-router.get('/health', (req: Request, res: Response): void => {
-  res.status(200).json({
-    success: true,
-    message: 'Listing routes are healthy',
-    timestamp: new Date().toISOString()
-  });
 });
 
 export const listingRoutes = router;

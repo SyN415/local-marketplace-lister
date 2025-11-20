@@ -33,6 +33,7 @@ export interface StepConfig {
  */
 export interface BaseFieldProps {
   name: string;
+  id?: string;
   label: string;
   required?: boolean;
   disabled?: boolean;

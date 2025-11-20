@@ -176,66 +176,69 @@ const Hero: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.4, type: "spring" }}
               style={{ perspective: '1000px' }}
             >
-              <Box
-                sx={{
-                  position: 'relative',
-                  width: '100%',
-                  maxWidth: '600px',
-                  aspectRatio: '16/10',
-                  background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`,
-                  borderRadius: 4,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: `0 20px 50px -10px ${theme.palette.primary.main}40`,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                {/* Mockup Header */}
-                <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: 1 }}>
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ef4444' }} />
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#eab308' }} />
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#22c55e' }} />
-                </Box>
-                
-                {/* Mockup Content */}
-                <Box sx={{ p: 3, flex: 1, display: 'flex', gap: 2 }}>
-                  {/* Sidebar */}
-                  <Box sx={{ width: '20%', bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }} />
+              <Box sx={{ position: 'relative' }}>
+                <Box
+                  sx={{
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: '600px',
+                    aspectRatio: '16/10',
+                    background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`,
+                    borderRadius: 4,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    boxShadow: `0 20px 50px -10px ${theme.palette.primary.main}40`,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  {/* Mockup Header */}
+                  <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: 1 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ef4444' }} />
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#eab308' }} />
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#22c55e' }} />
+                  </Box>
                   
-                  {/* Main Area */}
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Box sx={{ height: '20%', bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2, width: '60%' }} />
-                    <Box sx={{ display: 'flex', gap: 2, height: '30%' }}>
-                      <Box sx={{ flex: 1, bgcolor: theme.palette.primary.main, opacity: 0.2, borderRadius: 2 }} />
-                      <Box sx={{ flex: 1, bgcolor: theme.palette.secondary.main, opacity: 0.2, borderRadius: 2 }} />
-                      <Box sx={{ flex: 1, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
+                  {/* Mockup Content */}
+                  <Box sx={{ p: 3, flex: 1, display: 'flex', gap: 2 }}>
+                    {/* Sidebar */}
+                    <Box sx={{ width: '20%', bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }} />
+                    
+                    {/* Main Area */}
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ height: '20%', bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2, width: '60%' }} />
+                      <Box sx={{ display: 'flex', gap: 2, height: '30%' }}>
+                        <Box sx={{ flex: 1, bgcolor: theme.palette.primary.main, opacity: 0.2, borderRadius: 2 }} />
+                        <Box sx={{ flex: 1, bgcolor: theme.palette.secondary.main, opacity: 0.2, borderRadius: 2 }} />
+                        <Box sx={{ flex: 1, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
+                      </Box>
+                      <Box sx={{ flex: 1, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }} />
                     </Box>
-                    <Box sx={{ flex: 1, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 2 }} />
                   </Box>
                 </Box>
 
-                {/* Floating Badge */}
+                {/* Floating Badge - Moved outside the main box to prevent clipping */}
                 <motion.div
                   animate={{ y: [0, -10, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                   style={{
                     position: 'absolute',
                     bottom: '20%',
-                    left: '-5%',
-                    background: 'rgba(15, 23, 42, 0.8)',
+                    left: '-20px',
+                    background: 'rgba(15, 23, 42, 0.9)',
                     backdropFilter: 'blur(10px)',
                     padding: '12px 20px',
                     borderRadius: '12px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
+                    zIndex: 2,
                   }}
                 >
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2" fontWeight="bold" sx={{ color: '#fff' }}>
                     +127% Sales
                   </Typography>
                 </motion.div>
