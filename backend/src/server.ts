@@ -16,7 +16,18 @@ import webhookRoutes from './routes/webhook.routes';
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      connectSrc: ["'self'", config.FRONTEND_URL, "https://openrouter.ai", "https://api.stripe.com", "https://api.supabase.co", "wss://*.supabase.co"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://js.stripe.com"],
+    },
+  },
+}));
 
 // CORS configuration
 app.use(cors({

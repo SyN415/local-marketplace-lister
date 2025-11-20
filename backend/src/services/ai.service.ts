@@ -32,7 +32,7 @@ export class AIService {
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: "google/gemini-flash-1.5", // Switch to Gemini Flash via OpenRouter
+        model: "google/gemini-2.5-flash-lite-preview-09-2025", // Switch to Gemini Flash via OpenRouter
         messages: [
           {
             role: "user",

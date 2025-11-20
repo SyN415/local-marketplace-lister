@@ -1,10 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { aiService } from '../services/ai.service';
-import { requireAuth } from '../middleware/auth.middleware';
+import { requireAuth, verifyToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.post('/analyze', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/analyze', verifyToken, requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { image } = req.body;
 
