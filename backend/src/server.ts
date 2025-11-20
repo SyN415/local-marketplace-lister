@@ -20,8 +20,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
-      connectSrc: ["'self'", config.FRONTEND_URL, "https://openrouter.ai", "https://api.stripe.com", "https://api.supabase.co", "wss://*.supabase.co"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:", "https://*.supabase.co", "https://nvnbdktptizhfxrbuecl.supabase.co"],
+      connectSrc: ["'self'", config.FRONTEND_URL, "https://openrouter.ai", "https://api.stripe.com", "https://api.supabase.co", "wss://*.supabase.co", "https://*.supabase.co", "https://nvnbdktptizhfxrbuecl.supabase.co", "https://nominatim.openstreetmap.org"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],

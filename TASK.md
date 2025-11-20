@@ -300,6 +300,17 @@ Integrated a real interactive map using Leaflet and OpenStreetMap to replace the
 
 ---
 
+### November 20, 2025 - Critical CSP & CORS Fixes 🛡️
+**Session Summary:**
+Resolved blocking Content Security Policy (CSP) issues that were preventing map geocoding requests and Supabase image uploads. Updated both frontend meta tags and backend Helmet configuration to explicitly whitelist necessary domains (`nominatim.openstreetmap.org`, specific Supabase project URL).
+
+**Completed Tasks:**
+- [x] Analyzed and updated `frontend/index.html` CSP meta tag.
+- [x] Updated `backend/src/server.ts` Helmet CSP configuration.
+- [x] Whitelisted `nominatim.openstreetmap.org` for geocoding.
+- [x] Whitelisted specific Supabase project URL for image resources.
+
+---
 ### November 20, 2025 - AI Image Analysis Enhancement 🤖
 **Session Summary:**
 Refactoring the AI service to provide more targeted, sales-oriented analysis of uploaded images. The goal is to better identify sellable items and generate persuasive descriptions that drive sales, rather than generic scene descriptions.
