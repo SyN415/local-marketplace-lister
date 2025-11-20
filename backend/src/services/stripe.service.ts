@@ -2,11 +2,21 @@ import Stripe from 'stripe';
 import { supabaseAdmin as supabase } from '../config/supabase';
 import { config } from '../config/config';
 
-const stripe = new Stripe(config.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-11-17.clover' as any, // Cast to any to avoid type issues if types are outdated
-});
+let stripe: Stripe | null = null;
+
+if (config.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(config.STRIPE_SECRET_KEY, {
+    apiVersion: '2025-11-17.clover' as any, // Cast to any to avoid type issues if types are outdated
+  });
+} else {
+  console.warn('⚠️ Stripe key missing, payment features disabled');
+}
 
 export const createCustomer = async (email: string, userId: string) => {
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
   try {
     const customer = await stripe.customers.create({
       email,
@@ -34,6 +44,10 @@ export const createCustomer = async (email: string, userId: string) => {
 };
 
 export const createCheckoutSession = async (userId: string, priceId: string) => {
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
   try {
     // Get user profile to check for existing customer ID
     const { data: profile, error: profileError } = await supabase
@@ -86,6 +100,10 @@ export const createCheckoutSession = async (userId: string, priceId: string) => 
 };
 
 export const handleWebhook = async (signature: string, payload: Buffer) => {
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
   try {
     const event = stripe.webhooks.constructEvent(
       payload,
