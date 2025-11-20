@@ -15,7 +15,7 @@ class UserService {
       const { data: profile, error } = await supabaseAdmin
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .single();
 
       if (error) {
@@ -98,7 +98,7 @@ class UserService {
           ...profileData,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', userId)
+        .eq('id', userId)
         .select()
         .single();
 
@@ -135,7 +135,7 @@ class UserService {
       const { error } = await supabaseAdmin
         .from('profiles')
         .delete()
-        .eq('user_id', userId);
+        .eq('id', userId);
 
       if (error) {
         console.error('Delete user profile error:', error);
@@ -283,7 +283,7 @@ class UserService {
       const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .single();
 
       const sessionUser: SessionUser = {
@@ -323,7 +323,7 @@ class UserService {
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', userId)
+        .eq('id', userId)
         .select()
         .single();
 

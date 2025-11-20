@@ -105,11 +105,14 @@ class AuthService {
         .insert(profileData);
 
       if (profileError) {
+        console.error('Create user profile error details:', JSON.stringify(profileError, null, 2));
+        console.error('Attempted profile data:', JSON.stringify(profileData, null, 2));
+        
         // Clean up the auth user if profile creation fails
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
         return {
           success: false,
-          error: 'Failed to create user profile'
+          error: `Failed to create user profile: ${profileError.message}`
         };
       }
 
