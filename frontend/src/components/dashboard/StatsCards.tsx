@@ -71,47 +71,45 @@ const StatsCard: React.FC<StatsCardProps> = ({
 
   return (
     <Card
+      elevation={0}
       sx={{
         height: '100%',
-        transition: 'all 0.2s ease-in-out',
+        borderRadius: 0,
+        border: '2px solid #000',
+        transition: 'all 0.1s ease-in-out',
         cursor: clickable ? 'pointer' : 'default',
+        bgcolor: 'background.paper',
         '&:hover': clickable ? {
-          transform: 'translateY(-2px)',
-          boxShadow: theme.shadows[8],
+          bgcolor: 'action.hover',
         } : {},
-        border: clickable ? `1px solid ${theme.palette.divider}` : 'none',
       }}
       onClick={handleClick}
     >
-      <CardContent>
+      <CardContent sx={{ p: 3 }}>
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
             mb: 2,
           }}
         >
           <Typography
-            variant="h6"
-            color="text.secondary"
+            variant="subtitle1"
             sx={{
-              fontSize: isMobile ? '0.875rem' : '1rem',
-              fontWeight: 500,
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: 'text.secondary',
             }}
           >
             {title}
           </Typography>
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              backgroundColor: `${getStatusColor(color)}20`,
-              color: getStatusColor(color),
+              color: 'text.primary',
+              transform: 'scale(1.2)',
             }}
           >
             {icon}
@@ -122,33 +120,34 @@ const StatsCard: React.FC<StatsCardProps> = ({
           <Skeleton
             variant="text"
             width="60%"
-            height={40}
-            sx={{ fontSize: '2rem' }}
+            height={60}
           />
         ) : error ? (
           <Alert
             severity="error"
             sx={{
-              p: 1,
+              p: 0,
               minHeight: 40,
+              borderRadius: 0,
               alignItems: 'center',
               '& .MuiAlert-message': { p: 0 },
             }}
           >
             <Typography variant="body2" color="error">
-              Failed to load
+              Error
             </Typography>
           </Alert>
         ) : (
           <Typography
-            variant="h3"
+            variant="h2"
             component="div"
             sx={{
-              fontWeight: 'bold',
-              color: getStatusColor(color),
-              mb: 1,
-              fontSize: isMobile ? '2rem' : '2.5rem',
-              lineHeight: 1.2,
+              fontWeight: 900,
+              color: 'text.primary',
+              mb: 0,
+              fontSize: isMobile ? '2.5rem' : '3.5rem',
+              lineHeight: 1,
+              letterSpacing: '-0.03em',
             }}
           >
             {formatValue(value)}
@@ -237,18 +236,21 @@ const StatsCards: React.FC<StatsCardsProps> = ({
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <TrendingUpIcon sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
-          Dashboard Overview
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <Typography variant="h5" component="h2" sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+          OVERVIEW
         </Typography>
         {isLoading && (
           <Chip
             label="Refreshing..."
             size="small"
-            color="primary"
-            variant="outlined"
-            sx={{ ml: 2 }}
+            sx={{
+              ml: 2,
+              borderRadius: 0,
+              border: '1px solid #000',
+              fontWeight: 600,
+              bgcolor: 'transparent'
+            }}
           />
         )}
       </Box>
@@ -294,21 +296,33 @@ const StatsCards: React.FC<StatsCardsProps> = ({
             gap: 3,
           }}
         >
-          <Card sx={{ bgcolor: 'background.default' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+          <Card
+            elevation={0}
+            sx={{
+              border: '2px solid #000',
+              borderRadius: 0,
+              height: '100%'
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 2 }}>
                 Category Breakdown
               </Typography>
               {Object.keys(stats.categoryBreakdown || {}).length > 0 ? (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                   {Object.entries(stats.categoryBreakdown).map(([category, count]) => (
-                    <Chip
+                    <Box
                       key={category}
-                      label={`${category}: ${count}`}
-                      variant="outlined"
-                      size="small"
-                      color="primary"
-                    />
+                      sx={{
+                        border: '1px solid #000',
+                        px: 1.5,
+                        py: 0.5,
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {category}: {count}
+                    </Box>
                   ))}
                 </Box>
               ) : (
@@ -318,12 +332,19 @@ const StatsCards: React.FC<StatsCardsProps> = ({
               )}
             </CardContent>
           </Card>
-          <Card sx={{ bgcolor: 'background.default' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Total Portfolio Value
+          <Card
+            elevation={0}
+            sx={{
+              border: '2px solid #000',
+              borderRadius: 0,
+              height: '100%'
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 1 }}>
+                Portfolio Value
               </Typography>
-              <Typography variant="h4" color="primary.main" sx={{ fontWeight: 'bold' }}>
+              <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em' }}>
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: 'USD',

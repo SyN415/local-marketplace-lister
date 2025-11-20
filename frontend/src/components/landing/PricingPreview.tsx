@@ -24,16 +24,16 @@ const PricingPreview: React.FC = () => {
               component="h2"
               sx={{ fontWeight: 800, mb: 2 }}
             >
-              Simple, Transparent Pricing
+              Flexible Credit System
             </Typography>
             <Typography variant="h5" color="text.secondary">
-              Start for free, upgrade when you scale.
+              No monthly subscriptions. Pay only when you sell.
             </Typography>
           </motion.div>
         </Box>
 
         <Grid container spacing={4} justifyContent="center">
-          {/* Free Plan */}
+          {/* Starter Pack */}
           <Grid size={{ xs: 12, md: 5 }}>
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -44,8 +44,8 @@ const PricingPreview: React.FC = () => {
               <Card
                 sx={{
                   height: '100%',
-                  background: theme.palette.mode === 'dark' 
-                    ? 'rgba(30, 41, 59, 0.4)' 
+                  background: theme.palette.mode === 'dark'
+                    ? 'rgba(30, 41, 59, 0.4)'
                     : 'rgba(255, 255, 255, 0.8)',
                   backdropFilter: 'blur(12px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -54,20 +54,20 @@ const PricingPreview: React.FC = () => {
               >
                 <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', height: '100%' }}>
                   <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Free
+                    Starter Pack
                   </Typography>
                   <Typography variant="h3" fontWeight="800" sx={{ mb: 1 }}>
-                    $0
+                    $10
                     <Typography component="span" variant="h6" color="text.secondary">
-                      /mo
+                      /10 credits
                     </Typography>
                   </Typography>
                   <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                    Perfect for getting started.
+                    Perfect for testing the waters.
                   </Typography>
 
                   <List sx={{ mb: 4, flex: 1 }}>
-                    {['5 Active Listings', 'Basic Analytics', 'Manual Cross-Posting', 'Community Support'].map((item, index) => (
+                    {['$1.00 per post', 'Credits never expire', 'Access to all features', 'Community Support'].map((item, index) => (
                       <ListItem key={index} disableGutters>
                         <ListItemIcon sx={{ minWidth: 36 }}>
                           <CheckCircleIcon color="primary" fontSize="small" />
@@ -92,7 +92,7 @@ const PricingPreview: React.FC = () => {
             </motion.div>
           </Grid>
 
-          {/* Pro Plan */}
+          {/* Hustler Pack */}
           <Grid size={{ xs: 12, md: 5 }}>
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -126,24 +126,24 @@ const PricingPreview: React.FC = () => {
                     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                   }}
                 >
-                  MOST POPULAR
+                  BEST VALUE
                 </Box>
                 <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', height: '100%' }}>
                   <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Pro
+                    Hustler Pack
                   </Typography>
                   <Typography variant="h3" fontWeight="800" sx={{ mb: 1 }}>
-                    $29
+                    $20
                     <Typography component="span" variant="h6" color="text.secondary">
-                      /mo
+                      /25 credits
                     </Typography>
                   </Typography>
                   <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                    For serious sellers scaling up.
+                    Best value for regular sellers.
                   </Typography>
 
                   <List sx={{ mb: 4, flex: 1 }}>
-                    {['Unlimited Listings', 'Advanced Analytics', '1-Click Cross-Posting', 'AI Description Generator', 'Priority Support'].map((item, index) => (
+                    {['$0.80 per post (20% off)', 'Credits never expire', 'Priority Listing', 'AI Description Generator', 'Premium Support'].map((item, index) => (
                       <ListItem key={index} disableGutters>
                         <ListItemIcon sx={{ minWidth: 36 }}>
                           <CheckCircleIcon color="secondary" fontSize="small" />
@@ -162,7 +162,7 @@ const PricingPreview: React.FC = () => {
                     onClick={() => navigate('/signup')}
                     sx={{ borderRadius: '50px', py: 1.5 }}
                   >
-                    Start Free Trial
+                    Buy Credits
                   </Button>
                 </CardContent>
               </Card>

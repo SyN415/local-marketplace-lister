@@ -467,15 +467,13 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     <FormProvider {...methods}>
       <Container maxWidth="md" sx={{ py: 4 }}>
         <Paper
-          className="glass-card"
           elevation={0}
           sx={{
             p: { xs: 3, md: 5 },
-            borderRadius: 4,
-            background: 'rgba(255, 255, 255, 0.7)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.5)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.05)',
+            borderRadius: 0,
+            background: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
           }}
         >
           {/* Header */}
@@ -567,6 +565,21 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       startIcon={<ChevronLeft />}
                       onClick={handleBack}
                       disabled={isSubmitting || isSaving}
+                      sx={{
+                        borderRadius: 0,
+                        borderWidth: 2,
+                        borderColor: 'text.primary',
+                        color: 'text.primary',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        '&:hover': {
+                          borderWidth: 2,
+                          borderColor: 'text.primary',
+                          bgcolor: 'text.primary',
+                          color: 'background.paper',
+                        },
+                      }}
                     >
                       Back
                     </Button>
@@ -580,6 +593,21 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                     startIcon={isSaving ? <CircularProgress size={16} /> : <Save />}
                     onClick={handleSaveDraft}
                     disabled={isSubmitting || isSaving}
+                    sx={{
+                      borderRadius: 0,
+                      borderWidth: 2,
+                      borderColor: 'text.primary',
+                      color: 'text.primary',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      '&:hover': {
+                        borderWidth: 2,
+                        borderColor: 'text.primary',
+                        bgcolor: 'text.primary',
+                        color: 'background.paper',
+                      },
+                    }}
                   >
                     {isSaving ? 'Saving...' : formConfig.saveDraftButtonText}
                   </Button>
@@ -591,15 +619,17 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       endIcon={<ChevronRight />}
                       onClick={handleNext}
                       disabled={isSubmitting || isSaving}
+                      disableElevation
                       sx={{
                         px: 4,
                         py: 1,
-                        borderRadius: 2,
-                        background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                        borderRadius: 0,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        bgcolor: 'primary.main',
                         '&:hover': {
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)',
-                          boxShadow: '0 6px 16px rgba(99, 102, 241, 0.4)',
+                          bgcolor: 'primary.dark',
                         }
                       }}
                     >
@@ -610,6 +640,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       type="submit"
                       variant="contained"
                       disabled={!isValid || isSubmitting || isSaving}
+                      disableElevation
                       startIcon={
                         isSubmitting ? (
                           <CircularProgress size={16} color="inherit" />
@@ -620,12 +651,13 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       sx={{
                         px: 4,
                         py: 1,
-                        borderRadius: 2,
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                        borderRadius: 0,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        bgcolor: 'primary.main',
                         '&:hover': {
-                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+                          bgcolor: 'primary.dark',
                         }
                       }}
                     >

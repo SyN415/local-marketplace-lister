@@ -85,6 +85,26 @@ const DescriptionField: React.FC<TextFieldProps> = ({
             multiline={multiline}
             rows={rows}
             error={!!fieldState.error}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 0,
+                '& fieldset': {
+                  borderColor: 'divider',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'text.primary',
+                },
+                '&.Mui-focused fieldset': {
+                  borderWidth: 2,
+                },
+              },
+              '& .MuiInputLabel-root': {
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontSize: '0.75rem',
+              },
+            }}
             helperText={
               <Box>
                 <Typography variant="caption" color={getHelperTextColor()}>

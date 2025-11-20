@@ -135,10 +135,11 @@ const ImageUpload: React.FC<ExtendedImageUploadProps> = ({
                 textAlign: 'center',
                 cursor: currentFiles.length >= maxFiles ? 'not-allowed' : 'pointer',
                 bgcolor: isDragActive ? 'action.hover' : 'background.paper',
-                borderColor: isDragActive ? 'primary.main' : 
+                borderColor: isDragActive ? 'primary.main' :
                              isDragReject || !!fieldState.error ? 'error.main' : 'divider',
                 borderStyle: 'dashed',
                 borderWidth: 2,
+                borderRadius: 0,
                 transition: 'all 0.2s ease-in-out',
                 '&:hover': {
                   borderColor: currentFiles.length >= maxFiles ? 'divider' : 'primary.main',
@@ -199,17 +200,17 @@ const ImageUpload: React.FC<ExtendedImageUploadProps> = ({
                       src={file.preview}
                       alt={`Preview ${index + 1}`}
                       loading="lazy"
-                      style={{ 
-                        height: '100%', 
+                      style={{
+                        height: '100%',
                         objectFit: 'cover',
-                        borderRadius: 4,
+                        borderRadius: 0,
                       }}
                     />
                     <ImageListItemBar
                       sx={{
                         background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)',
-                        borderTopLeftRadius: 4,
-                        borderTopRightRadius: 4,
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: 0,
                       }}
                       position="top"
                       actionIcon={
@@ -234,57 +235,50 @@ const ImageUpload: React.FC<ExtendedImageUploadProps> = ({
                           position="bottom"
                           sx={{
                             background: 'rgba(0, 0, 0, 0.6)',
-                            borderBottomLeftRadius: 4,
-                            borderBottomRightRadius: 4,
+                            borderBottomLeftRadius: 0,
+                            borderBottomRightRadius: 0,
                             '& .MuiImageListItemBar-title': {
                               fontSize: '0.75rem',
                               textAlign: 'center',
                             }
                           }}
                         />
-                        {onAnalysisComplete && (
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              top: '50%',
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              zIndex: 2,
-                              opacity: 0,
-                              transition: 'opacity 0.2s',
-                              '.MuiImageListItem-root:hover &': {
-                                opacity: 1,
-                              },
-                            }}
-                          >
-                            <Button
-                              variant="contained"
-                              size="small"
-                              startIcon={isAnalyzing ? <CircularProgress size={16} color="inherit" /> : <AutoAwesome />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAnalyze(file);
-                              }}
-                              disabled={isAnalyzing}
-                              sx={{
-                                background: 'rgba(255, 255, 255, 0.9)',
-                                color: 'primary.main',
-                                '&:hover': {
-                                  background: '#fff',
-                                },
-                                whiteSpace: 'nowrap',
-                                boxShadow: 3,
-                              }}
-                            >
-                              {isAnalyzing ? 'Analyzing...' : 'Auto-fill Details'}
-                            </Button>
-                          </Box>
-                        )}
                       </>
                     )}
                   </ImageListItem>
                 ))}
               </ImageList>
+            )}
+
+            {/* Auto-fill Button */}
+            {previews.length > 0 && onAnalysisComplete && (
+              <Box sx={{ mt: 3 }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  startIcon={isAnalyzing ? <CircularProgress size={20} color="inherit" /> : <AutoAwesome />}
+                  onClick={() => handleAnalyze(previews[0])}
+                  disabled={isAnalyzing}
+                  sx={{
+                    py: 1.5,
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    borderRadius: 0,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      boxShadow: 'none',
+                    },
+                  }}
+                >
+                  {isAnalyzing ? 'Analyzing Images...' : 'Analyze Images & Auto-Fill Details'}
+                </Button>
+                <Typography variant="caption" color="text.secondary" align="center" sx={{ display: 'block', mt: 1 }}>
+                  Use AI to scan your cover image and automatically generate listing details
+                </Typography>
+              </Box>
             )}
           </Box>
         )}

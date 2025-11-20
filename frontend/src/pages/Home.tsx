@@ -23,8 +23,8 @@ const Home: React.FC = () => {
   return (
     <Box
       sx={{
-        bgcolor: theme.palette.background.default,
-        color: theme.palette.text.primary,
+        bgcolor: 'background.paper',
+        color: 'text.primary',
         minHeight: '100vh',
         overflowX: 'hidden',
       }}

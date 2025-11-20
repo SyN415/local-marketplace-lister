@@ -60,7 +60,10 @@ export const ListingFormSchema = z.object({
   price: z.number()
     .positive('Price must be greater than 0')
     .max(999999.99, 'Price must be less than $999,999.99')
-    .refine((val) => val.toString().split('.')[1]?.length <= 2, {
+    .refine((val) => {
+      const parts = val.toString().split('.');
+      return parts.length === 1 || parts[1].length <= 2;
+    }, {
       message: 'Price can have at most 2 decimal places',
     }),
   category: z.enum(LISTING_CATEGORIES, 'Please select a category'),

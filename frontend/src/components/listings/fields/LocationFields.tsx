@@ -35,6 +35,21 @@ const LocationFields: React.FC<LocationFieldProps> = ({
   const maxRadiusPixels = mapSize / 2 - 20; // padding
   const pixelRadius = 20 + ((distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)) * (maxRadiusPixels - 20);
 
+  const inputStyles = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 0,
+      '& fieldset': { borderColor: 'divider' },
+      '&:hover fieldset': { borderColor: 'text.primary' },
+      '&.Mui-focused fieldset': { borderWidth: 2 },
+    },
+    '& .MuiInputLabel-root': {
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      fontSize: '0.75rem',
+    },
+  };
+
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
@@ -61,6 +76,7 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                     disabled={disabled}
                     error={!!fieldState.error || !!errors?.zipCode}
                     helperText={fieldState.error?.message || errors?.zipCode}
+                    sx={inputStyles}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -120,6 +136,7 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                       disabled={disabled}
                       error={!!fieldState.error || !!errors?.city}
                       helperText={fieldState.error?.message || errors?.city}
+                      sx={inputStyles}
                       onChange={(e) => {
                           field.onChange(e);
                           onChange({ ...value, city: e.target.value });
@@ -140,6 +157,7 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                       disabled={disabled}
                       error={!!fieldState.error || !!errors?.state}
                       helperText={fieldState.error?.message || errors?.state}
+                      sx={inputStyles}
                        onChange={(e) => {
                           field.onChange(e);
                           onChange({ ...value, state: e.target.value });
@@ -161,6 +179,7 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                     placeholder="Specific address is hidden on public listing"
                     error={!!fieldState.error || !!errors?.address}
                     helperText={fieldState.error?.message || errors?.address}
+                    sx={inputStyles}
                      onChange={(e) => {
                           field.onChange(e);
                           onChange({ ...value, address: e.target.value });
@@ -179,7 +198,7 @@ const LocationFields: React.FC<LocationFieldProps> = ({
               width: '100%',
               height: mapSize,
               bgcolor: '#e5e7eb', // gray-200
-              borderRadius: 4,
+              borderRadius: 0,
               position: 'relative',
               overflow: 'hidden',
               border: '1px solid #d1d5db',

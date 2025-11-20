@@ -1,8 +1,91 @@
-import React, { useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TextField, InputAdornment, Box, Typography } from '@mui/material';
 import { AttachMoney } from '@mui/icons-material';
 import { useFormContext, Controller } from 'react-hook-form';
 import type { TextFieldProps } from '../../../types/forms';
+
+// Internal component to handle decimal input state
+interface PriceInputProps extends Omit<TextFieldProps, 'onChange' | 'value' | 'error' | 'helperText'> {
+  value: number;
+  onChange: (value: number) => void;
+  error?: boolean;
+  helperText?: React.ReactNode;
+  onFocus?: (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  onBlur?: (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  InputProps?: any;
+}
+
+const PriceInput: React.FC<PriceInputProps> = ({
+  value,
+  onChange,
+  onFocus,
+  onBlur,
+  InputProps,
+  ...props
+}) => {
+  const [localValue, setLocalValue] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync with parent value when not focused
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalValue(value ? value.toString() : '');
+    }
+  }, [value, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    // Allow empty, digits, one decimal point, max 2 decimal places
+    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+      setLocalValue(val);
+      const num = parseFloat(val);
+      onChange(isNaN(num) ? 0 : num);
+    }
+  };
+
+  return (
+    <TextField
+      {...props as any}
+      value={localValue}
+      onChange={handleChange}
+      onFocus={(e) => {
+        setIsFocused(true);
+        if (onFocus) onFocus(e);
+      }}
+      onBlur={(e) => {
+        setIsFocused(false);
+        // On blur, ensure valid string format matches the number
+        const num = parseFloat(localValue);
+        setLocalValue(num ? num.toString() : '');
+        if (onBlur) onBlur(e);
+      }}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          borderRadius: 0,
+          '& fieldset': {
+            borderColor: 'divider',
+          },
+          '&:hover fieldset': {
+            borderColor: 'text.primary',
+          },
+          '&.Mui-focused fieldset': {
+            borderWidth: 2,
+          },
+        },
+        '& .MuiInputLabel-root': {
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontSize: '0.75rem',
+        },
+      }}
+      InputProps={{
+        ...InputProps,
+        inputMode: 'decimal',
+      }}
+    />
+  );
+};
 
 /**
  * PriceField component for listing prices with currency formatting
@@ -27,44 +110,6 @@ const PriceField: React.FC<TextFieldProps> = ({
   const error = errors[name]?.message as string;
   const isTouched = touchedFields[name];
 
-  /**
-   * Format price as currency
-   */
-  const formatPrice = useCallback((value: string): string => {
-    // Remove all non-digit characters except decimal point
-    const cleanValue = value.replace(/[^\d.]/g, '');
-    
-    // Ensure only one decimal point
-    const parts = cleanValue.split('.');
-    if (parts.length > 2) {
-      return parts[0] + '.' + parts.slice(1).join('');
-    }
-    
-    // Limit to 2 decimal places
-    if (parts[1] && parts[1].length > 2) {
-      return parts[0] + '.' + parts[1].substring(0, 2);
-    }
-    
-    return cleanValue;
-  }, []);
-
-  /**
-   * Handle price input changes
-   */
-  const handlePriceChange = useCallback((field: any, value: string) => {
-    const formattedValue = formatPrice(value);
-    const numericValue = parseFloat(formattedValue) || 0;
-    
-    field.onChange(numericValue);
-  }, [formatPrice]);
-
-  /**
-   * Format display value for input
-   */
-  const formatDisplayValue = (value: number): string => {
-    return value ? value.toString() : '';
-  };
-
   return (
     <Box>
       <Controller
@@ -82,7 +127,8 @@ const PriceField: React.FC<TextFieldProps> = ({
           },
         }}
         render={({ field, fieldState }) => (
-          <TextField
+          <PriceInput
+            {...props}
             {...field}
             fullWidth={fullWidth}
             label={label}
@@ -91,8 +137,6 @@ const PriceField: React.FC<TextFieldProps> = ({
             variant={variant}
             type="text"
             error={!!fieldState.error}
-            value={formatDisplayValue(field.value)}
-            onChange={(e) => handlePriceChange(field, e.target.value)}
             helperText={
               <Box>
                 <Typography variant="caption" color={error && isTouched ? 'error' : 'text.secondary'}>
@@ -117,11 +161,8 @@ const PriceField: React.FC<TextFieldProps> = ({
                   <AttachMoney color="action" />
                 </InputAdornment>
               ),
-              inputMode: 'decimal',
-              pattern: '[0-9]*',
               ...(props as any).InputProps,
             }}
-            {...props}
           />
         )}
       />
@@ -132,9 +173,9 @@ const PriceField: React.FC<TextFieldProps> = ({
           mt: 1,
           p: 1,
           bgcolor: 'grey.50',
-          borderRadius: 1,
+          borderRadius: 0,
           border: '1px solid',
-          borderColor: 'grey.200',
+          borderColor: 'divider',
         }}
       >
         <Typography variant="caption" color="text.secondary">

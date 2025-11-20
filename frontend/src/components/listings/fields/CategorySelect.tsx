@@ -46,6 +46,26 @@ const CategorySelect: React.FC<SelectFieldProps> = ({
             variant={variant}
             select
             error={Boolean(fieldState.error)}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 0,
+                '& fieldset': {
+                  borderColor: 'divider',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'text.primary',
+                },
+                '&.Mui-focused fieldset': {
+                  borderWidth: 2,
+                },
+              },
+              '& .MuiInputLabel-root': {
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontSize: '0.75rem',
+              },
+            }}
             helperText={
               <Typography variant="caption" color={error && isTouched ? 'error' : 'text.secondary'}>
                 {error && isTouched
@@ -79,7 +99,7 @@ const CategorySelect: React.FC<SelectFieldProps> = ({
           mt: 1,
           p: 1,
           bgcolor: 'info.light',
-          borderRadius: 1,
+          borderRadius: 0,
           border: '1px solid',
           borderColor: 'info.main',
         }}

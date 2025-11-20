@@ -5,8 +5,8 @@ import RecentListings from '../components/dashboard/RecentListings';
 
 const Dashboard: React.FC = () => {
   return (
-    <Container maxWidth="lg" sx={{ mt: 0, mb: 4 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Typography variant="h3" component="h1" sx={{ fontWeight: 900, mb: 4, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
         Dashboard
       </Typography>
       
