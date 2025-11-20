@@ -256,4 +256,15 @@ This entry documents the critical fixes deployed for user signup reliability and
 
 ---
 
+### November 20, 2025 - AI Image Analysis Enhancement 🤖
+**Session Summary:**
+Refactoring the AI service to provide more targeted, sales-oriented analysis of uploaded images. The goal is to better identify sellable items and generate persuasive descriptions that drive sales, rather than generic scene descriptions.
+
+**Current Task Requirements:**
+- [ ] Identify sellable items (Apparel, Electronics, Home & Garden, etc.).
+- [ ] Generate concise, persuasive, sales-oriented descriptions.
+- [ ] Return structured JSON: `{ itemDescription, category }`.
+- [ ] Handle "no sellable items" case.
+- [ ] Update AI prompt with specific role (Expert sales copywriter) and constraints.
+
 *This development log will be updated regularly throughout the project lifecycle to track progress, document decisions, and maintain development momentum.*

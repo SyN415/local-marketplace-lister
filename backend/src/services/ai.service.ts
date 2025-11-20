@@ -39,7 +39,18 @@ export class AIService {
             content: [
               {
                 type: "text",
-                text: "Analyze this image and provide a listing description for a marketplace. Return a valid JSON object with the following fields: title, description, category (suggested), condition (suggested: 'New', 'Like New', 'Good', 'Fair', 'Poor'), and estimatedPrice (optional number). Ensure the description is detailed and highlights key features. DO NOT wrap the JSON in markdown code blocks."
+                text: `You are an expert sales copywriter and visual merchandiser. Your goal is to identify sellable items and describe them persuasively.
+    
+    Analyze this image and return a valid JSON object with the following fields:
+    - title: A catchy, search-optimized title.
+    - description: A concise, persuasive, sales-oriented description. Identify the item(s) (prioritizing the top 3 most prominent if multiple) and highlight key features/benefits. Do not describe the full scene or background. Do not include personal details.
+    - category: Choose strictly from: 'Apparel & Accessories', 'Electronics', 'Home & Garden', 'Automotive', 'Beauty & Personal Care', 'Books & Media', 'Sports & Outdoors', 'Toys & Hobbies', 'Food & Beverage', 'Health & Wellness', 'Pets & Supplies', 'Business & Office', 'Art & Collectibles', 'Miscellaneous'.
+    - condition: One of: 'New', 'Like New', 'Good', 'Fair', 'Poor'.
+    - price: A number representing the estimated market value.
+    
+    If no sellable items are clearly visible, return category 'Miscellaneous' and a description advising to upload a clearer photo.
+    
+    Output pure JSON only. Do not use markdown formatting.`
               },
               {
                 type: "image_url",

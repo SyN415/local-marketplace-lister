@@ -62,7 +62,7 @@ export interface TextFieldProps extends BaseFieldProps {
  * Select field props
  */
 export interface SelectFieldProps extends BaseFieldProps {
-  options: Array<{
+  options?: Array<{
     value: string;
     label: string;
     disabled?: boolean;

@@ -346,8 +346,8 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
             <TitleField id="title" name="title" label="Title" />
             <PriceField id="price" name="price" label="Price" />
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
-              <CategorySelect id="category" name="category" label="Category" options={[]} />
-              <ConditionSelect id="condition" name="condition" label="Condition" options={[]} />
+              <CategorySelect id="category" name="category" label="Category" />
+              <ConditionSelect id="condition" name="condition" label="Condition" />
             </Box>
             <DescriptionField id="description" name="description" label="Description" />
           </Box>

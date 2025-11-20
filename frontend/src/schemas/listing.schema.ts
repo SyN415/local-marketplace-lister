@@ -4,19 +4,20 @@ import { z } from 'zod';
  * Categories for listings
  */
 export const LISTING_CATEGORIES = [
+  'Apparel & Accessories',
   'Electronics',
-  'Clothing & Accessories',
   'Home & Garden',
-  'Sports & Recreation',
-  'Books & Media',
-  'Toys & Games',
   'Automotive',
-  'Health & Beauty',
-  'Business & Industrial',
-  'Collectibles & Antiques',
-  'Jewelry & Watches',
-  'Musical Instruments',
-  'Other'
+  'Beauty & Personal Care',
+  'Books & Media',
+  'Sports & Outdoors',
+  'Toys & Hobbies',
+  'Food & Beverage',
+  'Health & Wellness',
+  'Pets & Supplies',
+  'Business & Office',
+  'Art & Collectibles',
+  'Miscellaneous'
 ] as const;
 
 /**

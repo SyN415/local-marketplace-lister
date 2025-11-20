@@ -96,23 +96,20 @@ export interface ListingSearchResponse {
 }
 
 export const LISTING_CATEGORIES = [
-  'electronics',
-  'clothing',
-  'home_garden',
-  'automotive',
-  'books',
-  'sports',
-  'toys',
-  'furniture',
-  'tools',
-  'collectibles',
-  'art',
-  'music',
-  'jewelry',
-  'beauty',
-  'health',
-  'books_media',
-  'other'
+  'Apparel & Accessories',
+  'Electronics',
+  'Home & Garden',
+  'Automotive',
+  'Beauty & Personal Care',
+  'Books & Media',
+  'Sports & Outdoors',
+  'Toys & Hobbies',
+  'Food & Beverage',
+  'Health & Wellness',
+  'Pets & Supplies',
+  'Business & Office',
+  'Art & Collectibles',
+  'Miscellaneous'
 ] as const;
 
 export const LISTING_CONDITIONS = [
