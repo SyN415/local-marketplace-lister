@@ -16,6 +16,7 @@ const Home: React.FC = () => {
   // This logic might be better placed in a route guard or App.tsx,
   // but for now we'll keep the Home page as the Landing page for non-auth users.
   if (!isLoading && user) {
+    console.log('[Debug] Home page redirecting to /dashboard. Current path:', window.location.pathname);
     return <Navigate to="/dashboard" replace />;
   }
 

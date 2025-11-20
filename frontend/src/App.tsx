@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Page components
 import Home from './pages/Home';
+import Dashboard from './pages/Dashboard';
 import Listings from './pages/Listings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -40,6 +41,15 @@ const AppRouter: React.FC = () => {
           <Route path="/payment/cancel" element={<Cancel />} />
           
           {/* Protected Routes (require authentication) */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          
           <Route
             path="/create-listing"
             element={

@@ -89,6 +89,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []); // Empty deps - relies on closure
   
   // Handle login success (redirect after successful login)
+  // Debug log for auth state changes
+  React.useEffect(() => {
+    console.log('[AuthContext Debug] Auth State Changed:', { 
+      isAuthenticated: authState.isAuthenticated, 
+      isLoading: authState.isLoading,
+      hasUser: !!authState.user,
+      path: window.location.pathname
+    });
+  }, [authState.isAuthenticated, authState.isLoading, authState.user]);
   React.useEffect(() => {
     if (authState.isAuthenticated && authState.user) {
       // Get redirect URL from query params or localStorage
