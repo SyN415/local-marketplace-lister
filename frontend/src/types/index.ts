@@ -6,6 +6,8 @@ export interface User {
   phone?: string;
   createdAt: string;
   updatedAt: string;
+  stripeCustomerId?: string;
+  credits: number;
 }
 
 export interface Listing {

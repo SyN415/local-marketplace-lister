@@ -11,6 +11,9 @@ import Listings from './pages/Listings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import CreateListing from './pages/CreateListing';
+import Pricing from './pages/Pricing';
+import Success from './pages/payment/Success';
+import Cancel from './pages/payment/Cancel';
 
 /**
  * App Router Component
@@ -32,6 +35,9 @@ const AppRouter: React.FC = () => {
           <Route path="/listings" element={<Listings />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/payment/success" element={<Success />} />
+          <Route path="/payment/cancel" element={<Cancel />} />
           
           {/* Protected Routes (require authentication) */}
           <Route

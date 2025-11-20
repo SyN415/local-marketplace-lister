@@ -95,6 +95,7 @@ class AuthService {
         email: email,
         full_name: full_name || '',
         phone: phone || '',
+        credits: 5, // Give 5 free credits on signup
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

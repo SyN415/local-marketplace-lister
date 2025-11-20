@@ -32,14 +32,14 @@ export class AIService {
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: "openai/gpt-4o",
+        model: "google/gemini-flash-1.5", // Switch to Gemini Flash via OpenRouter
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Analyze this image and provide a listing description for a marketplace. Return a JSON object with the following fields: title, description, category (suggested), condition (suggested: 'New', 'Like New', 'Good', 'Fair', 'Poor'), and estimatedPrice (optional number). Ensure the description is detailed and highlights key features."
+                text: "Analyze this image and provide a listing description for a marketplace. Return a valid JSON object with the following fields: title, description, category (suggested), condition (suggested: 'New', 'Like New', 'Good', 'Fair', 'Poor'), and estimatedPrice (optional number). Ensure the description is detailed and highlights key features. DO NOT wrap the JSON in markdown code blocks."
               },
               {
                 type: "image_url",
@@ -51,7 +51,7 @@ export class AIService {
           },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 500,
+        max_tokens: 1000,
       });
 
       const content = response.choices[0].message.content;
@@ -59,7 +59,9 @@ export class AIService {
         throw new Error('No content received from OpenAI');
       }
 
-      return JSON.parse(content);
+      // Clean up potential markdown code blocks if Gemini adds them
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      return JSON.parse(cleanContent);
     } catch (error) {
       console.error('Error analyzing image:', error);
       throw new Error('Failed to analyze image');

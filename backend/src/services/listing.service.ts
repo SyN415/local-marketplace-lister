@@ -16,6 +16,50 @@ import {
  */
 class ListingService {
   /**
+   * Deduct a credit from the user's account
+   * @param userId - ID of the user
+   * @returns Success boolean and current credits
+   */
+  async deductCredit(userId: string): Promise<{ success: boolean; credits?: number; error?: string }> {
+    try {
+      // Start a transaction-like operation (Supabase doesn't fully support transactions via JS client yet easily,
+      // but we can do a check-and-update or use a stored procedure. For MVP, check-and-update is okay-ish but race-condition prone.
+      // A better way is to use the `decrement` approach if possible, or a stored procedure.
+      // We'll fetch first, check, then update.)
+
+      const { data: profile, error: fetchError } = await supabaseAdmin
+        .from('profiles')
+        .select('credits')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError || !profile) {
+        return { success: false, error: 'User profile not found' };
+      }
+
+      if (profile.credits < 1) {
+        return { success: false, error: 'Insufficient credits', credits: profile.credits };
+      }
+
+      const { data: updatedProfile, error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ credits: profile.credits - 1 })
+        .eq('id', userId)
+        .select('credits')
+        .single();
+
+      if (updateError) {
+        return { success: false, error: 'Failed to deduct credit' };
+      }
+
+      return { success: true, credits: updatedProfile.credits };
+    } catch (error) {
+      console.error('Deduct credit error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
    * Create a new listing
    * @param userId - ID of the user creating the listing
    * @param data - Listing creation data

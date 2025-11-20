@@ -160,6 +160,7 @@ export interface ListingCardActions {
   onEdit?: (listing: ListingsListItem) => void;
   onDelete?: (listing: ListingsListItem) => void;
   onToggleFavorite?: (listing: ListingsListItem) => void;
+  onCrossPost?: (listing: ListingsListItem) => void;
 }
 
 /**

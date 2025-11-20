@@ -25,6 +25,7 @@ import {
   Share as ShareIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 // Import components
 import SearchBar from '../components/listings/SearchBar';
@@ -68,6 +69,7 @@ const Listings: React.FC<ListingsPageProps> = ({
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { user } = useAuth();
 
   // State management
   const [listings, setListings] = useState<ListingsListItem[]>([]);
@@ -385,6 +387,30 @@ const Listings: React.FC<ListingsPageProps> = ({
     setSnackbar({ open: true, message: 'Shareable link copied to clipboard', severity: 'success' });
   }, []);
 
+  const handleCrossPost = useCallback((listing: ListingsListItem) => {
+    if (!user) return;
+
+    if ((user.credits || 0) < 1) {
+      setSnackbar({
+        open: true,
+        message: 'Insufficient credits. Please purchase more to cross-post.',
+        severity: 'warning'
+      });
+      // Optional: redirect to pricing after a delay or show a button
+      setTimeout(() => navigate('/pricing'), 1500);
+      return;
+    }
+
+    // Logic to initiate cross-post (e.g. open extension or modal)
+    // For now, we just simulate success/start
+    setSnackbar({
+      open: true,
+      message: `Starting cross-post for "${listing.title}". Opening extension...`,
+      severity: 'info'
+    });
+    // In a real scenario, this would trigger the extension or an API call
+  }, [user, navigate]);
+
   // Compute active filters count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -564,6 +590,11 @@ const Listings: React.FC<ListingsPageProps> = ({
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         emptyState={emptyStateConfig}
+        actions={{
+          onView: handleListingClick,
+          onCrossPost: handleCrossPost,
+          // Add other actions if implemented in the page (e.g. onEdit, onDelete)
+        }}
       />
 
       {/* Floating action button */}

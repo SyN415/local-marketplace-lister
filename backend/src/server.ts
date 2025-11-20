@@ -10,6 +10,8 @@ import { authRoutes } from './routes/auth.routes';
 import { listingRoutes } from './routes/listing.routes';
 import { healthRoutes } from './routes/health.routes';
 import { aiRoutes } from './routes/ai.routes';
+import paymentRoutes from './routes/payment.routes';
+import webhookRoutes from './routes/webhook.routes';
 
 const app = express();
 
@@ -32,6 +34,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Webhook routes (must be before body parsing)
+app.use('/api/payments', webhookRoutes);
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -44,6 +49,7 @@ app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Serve static files from the frontend build directory
 const frontendPath = path.join(__dirname, '../../frontend/dist');

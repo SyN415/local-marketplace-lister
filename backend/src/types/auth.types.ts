@@ -21,6 +21,8 @@ export interface UserProfile {
   location?: string;
   created_at: string;
   updated_at: string;
+  stripe_customer_id?: string;
+  credits: number;
 }
 
 export interface AuthResponse {

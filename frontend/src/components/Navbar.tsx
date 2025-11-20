@@ -195,6 +195,19 @@ const Navbar: React.FC = () => {
                     </Typography>
                   </Box>
                 </MenuItem>
+
+                <Divider />
+
+                <MenuItem onClick={() => navigate('/pricing')}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <Typography variant="body2" fontWeight="bold" color="primary">
+                      Credits: {user?.credits ?? 0}
+                    </Typography>
+                    <Typography variant="caption" color="primary" sx={{ ml: 1, textDecoration: 'underline' }}>
+                      Add
+                    </Typography>
+                  </Box>
+                </MenuItem>
                 
                 <Divider />
                 

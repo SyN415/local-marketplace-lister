@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Marketplace Lister PoC",
+  "version": "1.0",
+  "description": "PoC for cross-listing to Craigslist",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.craigslist.org/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
+}

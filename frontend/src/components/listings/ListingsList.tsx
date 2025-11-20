@@ -32,6 +32,7 @@ import {
   Delete as DeleteIcon,
   FavoriteBorder as FavoriteBorderIcon,
   Add as AddIcon,
+  Send as SendIcon,
 } from '@mui/icons-material';
 import type {
   ListingsListProps,
@@ -267,6 +268,19 @@ const ListingCard: React.FC<{
               }}
             >
               Edit
+            </Button>
+          )}
+          {actions?.onCrossPost && (
+            <Button
+              size="small"
+              startIcon={<SendIcon />}
+              onClick={(e) => {
+                e.stopPropagation();
+                actions.onCrossPost?.(listing);
+              }}
+              sx={{ color: 'secondary.main' }}
+            >
+              Post
             </Button>
           )}
           {actions?.onDelete && (
