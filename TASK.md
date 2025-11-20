@@ -267,6 +267,14 @@ Resolved several TypeScript build errors that were blocking the CI/CD pipeline. 
 - [x] Fixed unused variables in `frontend/src/pages/Home.tsx`.
 - [x] Verified changes and pushed to main repository.
 
+### November 20, 2025 - Tailwind CSS v4 Build Fix 🎨
+**Session Summary:**
+Fixed a build failure caused by Tailwind CSS v4. The PostCSS plugin has moved to a separate package `@tailwindcss/postcss`. Updated configuration to ensure successful production builds on Render.
+
+**Completed Tasks:**
+- [x] Added `@tailwindcss/postcss` to frontend dependencies.
+- [x] Updated `frontend/postcss.config.js` to use the new `@tailwindcss/postcss` plugin.
+
 ---
 **Session Summary:**
 Refactoring the AI service to provide more targeted, sales-oriented analysis of uploaded images. The goal is to better identify sellable items and generate persuasive descriptions that drive sales, rather than generic scene descriptions.
