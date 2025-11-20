@@ -100,6 +100,8 @@ class AuthService {
         updated_at: new Date().toISOString()
       };
 
+      console.log('Attempting to create profile with Admin Client for user:', authData.user.id);
+
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .insert(profileData);
@@ -107,6 +109,7 @@ class AuthService {
       if (profileError) {
         console.error('Create user profile error details:', JSON.stringify(profileError, null, 2));
         console.error('Attempted profile data:', JSON.stringify(profileData, null, 2));
+        console.error('Is Supabase Service Key configured?', !!config.SUPABASE_SERVICE_KEY);
         
         // Clean up the auth user if profile creation fails
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
