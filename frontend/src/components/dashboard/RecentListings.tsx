@@ -13,12 +13,10 @@ import {
   Button,
   Skeleton,
   Alert,
-  Divider,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
 import {
-  AccessTime as TimeIcon,
   Visibility as EyeIcon,
   ShoppingCart as SoldIcon,
   Inventory as ActiveIcon,
@@ -395,7 +393,7 @@ const RecentListings: React.FC<RecentListingsProps> = ({
 
         {/* Listings */}
         <List sx={{ p: 0 }}>
-          {recentListings.map((listing, index) => (
+          {recentListings.map((listing) => (
             <React.Fragment key={listing.id}>
               <RecentListingItem
                 listing={listing}

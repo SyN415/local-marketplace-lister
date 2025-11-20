@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, useTheme } from '@mui/material';
+import { Box } from '@mui/material';
 import Hero from '../components/landing/Hero';
 import Features from '../components/landing/Features';
 import Trust from '../components/landing/Trust';
@@ -9,7 +9,6 @@ import { useAuth } from '../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 
 const Home: React.FC = () => {
-  const theme = useTheme();
   const { user, isLoading } = useAuth();
 
   // If user is authenticated, redirect to dashboard (or listings for now)

@@ -15,7 +15,6 @@ import {
   Visibility as VisibleIcon,
   Edit as DraftIcon,
   CheckCircle as SoldIcon,
-  TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 import { useDashboardStats } from '../../hooks/useDashboard';
 
@@ -34,7 +33,6 @@ const StatsCard: React.FC<StatsCardProps> = ({
   title,
   value,
   icon,
-  color,
   loading = false,
   error = null,
   onClick,
@@ -62,11 +60,6 @@ const StatsCard: React.FC<StatsCardProps> = ({
     }
     
     return val.toLocaleString();
-  };
-
-  const getStatusColor = (color: string) => {
-    const paletteColor = theme.palette[color as keyof typeof theme.palette] as any;
-    return paletteColor?.main || theme.palette.primary.main;
   };
 
   return (
