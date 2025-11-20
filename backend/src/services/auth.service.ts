@@ -47,6 +47,25 @@ class AuthService {
   }
 
   /**
+   * Format user response to match frontend expectation (camelCase, flattened)
+   */
+  private formatUserResponse(user: any, profile: any): any {
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: profile?.full_name || user.user_metadata?.full_name,
+      avatarUrl: profile?.avatar_url || user.user_metadata?.avatar_url,
+      phone: profile?.phone || user.phone || user.user_metadata?.phone,
+      credits: profile?.credits ?? 0,
+      stripeCustomerId: profile?.stripe_customer_id,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      // Include original snake_case fields just in case specific backend logic needs them
+      ...profile
+    };
+  }
+
+  /**
    * Register a new user with email and password
    * @param request - Signup request containing email, password, and optional fields
    * @returns Authentication response with user and session
@@ -122,8 +141,11 @@ class AuthService {
       // Generate JWT token
       const token = this.generateToken(authData.user);
 
+      // Format user for frontend
+      const formattedUser = this.formatUserResponse(authData.user, profileData);
+
       const response: AuthResponse = {
-        user: authData.user as User,
+        user: formattedUser,
         session: {
           access_token: token,
           refresh_token: '', // Supabase handles refresh tokens internally
@@ -178,11 +200,21 @@ class AuthService {
         };
       }
 
+      // Fetch user profile to include credits
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', signInData.user.id)
+        .single();
+
       // Generate custom JWT token
       const token = this.generateToken(signInData.user);
 
+      // Format user for frontend
+      const formattedUser = this.formatUserResponse(signInData.user, profile);
+
       const response: AuthResponse = {
-        user: signInData.user as User,
+        user: formattedUser,
         session: {
           access_token: token,
           refresh_token: signInData.session?.refresh_token || '',
@@ -269,8 +301,12 @@ class AuthService {
         .eq('id', decoded.userId)
         .single();
 
+      // Format user for frontend
+      const formattedUser = this.formatUserResponse(user.user, profile);
+
+      // We still return it as SessionUser type to satisfy TS, but at runtime it has the extra fields
       const sessionUser: SessionUser = {
-        ...user.user as User,
+        ...formattedUser,
         profile: profile || undefined
       };
 
