@@ -13,7 +13,7 @@ class UserService {
   async getUserProfile(userId: string): Promise<ApiResponse<UserProfile>> {
     try {
       const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
@@ -49,7 +49,7 @@ class UserService {
   async createUserProfile(profileData: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
     try {
       const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .insert({
           ...profileData,
           created_at: new Date().toISOString(),
@@ -93,7 +93,7 @@ class UserService {
   ): Promise<ApiResponse<UserProfile>> {
     try {
       const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .update({
           ...profileData,
           updated_at: new Date().toISOString()
@@ -133,7 +133,7 @@ class UserService {
   async deleteUserProfile(userId: string): Promise<ApiResponse> {
     try {
       const { error } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .delete()
         .eq('user_id', userId);
 
@@ -174,7 +174,7 @@ class UserService {
 
       // Get total count
       const { count, error: countError } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .select('*', { count: 'exact', head: true });
 
       if (countError) {
@@ -187,7 +187,7 @@ class UserService {
 
       // Get users with pagination
       const { data: users, error: usersError } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -234,7 +234,7 @@ class UserService {
   ): Promise<ApiResponse<UserProfile[]>> {
     try {
       const { data: users, error } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .select('*')
         .or(`full_name.ilike.%${query}%,phone.ilike.%${query}%,location.ilike.%${query}%`)
         .limit(limit);
@@ -281,7 +281,7 @@ class UserService {
 
       // Get user profile
       const { data: profile } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
@@ -318,7 +318,7 @@ class UserService {
   ): Promise<ApiResponse<UserProfile>> {
     try {
       const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .update({
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString()
