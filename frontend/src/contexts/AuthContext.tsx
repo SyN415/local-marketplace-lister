@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { handleApiError } from '../services/api';
-import { redirectAfterLogin } from '../utils/auth';
 import type { User } from '../types';
 
 // Extended auth state from React Query hooks
@@ -98,21 +97,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       path: window.location.pathname
     });
   }, [authState.isAuthenticated, authState.isLoading, authState.user]);
-  React.useEffect(() => {
-    if (authState.isAuthenticated && authState.user) {
-      // Get redirect URL from query params or localStorage
-      const urlParams = new URLSearchParams(window.location.search);
-      const redirectTo = urlParams.get('redirect') || localStorage.getItem('login_redirect') || '/';
-      
-      // Clean up redirect URL
-      localStorage.removeItem('login_redirect');
-      
-      // Only redirect if not already on the target page
-      if (window.location.pathname !== redirectTo && redirectTo !== window.location.pathname + window.location.search) {
-        redirectAfterLogin(redirectTo);
-      }
-    }
-  }, [authState.isAuthenticated, authState.user?.id]); // ✅ Use user.id (primitive) instead of user object
   
   // Handle login errors
   React.useEffect(() => {
