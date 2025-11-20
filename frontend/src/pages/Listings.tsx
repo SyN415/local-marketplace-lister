@@ -41,7 +41,6 @@ import type {
   ListingsFilters,
   ListingsSortOptions,
   ListingsPagination,
-  ListingsQueryParams,
   ListingsPageProps,
   ListingsLoadingStates,
   ListingsErrorStates,
