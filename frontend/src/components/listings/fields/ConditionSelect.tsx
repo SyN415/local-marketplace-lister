@@ -26,10 +26,14 @@ const ConditionSelect: React.FC<SelectFieldProps> = ({
   const error = errors[name]?.message as string;
   const isTouched = touchedFields[name];
 
-  const options = LISTING_CONDITIONS.map(condition => ({
-    value: condition,
-    label: condition
-  }));
+  const options = LISTING_CONDITIONS.map(condition => {
+    let label = condition.replace('_', ' ');
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+    return {
+      value: condition,
+      label: label
+    };
+  });
 
   return (
     <Box>

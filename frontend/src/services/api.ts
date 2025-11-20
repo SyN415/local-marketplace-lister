@@ -210,44 +210,29 @@ export const listingsAPI = {
    * Create new listing
    */
   createListing: async (data: ListingFormData): Promise<Listing> => {
-    const formData = new FormData();
+    // TODO: Implement image upload to storage service
+    // Currently sending empty array for images as backend expects URLs
+    // and we don't have a storage service set up in this MVP yet.
     
-    // Add text fields
-    Object.entries(data).forEach(([key, value]) => {
-      if (key !== 'images' && key !== 'location' && value !== undefined) {
-        formData.append(key, String(value));
-      }
-    });
+    const payload = {
+      title: data.title,
+      description: data.description,
+      price: data.price,
+      category: data.category,
+      condition: data.condition,
+      images: [], // Backend expects string[] (URLs), not Files.
+      location_lat: data.location?.latitude,
+      location_lng: data.location?.longitude,
+      location_address: [
+        data.location?.address,
+        data.location?.city,
+        data.location?.state,
+        data.location?.zipCode
+      ].filter(Boolean).join(', '),
+      status: 'active'
+    };
 
-    // Handle location separately
-    if (data.location) {
-      formData.append('address', data.location.address || '');
-      formData.append('city', data.location.city || '');
-      formData.append('state', data.location.state || '');
-      formData.append('zipCode', data.location.zipCode || '');
-      if (data.location.distance) {
-        formData.append('distance', String(data.location.distance));
-      }
-      if (data.location.latitude) {
-        formData.append('latitude', String(data.location.latitude));
-      }
-      if (data.location.longitude) {
-        formData.append('longitude', String(data.location.longitude));
-      }
-    }
-
-    // Add images
-    if (data.images) {
-      data.images.forEach((file, _index) => {
-        formData.append(`images`, file);
-      });
-    }
-
-    const response = await api.post<ApiResponse<Listing>>('/api/listings', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post<ApiResponse<Listing>>('/api/listings', payload);
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to create listing');
@@ -260,42 +245,38 @@ export const listingsAPI = {
    * Update existing listing
    */
   updateListing: async (id: string, data: Partial<ListingFormData>): Promise<Listing> => {
-    const formData = new FormData();
+    const payload: any = {};
     
-    Object.entries(data).forEach(([key, value]) => {
-      if (key !== 'images' && key !== 'location' && value !== undefined) {
-        formData.append(key, String(value));
-      }
-    });
-
-    // Handle location separately
+    if (data.title) payload.title = data.title;
+    if (data.description) payload.description = data.description;
+    if (data.price) payload.price = data.price;
+    if (data.category) payload.category = data.category;
+    if (data.condition) payload.condition = data.condition;
+    
+    // Handle location
     if (data.location) {
-      formData.append('address', data.location.address || '');
-      formData.append('city', data.location.city || '');
-      formData.append('state', data.location.state || '');
-      formData.append('zipCode', data.location.zipCode || '');
-      if (data.location.distance) {
-        formData.append('distance', String(data.location.distance));
-      }
-      if (data.location.latitude) {
-        formData.append('latitude', String(data.location.latitude));
-      }
-      if (data.location.longitude) {
-        formData.append('longitude', String(data.location.longitude));
+      if (data.location.latitude) payload.location_lat = data.location.latitude;
+      if (data.location.longitude) payload.location_lng = data.location.longitude;
+      
+      const addressParts = [
+        data.location.address,
+        data.location.city,
+        data.location.state,
+        data.location.zipCode
+      ].filter(Boolean);
+      
+      if (addressParts.length > 0) {
+        payload.location_address = addressParts.join(', ');
       }
     }
 
+    // Handle images
     if (data.images) {
-      data.images.forEach((file) => {
-        formData.append('images', file);
-      });
+      // TODO: Upload new images and get URLs
+      // payload.images = ...
     }
 
-    const response = await api.put<ApiResponse<Listing>>(`/api/listings/${id}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.put<ApiResponse<Listing>>(`/api/listings/${id}`, payload);
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to update listing');

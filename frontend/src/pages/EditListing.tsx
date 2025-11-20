@@ -80,7 +80,7 @@ const EditListing: React.FC = () => {
       description: listing.description || '',
       price: listing.price,
       category: listing.category as any,
-      condition: listing.condition as any,
+      condition: listing.condition.toLowerCase() as any, // Ensure matching case
       images: [], // Images would need separate handling
       location: listing.location ? FormTransformUtils.stringToLocation(listing.location) as any : {
         address: '',

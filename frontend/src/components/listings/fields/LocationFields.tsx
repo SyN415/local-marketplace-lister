@@ -11,9 +11,7 @@ const MAX_DISTANCE = 100;
  * LocationFields component with Circular Map UI
  * Features a distance slider and visual radius representation
  */
-const LocationFields: React.FC<LocationFieldProps> = ({
-  value,
-  onChange,
+const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> = ({
   errors,
   disabled = false,
 }) => {
@@ -24,8 +22,7 @@ const LocationFields: React.FC<LocationFieldProps> = ({
 
   const handleDistanceChange = (_event: Event, newValue: number | number[]) => {
     const val = newValue as number;
-    setValue('location.distance', val, { shouldDirty: true });
-    onChange({ ...value, distance: val });
+    setValue('location.distance', val, { shouldDirty: true, shouldValidate: true });
   };
 
   // Calculate circle size for visual representation
@@ -84,10 +81,6 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                         </InputAdornment>
                       ),
                     }}
-                    onChange={(e) => {
-                        field.onChange(e);
-                        onChange({ ...value, zipCode: e.target.value });
-                    }}
                   />
                 )}
              />
@@ -137,10 +130,6 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                       error={!!fieldState.error || !!errors?.city}
                       helperText={fieldState.error?.message || errors?.city}
                       sx={inputStyles}
-                      onChange={(e) => {
-                          field.onChange(e);
-                          onChange({ ...value, city: e.target.value });
-                      }}
                     />
                   )}
                 />
@@ -158,10 +147,6 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                       error={!!fieldState.error || !!errors?.state}
                       helperText={fieldState.error?.message || errors?.state}
                       sx={inputStyles}
-                       onChange={(e) => {
-                          field.onChange(e);
-                          onChange({ ...value, state: e.target.value });
-                      }}
                     />
                   )}
                 />
@@ -180,10 +165,6 @@ const LocationFields: React.FC<LocationFieldProps> = ({
                     error={!!fieldState.error || !!errors?.address}
                     helperText={fieldState.error?.message || errors?.address}
                     sx={inputStyles}
-                     onChange={(e) => {
-                          field.onChange(e);
-                          onChange({ ...value, address: e.target.value });
-                      }}
                   />
                 )}
              />

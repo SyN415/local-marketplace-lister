@@ -19,6 +19,7 @@ import type { ListingFormData, FormStep } from '../../schemas/listing.schema';
 import { ListingFormSchema } from '../../schemas/listing.schema';
 import type { UseFormOptions, FormEvents } from '../../types/forms';
 import { DraftStorage, AnalyticsUtils } from '../../utils/form';
+import { uploadListingImages } from '../../services/upload';
 
 // Import field components
 import TitleField from './fields/TitleField';
@@ -272,14 +273,30 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     setSubmitError(null);
 
     try {
+      // Upload images
+      let uploadedUrls: string[] = [];
+      if (data.images && data.images.length > 0) {
+        // Filter for File objects (in case mixed with existing URLs in edit mode)
+        const filesToUpload = data.images.filter(img => img instanceof File);
+        const existingUrls = data.images.filter(img => !(img instanceof File)) as unknown as string[];
+        
+        if (filesToUpload.length > 0) {
+          const newUrls = await uploadListingImages(filesToUpload);
+          uploadedUrls = [...existingUrls, ...newUrls];
+        } else {
+          uploadedUrls = existingUrls;
+        }
+      }
+
+      // Create submission data with image URLs instead of Files
       const submissionData = {
-        data,
+        data: { ...data, images: uploadedUrls as any }, // Cast to any to bypass File[] type constraint
         isEdit,
         listingId,
-        images: data.images,
+        images: uploadedUrls, // Also pass as separate property if needed
       };
 
-      events?.onSubmit?.(submissionData);
+      events?.onSubmit?.(submissionData as any);
       
       // Clear draft after successful submission
       if (!isEdit) {
@@ -357,8 +374,6 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
         return (
           <Box sx={{ display: 'grid', gap: 2 }}>
             <LocationFields
-              value={watchedData.location || {}}
-              onChange={(location) => setValue('location', location as any)}
               errors={validationErrors}
             />
           </Box>
@@ -407,8 +422,8 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                     <Typography variant="subtitle2" color="text.secondary">
                       Condition
                     </Typography>
-                    <Typography variant="body1">
-                      {watchedData.condition || 'Not selected'}
+                    <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>
+                      {watchedData.condition ? watchedData.condition.replace('_', ' ') : 'Not selected'}
                     </Typography>
                   </Box>
                 </Box>

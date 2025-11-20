@@ -83,7 +83,7 @@ const ListingCard: React.FC<{
       case 'expired':
         return { label: 'Expired', color: 'warning' as const, bgColor: 'warning.light', textColor: 'warning.contrastText' };
       default:
-        return { label: 'Draft', color: 'default' as const, bgColor: 'grey.100', textColor: 'grey.800' };
+        return { label: status, color: 'default' as const, bgColor: 'grey.100', textColor: 'grey.800' };
     }
   };
 
@@ -229,14 +229,15 @@ const ListingCard: React.FC<{
             }}
           />
           <Chip
-            label={listing.condition}
+            label={listing.condition.replace('_', ' ')}
             size="small"
             sx={{
               borderRadius: '6px',
               fontWeight: 500,
               background: 'rgba(236, 72, 153, 0.1)',
               color: 'secondary.main',
-              border: 'none'
+              border: 'none',
+              textTransform: 'capitalize'
             }}
           />
         </Box>

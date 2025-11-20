@@ -24,12 +24,11 @@ export const LISTING_CATEGORIES = [
  * Condition options for listings
  */
 export const LISTING_CONDITIONS = [
-  'New',
-  'Like New',
-  'Good',
-  'Fair',
-  'Poor',
-  'For Parts'
+  'new',
+  'like_new',
+  'good',
+  'fair',
+  'poor'
 ] as const;
 
 /**
