@@ -194,53 +194,6 @@ export const listingsAPI = {
   },
 
   /**
-   * Get public listings with pagination and filters
-   */
-  getPublicListings: async (params?: {
-    page?: number;
-    limit?: number;
-    category?: string;
-    condition?: string;
-    minPrice?: number;
-    maxPrice?: number;
-    location?: string;
-  }): Promise<{
-    listings: Listing[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }> => {
-    // Map camelCase params to snake_case for backend
-    const queryParams = {
-      page: params?.page,
-      limit: params?.limit,
-      category: params?.category,
-      condition: params?.condition,
-      min_price: params?.minPrice,
-      max_price: params?.maxPrice,
-    };
-
-    const response = await api.get<ApiResponse<{
-      listings: Listing[];
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-      };
-    }>>('/api/listings/browse', { params: queryParams });
-    
-    if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'Failed to fetch public listings');
-    }
-
-    return response.data.data;
-  },
-
-  /**
    * Get single listing by ID
    */
   getListing: async (id: string): Promise<Listing> => {
@@ -272,6 +225,9 @@ export const listingsAPI = {
       formData.append('city', data.location.city || '');
       formData.append('state', data.location.state || '');
       formData.append('zipCode', data.location.zipCode || '');
+      if (data.location.distance) {
+        formData.append('distance', String(data.location.distance));
+      }
       if (data.location.latitude) {
         formData.append('latitude', String(data.location.latitude));
       }
@@ -318,6 +274,9 @@ export const listingsAPI = {
       formData.append('city', data.location.city || '');
       formData.append('state', data.location.state || '');
       formData.append('zipCode', data.location.zipCode || '');
+      if (data.location.distance) {
+        formData.append('distance', String(data.location.distance));
+      }
       if (data.location.latitude) {
         formData.append('latitude', String(data.location.latitude));
       }

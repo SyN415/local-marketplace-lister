@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Box, Alert, Snackbar } from '@mui/material';
-import { CheckCircle, Error } from '@mui/icons-material';
+import { useNavigate, Link } from 'react-router-dom';
+import { Box, Alert, Snackbar, Typography, Button, Paper } from '@mui/material';
+import { CheckCircle, Error, MonetizationOn } from '@mui/icons-material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import ListingForm from '../components/listings/ListingForm';
 import { listingsAPI } from '../services/api';
+import { useCurrentUser } from '../contexts/AuthContext';
 import type { ListingFormData } from '../schemas/listing.schema';
 import type { FormSubmissionData } from '../types/forms';
 
@@ -15,6 +16,7 @@ import type { FormSubmissionData } from '../types/forms';
 const CreateListing: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const currentUser = useCurrentUser();
   
   const [notification, setNotification] = React.useState<{
     open: boolean;
@@ -26,10 +28,50 @@ const CreateListing: React.FC = () => {
     severity: 'success',
   });
 
+  // Check if user has credits
+  const hasCredits = currentUser?.credits && currentUser.credits > 0;
+
+  if (!hasCredits && currentUser) {
+    return (
+      <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4, p: 2 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 4,
+            textAlign: 'center',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 2
+          }}
+        >
+          <Box sx={{ mb: 2, color: 'warning.main' }}>
+            <MonetizationOn sx={{ fontSize: 64 }} />
+          </Box>
+          <Typography variant="h5" gutterBottom fontWeight="bold">
+            Insufficient Credits
+          </Typography>
+          <Typography variant="body1" color="text.secondary" paragraph>
+            You need credits to post a new listing. You currently have 0 credits.
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            component={Link}
+            to="/pricing"
+            size="large"
+            sx={{ mt: 2 }}
+          >
+            Buy Credits
+          </Button>
+        </Paper>
+      </Box>
+    );
+  }
+
   // Create listing mutation
   const createListingMutation = useMutation({
     mutationFn: async (formData: ListingFormData) => {
-      return listingsAPI.createListing(formData);
+      return listingsAPI.createListing(formData as any);
     },
     onSuccess: (listing) => {
       // Invalidate and refetch listings

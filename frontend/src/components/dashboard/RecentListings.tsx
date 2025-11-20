@@ -22,7 +22,6 @@ import {
   Visibility as EyeIcon,
   ShoppingCart as SoldIcon,
   Inventory as ActiveIcon,
-  ViewList as ViewAllIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -31,8 +30,6 @@ import type { RecentListing } from '../../types/dashboard';
 
 interface RecentListingsProps {
   limit?: number;
-  showViewAll?: boolean;
-  onViewAll?: () => void;
 }
 
 /**
@@ -304,8 +301,6 @@ const EmptyRecentListings: React.FC<{ onCreate: () => void }> = ({ onCreate }) =
 
 const RecentListings: React.FC<RecentListingsProps> = ({
   limit = 5,
-  showViewAll = true,
-  onViewAll,
 }) => {
   const navigate = useNavigate();
   const {
@@ -313,14 +308,6 @@ const RecentListings: React.FC<RecentListingsProps> = ({
     isLoading,
     error,
   } = useRecentListings(limit);
-
-  const handleViewAll = () => {
-    if (onViewAll) {
-      onViewAll();
-    } else {
-      navigate('/listings');
-    }
-  };
 
   const handleListingClick = (listingId: string) => {
     navigate(`/listings/${listingId}`);
@@ -383,16 +370,6 @@ const RecentListings: React.FC<RecentListingsProps> = ({
             </Typography>
           </Box>
           
-          {showViewAll && (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ViewAllIcon />}
-              onClick={handleViewAll}
-            >
-              View All
-            </Button>
-          )}
         </Box>
 
         {/* Listings */}
@@ -408,20 +385,6 @@ const RecentListings: React.FC<RecentListingsProps> = ({
           ))}
         </List>
 
-        {/* View All Button - Mobile */}
-        {showViewAll && recentListings.length >= limit && (
-          <Box sx={{ textAlign: 'center', mt: 2, display: { xs: 'block', md: 'none' } }}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<ViewAllIcon />}
-              onClick={handleViewAll}
-              size="small"
-            >
-              View All Listings
-            </Button>
-          </Box>
-        )}
       </CardContent>
     </Card>
   );

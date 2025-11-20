@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Name:** Local Marketplace Lister
 - **Date Created:** November 14, 2025
-- **Current Status:** Core Listing Functionality Finalized & Deployed
+- **Current Status:** Streamlined AI Listing Creation & Credit System Enabled
 - **Development Approach:** Frontend-First with Security & Testing
 
 ## Project Vision
@@ -30,6 +30,8 @@ This cross-listing hub application enables individual sellers to manage and post
 - [x] List all listings view with filtering
 - [x] Create listing form (basic functionality)
 - [x] Edit and delete listing capabilities
+- [x] Craigslist-style Circular Map for location selection
+- [x] Restructured Create Listing form with AI entry point (Step 1)
 - [x] React + TypeScript + Material-UI implementation
 
 ### Phase 2: Image Handling (Weeks 3-4)
@@ -39,6 +41,7 @@ This cross-listing hub application enables individual sellers to manage and post
 - [ ] Auto-resize and optimization features
 - [x] Image storage integration with Supabase
 - [ ] Multi-image support (5-15 images per listing)
+- [x] AI Image Analysis overhaul for auto-filling listing data
 
 ### Phase 3: Backend & API Integration (Weeks 5-6)
 **Backend Development**
@@ -47,15 +50,17 @@ This cross-listing hub application enables individual sellers to manage and post
 - [x] Security middleware (Helmet, rate limiting, CORS)
 - [x] RESTful API endpoints for listings
 - [x] Authentication and authorization
+- [x] Credit deduction logic enforced in `ListingService` before creation
 - [ ] Jest test suite implementation
 
 ### Phase 4: Marketplace Integration (Weeks 7-8)
 **OAuth & Third-Party Integration**
 - [ ] Facebook OAuth connection and authentication
 - [ ] Facebook Marketplace API integration
-- [ ] Manual posting interface for other platforms (OfferUp, Craigslist)
 - [ ] Posted listings tracking system
+- [ ] Manual posting interface for other platforms (OfferUp, Craigslist)
 - [ ] Cross-platform status synchronization
+- [ ] Feature: "Browse Listings" functionality removed from scope.
 
 ### Phase 5: Polish & Production (Weeks 9-10)
 **Finalization & Deployment**
@@ -209,21 +214,19 @@ This cross-listing hub application enables individual sellers to manage and post
 
 ---
 
-### November 20, 2025 - Listing Workflow Finalization 🔗
+### November 20, 2025 - Feature Removal, Credit Enforcement & UX Overhaul ⚙️
 **Session Summary:**
-- Completed final verification and bug fixing for core listing creation and browsing.
-- **Completed Task 1:** Fixed 'Create Listings' button redirection (updated links in `Listings.tsx` and `RecentListings.tsx` to `/create-listing`).
-- **Completed Task 2:** Implemented real 'Browse Listings' functionality (added `getPublicListings` in `ListingService` and `GET /api/listings/browse`, refactored `Listings.tsx` to use real data, and updated `Navbar.tsx` link to `/listings`).
-- **Current State:** Both "Create Listing" and "Browse Listings" features are now fully functional and connected to the Supabase backend.
+- **Feature Removal:** "Browse Listings" functionality was removed as it conflicted with the new streamlined flow and current focus.
+- **New Feature:** Implemented **Credit Check** logic, enforcing credit deduction via `ListingService` and blocking access to `/create-listing` if credits = 0.
+- **UX Overhaul:** The **Create Listing** form was restructured. Step 1 is now Image Upload & AI Analysis, which auto-fills Title, Price, Category, Condition, and Description, and displays an "AI Analysis Summary".
+- **UI Component:** Replaced standard location inputs with a **Craigslist-style Circular Map** for visual Zip Code + Radius selection.
 
 **Completed Tasks:**
-- [x] Fix 'Create Listings' button redirection.
-- [x] Implement real 'Browse Listings' functionality (API, Service, Frontend hooks).
-
-**Next Session Goals:**
-- [ ] Connect Chrome Extension to main web app (pass data via URL or API).
-- [ ] Expand Cross-Listing support to Facebook Marketplace.
-- [ ] Polish credit deduction UX (animations/toasts).
+- [x] Removed "Browse Listings" feature and associated routes/pages.
+- [x] Implemented Frontend Credit Block on `/create-listing`.
+- [x] Implemented Backend Credit Deduction in `ListingService`.
+- [x] Completed Create Listing Form Restructure (AI Entry, Auto-fill, Summary).
+- [x] Implemented Location Selection using Circular Map UI component.
 
 ---
 
@@ -233,7 +236,7 @@ This cross-listing hub application enables individual sellers to manage and post
 
 #### Frontend-First Development
 **Decision:** Build UI/UX components before backend implementation
-**Rationale:** 
+**Rationale:**
 - Faster validation of user experience
 - Easier to test and iterate on design
 - Frontend can be developed with mock data
@@ -289,7 +292,7 @@ This cross-listing hub application enables individual sellers to manage and post
 **Decision:** Implement tiered rate limiting based on endpoint sensitivity
 **Rationale:**
 - General browsing: 100 requests per 15 minutes
-- API calls: 50 requests per 5 minutes  
+- API calls: 50 requests per 5 minutes
 - Authentication: 5 requests per 15 minutes
 - Prevents abuse while maintaining usability
 
@@ -318,7 +321,6 @@ This cross-listing hub application enables individual sellers to manage and post
 - Ensures code quality from the start
 - Prevents regression bugs
 - Serves as documentation for expected behavior
-- Builds confidence in code changes
 
 ### Development Workflow
 
@@ -367,6 +369,8 @@ This cross-listing hub application enables individual sellers to manage and post
 - [x] Create listing form (basic functionality)
 - [x] Edit and delete listings functionality
 - [x] Search listings by title
+- [x] Craigslist-style Circular Map for location selection
+- [x] Restructured Create Listing form with AI entry point (Step 1)
 - [ ] Bulk action toolbar (Relist, Delist, Mark as Sold)
 
 ### Phase 2: Image Handling
@@ -376,7 +380,7 @@ This cross-listing hub application enables individual sellers to manage and post
 - [ ] Auto-resize indicator
 - [x] Image storage in Supabase
 - [ ] Image deletion and management
-- [x] AI Image Analysis for Descriptions
+- [x] AI Image Analysis for Descriptions (Overhauled for full data extraction)
 
 ### Phase 3: Backend & Security
 - [x] Express.js server with TypeScript
@@ -385,6 +389,7 @@ This cross-listing hub application enables individual sellers to manage and post
 - [x] JWT authentication system
 - [x] RESTful API endpoints
 - [x] Error handling and validation
+- [x] Credit deduction logic enforced in `ListingService` before creation
 - [ ] Comprehensive Jest test suite
 
 ### Phase 4: Marketplace Integration
@@ -395,7 +400,6 @@ This cross-listing hub application enables individual sellers to manage and post
 - [ ] Manual posting interface for Craigslist
 - [ ] Cross-platform status synchronization
 - [ ] Marketplace connection management
-- [ ] Real-time public listing browsing functionality
 
 ### Phase 5: Polish & Production
 - [x] UI/UX refinements and responsive design
@@ -410,7 +414,7 @@ This cross-listing hub application enables individual sellers to manage and post
 
 ## Development Notes
 
-**Current Focus:** Marketplace Integration (Facebook & Chrome Extension Interop)
+**Current Focus:** Finalizing Credit System and Production Readiness
 **Next Milestone:** Cross-Listing Engine operational for major platforms
 **Estimated Timeline:** 10 weeks total development time
 **Risk Factors:** 
@@ -425,6 +429,20 @@ This cross-listing hub application enables individual sellers to manage and post
 - Responsive and intuitive user interface
 - Successful deployment and production readiness
 - Comprehensive test coverage (>80%)
+
+---
+
+**November 20, 2025 - Feature Removal, Credit Enforcement & UX Overhaul**
+**Session Summary:**
+This session focused on stabilizing the listing creation workflow by implementing necessary guardrails and overhauling the primary data entry experience. The "Browse Listings" feature, implemented yesterday, was deemed out of scope for the immediate MVP and has been removed. The **Create Listing** form has undergone a significant UX overhaul, making the Image Upload & AI Analysis the first step, which now auto-populates all text fields. Credit logic was integrated, preventing listing creation if the user's balance is zero.
+
+**Completed Tasks:**
+- [x] Removed "Browse Listings" functionality (routes, pages, and backend services).
+- [x] Implemented Frontend Credit Check (blocking `/create-listing` if credits = 0).
+- [x] Implemented Backend Credit Deduction in `ListingService` prior to listing creation.
+- [x] Restructured Create Listing Form (AI as Step 1, Auto-fill of Title/Price/Category/Condition/Description).
+- [x] Added "AI Analysis Summary" visual feedback to Step 1 of the form.
+- [x] Implemented Craigslist-style Circular Map UI component for location selection, replacing standard inputs.
 
 ---
 

@@ -67,6 +67,15 @@ class ListingService {
    */
   async createListing(userId: string, data: CreateListingRequest): Promise<ApiResponse<Listing>> {
     try {
+      // Deduct credit first
+      const creditResult = await this.deductCredit(userId);
+      if (!creditResult.success) {
+        return {
+          success: false,
+          error: creditResult.error || 'Insufficient credits to create listing'
+        };
+      }
+
       const listingData = {
         user_id: userId,
         title: data.title.trim(),
@@ -207,99 +216,6 @@ class ListingService {
       return {
         success: false,
         error: 'Internal server error during listings retrieval'
-      };
-    }
-  }
-
-  /**
-   * Get public active listings with pagination and filters
-   * @param page - Page number (1-based)
-   * @param limit - Items per page
-   * @param filters - Optional filters
-   * @returns API response with paginated listings
-   */
-  async getPublicListings(
-    page: number = 1,
-    limit: number = 10,
-    filters?: ListingFilters
-  ): Promise<ApiResponse<PaginatedListings>> {
-    try {
-      const offset = (page - 1) * limit;
-
-      let query = supabaseAdmin
-        .from('listings')
-        .select('*', { count: 'exact' })
-        .eq('status', 'active');
-
-      // Apply filters
-      if (filters) {
-        if (filters.category) {
-          query = query.eq('category', filters.category);
-        }
-        if (filters.condition) {
-          query = query.eq('condition', filters.condition);
-        }
-        if (filters.min_price !== undefined) {
-          query = query.gte('price', filters.min_price);
-        }
-        if (filters.max_price !== undefined) {
-          query = query.lte('price', filters.max_price);
-        }
-        if (filters.location_lat && filters.location_lng && filters.radius_km) {
-          // Calculate distance using basic bounding box approach
-          const latRange = filters.radius_km / 111; // Rough approximation
-          const lngRange = filters.radius_km / (111 * Math.cos(filters.location_lat * Math.PI / 180));
-          
-          query = query
-            .gte('location_lat', filters.location_lat - latRange)
-            .lte('location_lat', filters.location_lat + latRange)
-            .gte('location_lng', filters.location_lng - lngRange)
-            .lte('location_lng', filters.location_lng + lngRange);
-        }
-      }
-
-      // Order by creation date (newest first)
-      query = query.order('created_at', { ascending: false });
-
-      // Apply pagination
-      query = query.range(offset, offset + limit - 1);
-
-      const { data: listings, error, count } = await query;
-
-      if (error) {
-        console.error('Get public listings error:', error);
-        return {
-          success: false,
-          error: 'Failed to fetch public listings'
-        };
-      }
-
-      const total = count || 0;
-      const total_pages = Math.ceil(total / limit);
-      const has_next = page < total_pages;
-      const has_prev = page > 1;
-
-      const paginatedResponse: PaginatedListings = {
-        listings: listings as Listing[],
-        total,
-        page,
-        limit,
-        total_pages,
-        has_next,
-        has_prev
-      };
-
-      return {
-        success: true,
-        data: paginatedResponse,
-        message: 'Public listings retrieved successfully'
-      };
-
-    } catch (error) {
-      console.error('Get public listings service error:', error);
-      return {
-        success: false,
-        error: 'Internal server error during public listings retrieval'
       };
     }
   }

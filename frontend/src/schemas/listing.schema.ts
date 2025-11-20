@@ -35,13 +35,14 @@ export const LISTING_CONDITIONS = [
  * Location information interface
  */
 export const LocationSchema = z.object({
-  address: z.string().min(1, 'Address is required'),
+  address: z.string().optional(),
   city: z.string().min(1, 'City is required'),
   state: z.string().min(1, 'State is required'),
   zipCode: z.string()
     .min(5, 'ZIP code must be at least 5 characters')
     .max(10, 'ZIP code must be no more than 10 characters')
     .regex(/^[0-9-]+$/, 'ZIP code must contain only numbers and dashes'),
+  distance: z.number().min(1).max(100).default(5),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 });
@@ -140,14 +141,14 @@ export const validateFormStep = (
 ): { [key: string]: z.ZodIssue | undefined } => {
   const stepSchemas = {
     1: ListingFormSchema.pick({
+      images: true,
+    }),
+    2: ListingFormSchema.pick({
       title: true,
       price: true,
       category: true,
       condition: true,
-    }),
-    2: ListingFormSchema.pick({
       description: true,
-      images: true,
     }),
     3: ListingFormSchema.pick({
       location: true,
@@ -208,6 +209,7 @@ export const getDefaultValues = (): Partial<ListingFormData> => ({
     city: '',
     state: '',
     zipCode: '',
+    distance: 5,
     latitude: undefined,
     longitude: undefined,
   },

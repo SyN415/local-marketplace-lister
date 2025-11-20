@@ -40,31 +40,6 @@ export const useGetListings = (options?: {
 };
 
 /**
- * Hook to get public listings with pagination and filters
- *
- * @param options Pagination and filter options
- * @returns Query object with listings data and states
- */
-export const usePublicListings = (options?: {
-  page?: number;
-  limit?: number;
-  category?: string;
-  condition?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  location?: string;
-}) => {
-  return useQuery({
-    queryKey: listingKeys.public(options),
-    queryFn: () => listingsAPI.getPublicListings(options),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
-  });
-};
-
-/**
  * Hook to get single listing by ID
  * 
  * @param id Listing ID

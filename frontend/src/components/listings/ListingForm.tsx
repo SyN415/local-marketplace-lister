@@ -63,20 +63,21 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
 
   // Steps configuration
   const steps = [
     {
       number: 1 as FormStep,
-      title: 'Basic Info',
-      description: 'Title, price, category, and condition',
-      fields: ['title', 'price', 'category', 'condition'],
+      title: 'Photos',
+      description: 'Upload photos to auto-fill details',
+      fields: ['images'],
     },
     {
       number: 2 as FormStep,
-      title: 'Description & Images',
-      description: 'Detailed description and photos',
-      fields: ['description', 'images'],
+      title: 'Details',
+      description: 'Verify and edit listing details',
+      fields: ['title', 'price', 'category', 'condition', 'description'],
     },
     {
       number: 3 as FormStep,
@@ -94,7 +95,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
 
   // React Hook Form setup
   const methods = useForm<ListingFormData>({
-    resolver: zodResolver(ListingFormSchema),
+    resolver: zodResolver(ListingFormSchema as any),
     defaultValues: {
       title: '',
       description: '',
@@ -107,6 +108,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
         city: '',
         state: '',
         zipCode: '',
+        distance: 5,
         latitude: undefined,
         longitude: undefined,
       },
@@ -162,7 +164,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
           case 'Enter':
             event.preventDefault();
             if (currentStep === 4) {
-              handleSubmit(handleFormSubmit)();
+              handleSubmit(handleFormSubmit as any)();
             } else {
               handleNext();
             }
@@ -294,13 +296,12 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
 
   // Handle AI Analysis Result
   const handleAiAnalysis = useCallback((result: any) => {
+    setAiAnalysisResult(result);
     if (result.title) setValue('title', result.title, { shouldValidate: true, shouldDirty: true });
     if (result.description) setValue('description', result.description, { shouldValidate: true, shouldDirty: true });
     if (result.price) setValue('price', result.price, { shouldValidate: true, shouldDirty: true });
     if (result.category) setValue('category', result.category, { shouldValidate: true, shouldDirty: true });
     if (result.condition) setValue('condition', result.condition, { shouldValidate: true, shouldDirty: true });
-    
-    // Show success message or toast here if needed
   }, [setValue]);
 
   // Render step content
@@ -310,21 +311,8 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
         return (
           <Box sx={{ display: 'grid', gap: 3 }}>
             <Alert severity="info" icon={<AutoAwesome />} sx={{ mb: 2 }}>
-              Tip: Upload photos in Step 2 to automatically fill these details!
+              Start by uploading photos. Our AI will analyze them to help fill out the details!
             </Alert>
-            <TitleField id="title" name="title" label="Title" />
-            <PriceField id="price" name="price" label="Price" />
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
-              <CategorySelect id="category" name="category" label="Category" options={[]} />
-              <ConditionSelect id="condition" name="condition" label="Condition" options={[]} />
-            </Box>
-          </Box>
-        );
-
-      case 2:
-        return (
-          <Box sx={{ display: 'grid', gap: 3 }}>
-            <DescriptionField id="description" name="description" label="Description" />
             <ImageUpload
               id="images"
               name="images"
@@ -333,6 +321,35 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
               helperText="Add up to 10 photos. The first photo will be your cover image."
               onAnalysisComplete={handleAiAnalysis}
             />
+            {aiAnalysisResult && (
+              <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'background.default' }}>
+                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AutoAwesome fontSize="small" /> AI Analysis Summary
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Suggested Title:</strong> {aiAnalysisResult.title}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                   <strong>Price Estimate:</strong> ${aiAnalysisResult.price}
+                </Typography>
+                <Alert severity="success" sx={{ mt: 1, py: 0 }}>
+                  Details have been auto-filled! Click Next to review.
+                </Alert>
+              </Paper>
+            )}
+          </Box>
+        );
+
+      case 2:
+        return (
+          <Box sx={{ display: 'grid', gap: 3 }}>
+            <TitleField id="title" name="title" label="Title" />
+            <PriceField id="price" name="price" label="Price" />
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
+              <CategorySelect id="category" name="category" label="Category" options={[]} />
+              <ConditionSelect id="condition" name="condition" label="Condition" options={[]} />
+            </Box>
+            <DescriptionField id="description" name="description" label="Description" />
           </Box>
         );
 
@@ -528,7 +545,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
           )}
 
           {/* Form Content */}
-          <Box component="form" onSubmit={handleSubmit(handleFormSubmit)}>
+          <Box component="form" onSubmit={handleSubmit(handleFormSubmit as any)}>
             <Box sx={{ mb: 4 }}>
               <Typography variant="h6" gutterBottom>
                 Step {currentStep}: {currentStepConfig?.title}

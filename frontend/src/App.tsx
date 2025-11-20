@@ -8,7 +8,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Page components
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
-import Listings from './pages/Listings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import CreateListing from './pages/CreateListing';
@@ -33,7 +32,6 @@ const AppRouter: React.FC = () => {
         <Routes>
           {/* Public Routes (accessible without authentication) */}
           <Route path="/" element={<Home />} />
-          <Route path="/listings" element={<Listings />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/pricing" element={<Pricing />} />

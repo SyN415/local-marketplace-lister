@@ -33,10 +33,11 @@ export interface ListingFormData {
   condition: string;
   images?: File[];
   location?: {
-    address: string;
+    address?: string;
     city: string;
     state: string;
     zipCode: string;
+    distance?: number;
     latitude?: number;
     longitude?: number;
   };

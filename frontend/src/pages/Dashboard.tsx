@@ -13,7 +13,7 @@ const Dashboard: React.FC = () => {
       <StatsCards />
       
       <Box sx={{ mt: 4 }}>
-        <RecentListings limit={5} showViewAll={true} />
+        <RecentListings limit={5} />
       </Box>
     </Container>
   );

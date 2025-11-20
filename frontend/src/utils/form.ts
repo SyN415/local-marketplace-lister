@@ -54,6 +54,7 @@ export class FormTransformUtils {
         city: apiData.city || '',
         state: apiData.state || '',
         zipCode: apiData.zipCode || '',
+        distance: apiData.distance || 5,
         latitude: apiData.latitude,
         longitude: apiData.longitude,
       },

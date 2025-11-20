@@ -110,15 +110,6 @@ const Navbar: React.FC = () => {
               Home
             </Button>
             
-            <Button
-              color="inherit"
-              component={RouterLink}
-              to="/listings"
-              sx={{ minWidth: 'auto', fontWeight: 600 }}
-            >
-              Browse Listings
-            </Button>
-            
             {/* Show authenticated user only links */}
             {isAuthenticated && (
               <>
