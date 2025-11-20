@@ -17,7 +17,10 @@ router.post('/analyze', verifyToken, requireAuth, upload.single('image'), async 
     const imageBase64 = req.file.buffer.toString('base64');
     const result = await aiService.analyzeImage(imageBase64);
     
-    res.json(result);
+    res.json({
+      success: true,
+      data: result
+    });
   } catch (error) {
     console.error('AI Analysis Route Error:', error);
     next(error);
