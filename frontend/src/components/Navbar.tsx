@@ -116,7 +116,7 @@ const Navbar: React.FC = () => {
               to="/listings"
               sx={{ minWidth: 'auto', fontWeight: 600 }}
             >
-              Browse
+              Browse Listings
             </Button>
             
             {/* Show authenticated user only links */}
@@ -246,7 +246,7 @@ const Navbar: React.FC = () => {
               <Button
                 color="primary"
                 component={RouterLink}
-                to="/register"
+                to="/signup"
                 variant="contained"
                 size="small"
                 sx={{

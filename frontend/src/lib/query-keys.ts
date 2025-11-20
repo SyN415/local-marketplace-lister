@@ -59,6 +59,31 @@ export const listingKeys = {
     return [...key, definedFilters] as const;
   },
 
+  /** Public listings with filters and pagination */
+  public: (filters?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    condition?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    location?: string;
+  }) => {
+    const key = ['listings', 'public'] as const;
+    
+    if (!filters) return key;
+    
+    // Only add filters that are defined
+    const definedFilters = Object.entries(filters).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+    
+    return [...key, definedFilters] as const;
+  },
+
   /** Single listing by ID */
   detail: (id: string) => ['listing', id] as const,
   

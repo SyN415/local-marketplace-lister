@@ -195,6 +195,56 @@ router.get('/search', verifyToken, validateListingFilters, async (req: Request, 
   }
 });
 
+/**
+ * @route   GET /api/listings/browse
+ * @desc    Get all public active listings with pagination and filters
+ * @access  Private (Authenticated users only for now)
+ * @headers { Authorization: 'Bearer <token>' }
+ * @query   { page?: number, limit?: number, category?: string, condition?: string, min_price?: number, max_price?: number, location_lat?: number, location_lng?: number, radius_km?: number }
+ */
+router.get('/browse', verifyToken, validateListingFilters, async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+      return;
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    // Build filters from query params
+    const filters: ListingFilters = {};
+    if (req.query.category) filters.category = req.query.category as string;
+    if (req.query.condition && LISTING_CONDITIONS.includes(req.query.condition as any)) {
+      filters.condition = req.query.condition as any;
+    }
+    // Status is always 'active' for public browse, so we don't take it from query param to override
+    if (req.query.min_price) filters.min_price = parseFloat(req.query.min_price as string);
+    if (req.query.max_price) filters.max_price = parseFloat(req.query.max_price as string);
+    if (req.query.location_lat) filters.location_lat = parseFloat(req.query.location_lat as string);
+    if (req.query.location_lng) filters.location_lng = parseFloat(req.query.location_lng as string);
+    if (req.query.radius_km) filters.radius_km = parseFloat(req.query.radius_km as string);
+
+    const response = await listingService.getPublicListings(page, limit, filters);
+
+    if (!response.success) {
+      res.status(400).json(response);
+      return;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Get public listings route error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during public listings retrieval'
+    });
+  }
+});
+
 // Health check endpoint for listing routes
 router.get('/health', (req: Request, res: Response): void => {
   res.status(200).json({

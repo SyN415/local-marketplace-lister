@@ -26,6 +26,8 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { usePublicListings } from '../hooks/useListings';
+import type { Listing } from '../types';
 
 // Import components
 import SearchBar from '../components/listings/SearchBar';
@@ -182,156 +184,54 @@ const Listings: React.FC<ListingsPageProps> = ({
     window.history.replaceState({}, '', newUrl);
   }, [filters, sort, searchQuery, pagination, defaultLimit, initialSort]);
 
-  // Mock data for demonstration (replace with actual API call)
-  const mockListings: ListingsListItem[] = [
-    {
-      id: '1',
-      title: 'iPhone 14 Pro Max',
-      description: 'Excellent condition, barely used. Includes original box and charger.',
-      price: 899,
-      category: 'Electronics',
-      condition: 'like-new',
-      images: [],
-      userId: 'user1',
-      location: 'San Francisco, CA',
-      status: 'active',
-      createdAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      imageUrl: '/api/placeholder/300/200',
-    },
-    {
-      id: '2',
-      title: 'MacBook Pro 16"',
-      description: '2023 M2 Max chip, 32GB RAM, 1TB SSD. Perfect for development work.',
-      price: 2499,
-      category: 'Electronics',
-      condition: 'good',
-      images: [],
-      userId: 'user1',
-      location: 'San Francisco, CA',
-      status: 'active',
-      createdAt: '2024-01-14T14:20:00Z',
-      updatedAt: '2024-01-14T14:20:00Z',
-      imageUrl: '/api/placeholder/300/200',
-    },
-    {
-      id: '3',
-      title: 'Vintage Leather Couch',
-      description: 'Genuine Italian leather, very comfortable. Minor wear on armrests.',
-      price: 650,
-      category: 'Furniture',
-      condition: 'good',
-      images: [],
-      userId: 'user2',
-      location: 'Oakland, CA',
-      status: 'sold',
-      createdAt: '2024-01-13T09:15:00Z',
-      updatedAt: '2024-01-13T09:15:00Z',
-      imageUrl: '/api/placeholder/300/200',
-    },
-  ];
+  // Fetch real listings data
+  const {
+    data: apiData,
+    isLoading,
+    error: queryError,
+    refetch
+  } = usePublicListings({
+    page: pagination.page,
+    limit: pagination.limit,
+    category: filters.category !== 'all' ? filters.category : undefined,
+    condition: filters.condition !== 'all' ? filters.condition : undefined,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    location: filters.location,
+  });
 
-  // Simulate loading data
-  const loadListings = useCallback(async (params: ListingsQueryParams) => {
-    setLoading(prev => ({ ...prev, loading: true, initial: false }));
-    setErrors(prev => ({ ...prev, general: null }));
-
-    try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Filter and sort mock data
-      let filteredListings = [...mockListings];
-      
-      // Apply filters
-      if (params.category && params.category !== 'all') {
-        filteredListings = filteredListings.filter(l => l.category === params.category);
-      }
-      
-      if (params.status && params.status !== 'all') {
-        filteredListings = filteredListings.filter(l => l.status === params.status);
-      }
-      
-      if (params.minPrice !== undefined) {
-        filteredListings = filteredListings.filter(l => l.price >= params.minPrice!);
-      }
-      
-      if (params.maxPrice !== undefined) {
-        filteredListings = filteredListings.filter(l => l.price <= params.maxPrice!);
-      }
-      
-      if (params.searchQuery) {
-        const query = params.searchQuery.toLowerCase();
-        filteredListings = filteredListings.filter(l => 
-          l.title.toLowerCase().includes(query) || 
-          l.description?.toLowerCase().includes(query)
-        );
-      }
-      
-      // Apply sorting
-      filteredListings.sort((a, b) => {
-        let aVal: any, bVal: any;
-        
-        switch (params.sortBy) {
-          case 'price':
-            aVal = a.price;
-            bVal = b.price;
-            break;
-          case 'title':
-            aVal = a.title;
-            bVal = b.title;
-            break;
-          case 'date':
-          case 'createdAt':
-          default:
-            aVal = new Date(a.createdAt);
-            bVal = new Date(b.createdAt);
-            break;
-        }
-        
-        if (params.sortOrder === 'asc') {
-          return aVal > bVal ? 1 : -1;
-        } else {
-          return aVal < bVal ? 1 : -1;
-        }
-      });
-      
-      // Apply pagination
-      const startIndex = (params.page! - 1) * params.limit!;
-      const endIndex = startIndex + params.limit!;
-      const paginatedListings = filteredListings.slice(startIndex, endIndex);
-      
-      setListings(paginatedListings);
-      setPagination({
-        page: params.page!,
-        limit: params.limit!,
-        total: filteredListings.length,
-        totalPages: Math.ceil(filteredListings.length / params.limit!),
-        hasNextPage: endIndex < filteredListings.length,
-        hasPreviousPage: params.page! > 1,
-      });
-      
-    } catch (error) {
-      console.error('Failed to load listings:', error);
-      setErrors(prev => ({ ...prev, general: new Error('Failed to load listings') }));
-      setSnackbar({ open: true, message: 'Failed to load listings', severity: 'error' });
-    } finally {
-      setLoading(prev => ({ ...prev, loading: false }));
-    }
-  }, []);
-
-  // Load listings when filters/sort/pagination change
+  // Sync API data to local state
   useEffect(() => {
-    const params: ListingsQueryParams = {
-      ...filters,
-      sortBy: sort.sortBy,
-      sortOrder: sort.sortOrder,
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-    
-    loadListings(params);
-  }, [filters, sort, pagination.page, pagination.limit, loadListings]);
+    if (apiData) {
+      const mappedListings: ListingsListItem[] = apiData.listings.map((item: Listing) => ({
+        ...item,
+        imageUrl: item.images?.[0] || '/api/placeholder/300/200',
+        daysSinceCreated: Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+        isOwner: user?.id === item.userId,
+      }));
+
+      setListings(mappedListings);
+      setPagination(prev => ({
+        ...prev,
+        total: apiData.pagination.total,
+        totalPages: apiData.pagination.totalPages,
+        hasNextPage: apiData.pagination.page < apiData.pagination.totalPages,
+        hasPreviousPage: apiData.pagination.page > 1,
+      }));
+    }
+  }, [apiData, user?.id]);
+
+  // Sync loading and error states
+  useEffect(() => {
+    setLoading(prev => ({ ...prev, loading: isLoading, initial: false }));
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (queryError) {
+      setErrors(prev => ({ ...prev, general: queryError as Error }));
+      setSnackbar({ open: true, message: 'Failed to load listings', severity: 'error' });
+    }
+  }, [queryError]);
 
   // Event handlers
   const handleSearchChange = useCallback((query: string) => {
@@ -364,22 +264,15 @@ const Listings: React.FC<ListingsPageProps> = ({
   }, [navigate]);
 
   const handleCreateListing = useCallback(() => {
-    navigate('/listings/create');
+    navigate('/create-listing');
   }, [navigate]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    const params: ListingsQueryParams = {
-      ...filters,
-      sortBy: sort.sortBy,
-      sortOrder: sort.sortOrder,
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-    await loadListings(params);
+    await refetch();
     setIsRefreshing(false);
     setSnackbar({ open: true, message: 'Listings refreshed', severity: 'success' });
-  }, [filters, sort, pagination, loadListings]);
+  }, [refetch]);
 
   const handleShare = useCallback(() => {
     const url = window.location.href;

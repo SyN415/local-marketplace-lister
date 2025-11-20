@@ -194,6 +194,53 @@ export const listingsAPI = {
   },
 
   /**
+   * Get public listings with pagination and filters
+   */
+  getPublicListings: async (params?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    condition?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    location?: string;
+  }): Promise<{
+    listings: Listing[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> => {
+    // Map camelCase params to snake_case for backend
+    const queryParams = {
+      page: params?.page,
+      limit: params?.limit,
+      category: params?.category,
+      condition: params?.condition,
+      min_price: params?.minPrice,
+      max_price: params?.maxPrice,
+    };
+
+    const response = await api.get<ApiResponse<{
+      listings: Listing[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    }>>('/api/listings/browse', { params: queryParams });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch public listings');
+    }
+
+    return response.data.data;
+  },
+
+  /**
    * Get single listing by ID
    */
   getListing: async (id: string): Promise<Listing> => {

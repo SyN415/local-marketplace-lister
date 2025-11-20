@@ -23,6 +23,7 @@ import {
   ShoppingCart as SoldIcon,
   Inventory as ActiveIcon,
   ViewList as ViewAllIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useRecentListings } from '../../hooks/useDashboard';
@@ -277,7 +278,7 @@ const RecentListingItem: React.FC<{
 /**
  * Empty State Component
  */
-const EmptyRecentListings: React.FC<{ onViewAll: () => void }> = ({ onViewAll }) => {
+const EmptyRecentListings: React.FC<{ onCreate: () => void }> = ({ onCreate }) => {
   return (
     <CardContent>
       <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -291,8 +292,8 @@ const EmptyRecentListings: React.FC<{ onViewAll: () => void }> = ({ onViewAll })
         <Button
           variant="contained"
           color="primary"
-          startIcon={<ViewAllIcon />}
-          onClick={onViewAll}
+          startIcon={<AddIcon />}
+          onClick={onCreate}
         >
           Create First Listing
         </Button>
@@ -323,6 +324,10 @@ const RecentListings: React.FC<RecentListingsProps> = ({
 
   const handleListingClick = (listingId: string) => {
     navigate(`/listings/${listingId}`);
+  };
+
+  const handleCreateListing = () => {
+    navigate('/create-listing');
   };
 
   // Show skeleton while loading
@@ -361,7 +366,7 @@ const RecentListings: React.FC<RecentListingsProps> = ({
   if (recentListings.length === 0) {
     return (
       <Card sx={{ mb: 3 }}>
-        <EmptyRecentListings onViewAll={handleViewAll} />
+        <EmptyRecentListings onCreate={handleCreateListing} />
       </Card>
     );
   }
