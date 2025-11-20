@@ -1,15 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, TextField, Typography, Slider, Paper, InputAdornment, Grid } from '@mui/material';
 import { useFormContext, Controller } from 'react-hook-form';
 import { MapPin } from 'lucide-react';
+import { MapContainer, TileLayer, Circle, useMap } from 'react-leaflet';
+import type { LatLngExpression } from 'leaflet';
 import type { LocationFieldProps } from '../../../types/forms';
 
 const MIN_DISTANCE = 5;
 const MAX_DISTANCE = 100;
 
+// Helper component to update map view when center changes
+function MapUpdater({ center }: { center: LatLngExpression }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom());
+  }, [center, map]);
+  return null;
+}
+
 /**
- * LocationFields component with Circular Map UI
- * Features a distance slider and visual radius representation
+ * LocationFields component with Interactive Leaflet Map
+ * Features a distance slider and visual radius representation on a real map
  */
 const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> = ({
   errors,
@@ -19,18 +30,43 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
   
   // Watch distance to update map visual
   const distance = watch('location.distance') || 5;
+  const zipCode = watch('location.zipCode');
+
+  // Default center (approx center of US)
+  const [mapCenter, setMapCenter] = useState<LatLngExpression>([39.8283, -98.5795]);
+  const [zoomLevel, setZoomLevel] = useState(4);
+
+  // Geocoding effect when zip code changes
+  useEffect(() => {
+    const fetchCoordinates = async () => {
+      if (zipCode && zipCode.length >= 5) {
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&postalcode=${zipCode}&country=us`
+          );
+          const data = await response.json();
+          if (data && data.length > 0) {
+            const { lat, lon } = data[0];
+            setMapCenter([parseFloat(lat), parseFloat(lon)]);
+            setZoomLevel(10); // Zoom in when location found
+            
+            // Optional: Auto-fill city/state if empty (could be added later)
+          }
+        } catch (error) {
+          console.error("Error fetching coordinates:", error);
+        }
+      }
+    };
+
+    // Debounce could be added here, but length check is a basic guard
+    const timeoutId = setTimeout(fetchCoordinates, 500);
+    return () => clearTimeout(timeoutId);
+  }, [zipCode]);
 
   const handleDistanceChange = (_event: Event, newValue: number | number[]) => {
     const val = newValue as number;
     setValue('location.distance', val, { shouldDirty: true, shouldValidate: true });
   };
-
-  // Calculate circle size for visual representation
-  // Base size 50px + (percentage of max * available space)
-  // Max map area 300x300
-  const mapSize = 300;
-  const maxRadiusPixels = mapSize / 2 - 20; // padding
-  const pixelRadius = 20 + ((distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)) * (maxRadiusPixels - 20);
 
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
@@ -171,62 +207,50 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
            </Box>
         </Grid>
 
-        {/* Right Column: Visual Map Simulation */}
+        {/* Right Column: Interactive Map */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper
             elevation={0}
             sx={{
               width: '100%',
-              height: mapSize,
-              bgcolor: '#e5e7eb', // gray-200
-              borderRadius: 0,
-              position: 'relative',
+              height: 300,
+              borderRadius: 1,
               overflow: 'hidden',
               border: '1px solid #d1d5db',
-              backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
-              backgroundSize: '20px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              position: 'relative',
+              zIndex: 0 // Ensure map stays below other overlays if any
             }}
           >
-             {/* Scale Legend */}
-             <Box sx={{ position: 'absolute', bottom: 8, right: 12, bgcolor: 'rgba(255,255,255,0.8)', px: 1, borderRadius: 1, zIndex: 5 }}>
-                <Typography variant="caption" color="text.secondary">
-                    Map Simulation
-                </Typography>
-             </Box>
-
-             {/* The Radius Circle */}
-             <Box
-               sx={{
-                 width: pixelRadius * 2,
-                 height: pixelRadius * 2,
-                 borderRadius: '50%',
-                 bgcolor: 'rgba(99, 102, 241, 0.15)', // Indigo-500 with low opacity
-                 border: '2px solid rgba(99, 102, 241, 0.5)',
-                 position: 'absolute',
-                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                 display: 'flex',
-                 alignItems: 'center',
-                 justifyContent: 'center',
-                 pointerEvents: 'none',
-               }}
-             />
-
-             {/* Center Point */}
-             <Box
-                sx={{
-                    zIndex: 2,
-                    color: '#4f46e5', // indigo-600
-                    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.2))',
-                }}
+             <MapContainer 
+                center={mapCenter} 
+                zoom={zoomLevel} 
+                style={{ height: '100%', width: '100%' }}
+                zoomControl={true}
              >
-                <MapPin size={32} fill="currentColor" color="white" />
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <Circle 
+                    center={mapCenter}
+                    radius={distance * 1609.34} // Convert miles to meters
+                    pathOptions={{ 
+                        color: '#4f46e5', 
+                        fillColor: '#6366f1', 
+                        fillOpacity: 0.2 
+                    }} 
+                />
+                <MapUpdater center={mapCenter} />
+             </MapContainer>
+
+             <Box sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'rgba(255,255,255,0.9)', px: 1, py: 0.5, borderRadius: 1, zIndex: 400, pointerEvents: 'none' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    {zipCode ? `Centered on ${zipCode}` : 'Enter Zip Code to focus'}
+                </Typography>
              </Box>
           </Paper>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
-            Visual representation of your approximate location and range
+            The circle shows your approximate delivery/service range
           </Typography>
         </Grid>
       </Grid>

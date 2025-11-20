@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeContextProvider } from './contexts/ThemeContext';
 import App from './App.tsx';
 import './index.css';
+import 'leaflet/dist/leaflet.css';
 
 // Create a client
 const queryClient = new QueryClient({

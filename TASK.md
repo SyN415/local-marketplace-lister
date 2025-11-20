@@ -287,6 +287,18 @@ Addressed build errors (`Error: Cannot apply unknown utility class`) arising fro
 - [x] Verified `@import "tailwindcss"` syntax.
 
 ---
+### November 20, 2025 - Leaflet Map Integration & CSP Fix 🗺️
+**Session Summary:**
+Integrated a real interactive map using Leaflet and OpenStreetMap to replace the static map simulation. This enhances the user experience by providing accurate location visualization based on Zip Code. Also resolved a Content Security Policy (CSP) error that was blocking image uploads and map tiles.
+
+**Completed Tasks:**
+- [x] Fixed CSP `Content-Security-Policy` header to allow Supabase and OpenStreetMap connections.
+- [x] Installed `leaflet` and `react-leaflet` dependencies.
+- [x] Replaced `LocationFields` visual simulation with interactive `MapContainer`.
+- [x] Implemented automatic geocoding using Nominatim to center map on user's Zip Code.
+- [x] Added visual radius circle corresponding to the "Distance" slider.
+
+---
 
 ### November 20, 2025 - AI Image Analysis Enhancement 🤖
 **Session Summary:**
