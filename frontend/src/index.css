@@ -1,9 +1,18 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  
+  --color-primary: #0055FF;
+  --color-background: #FFFFFF;
+  --color-surface: #F5F5F5;
+  --color-text: #000000;
+  --color-text-secondary: #666666;
+  --color-border: #E5E5E5;
+}
 
 :root {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
 
@@ -19,5 +28,3 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
-
-/* Removed conflicting global styles (glassmorphism, default dark mode colors, centered flex body) */

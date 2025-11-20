@@ -276,6 +276,19 @@ Fixed a build failure caused by Tailwind CSS v4. The PostCSS plugin has moved to
 - [x] Updated `frontend/postcss.config.js` to use the new `@tailwindcss/postcss` plugin.
 
 ---
+
+### November 20, 2025 - Tailwind v4 Config Migration 🛠️
+**Session Summary:**
+Addressed build errors (`Error: Cannot apply unknown utility class`) arising from the Tailwind v4 upgrade. Migrated from the legacy JavaScript-based configuration to the new CSS-first configuration approach. Custom theme variables are now defined directly in `index.css` using the `@theme` directive.
+
+**Completed Tasks:**
+- [x] Converted `tailwind.config.js` theme definitions to CSS variables in `frontend/src/index.css`.
+- [x] Removed `frontend/tailwind.config.js` as it is no longer needed for v4.
+- [x] Verified `@import "tailwindcss"` syntax.
+
+---
+
+### November 20, 2025 - AI Image Analysis Enhancement 🤖
 **Session Summary:**
 Refactoring the AI service to provide more targeted, sales-oriented analysis of uploaded images. The goal is to better identify sellable items and generate persuasive descriptions that drive sales, rather than generic scene descriptions.
 
