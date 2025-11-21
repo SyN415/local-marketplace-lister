@@ -19,6 +19,8 @@ export const validateListingCreation = (
   const data: CreateListingRequest = req.body;
   const errors: string[] = [];
 
+  console.log('Incoming Listing Data:', JSON.stringify(data, null, 2));
+
   // Validate title
   if (!data.title || typeof data.title !== 'string') {
     errors.push('Title is required and must be a string');
@@ -237,6 +239,7 @@ export const validateListingUpdate = (
   }
 
   if (errors.length > 0) {
+    console.log('Validation Errors:', errors);
     res.status(400).json({
       success: false,
       error: 'Validation failed',
