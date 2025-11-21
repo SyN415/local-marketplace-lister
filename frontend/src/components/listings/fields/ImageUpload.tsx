@@ -254,6 +254,7 @@ const ImageUpload: React.FC<ExtendedImageUploadProps> = ({
             {previews.length > 0 && onAnalysisComplete && (
               <Box sx={{ mt: 3 }}>
                 <Button
+                  type="button"
                   fullWidth
                   variant="contained"
                   size="large"

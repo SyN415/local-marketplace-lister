@@ -426,12 +426,25 @@ export const useListings = (options?: {
         }));
 
         setListings(transformedListings);
-        setPagination(prev => ({
-          ...prev,
-          ...apiResponse.pagination,
-          hasNextPage: apiResponse.pagination.page < apiResponse.pagination.totalPages,
-          hasPreviousPage: apiResponse.pagination.page > 1,
-        }));
+        
+        if (apiResponse.pagination) {
+          setPagination(prev => ({
+            ...prev,
+            ...apiResponse.pagination,
+            hasNextPage: apiResponse.pagination.page < apiResponse.pagination.totalPages,
+            hasPreviousPage: apiResponse.pagination.page > 1,
+          }));
+        } else {
+           // Fallback if pagination is missing
+           setPagination(prev => ({
+             ...prev,
+             page: 1,
+             total: transformedListings.length,
+             totalPages: 1,
+             hasNextPage: false,
+             hasPreviousPage: false,
+           }));
+        }
 
         return apiResponse;
       } catch (error) {

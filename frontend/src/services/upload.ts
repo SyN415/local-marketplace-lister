@@ -54,7 +54,20 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
         .getPublicUrl(filePath);
 
       if (data) {
-        uploadedUrls.push(data.publicUrl);
+        // IMPORTANT: The publicUrl returned by getPublicUrl might be incorrect in local dev if Supabase URL isn't set perfectly.
+        // If using local Supabase, it might be returning http://kong:8000/... which isn't reachable from browser.
+        // We need to ensure it uses the configured Supabase URL from env.
+        
+        const publicUrl = data.publicUrl;
+        
+        // Fix for local development if needed - ensure it starts with the configured Supabase URL
+        // const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        // if (supabaseUrl && !publicUrl.startsWith(supabaseUrl)) {
+        //   const path = publicUrl.split('/storage/v1/object/public/')[1];
+        //   uploadedUrls.push(`${supabaseUrl}/storage/v1/object/public/${BUCKET_NAME}/${path}`);
+        // } else {
+          uploadedUrls.push(publicUrl);
+        // }
       }
     } catch (error) {
       console.error('Upload service error:', error);

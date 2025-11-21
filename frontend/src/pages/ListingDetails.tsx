@@ -156,9 +156,13 @@ const ListingDetails: React.FC = () => {
               alt={listing.title}
               sx={{
                 width: '100%',
-                height: 500, 
+                height: 500,
                 objectFit: 'cover',
-                bgcolor: 'grey.100' 
+                bgcolor: 'grey.100'
+              }}
+              onError={(e: any) => {
+                e.target.onerror = null; // Prevent infinite loop
+                e.target.src = '/api/placeholder/800/600';
               }}
             />
           </Card>

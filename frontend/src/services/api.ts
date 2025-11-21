@@ -223,7 +223,7 @@ export const listingsAPI = {
       price: data.price,
       category: data.category,
       condition: data.condition,
-      images: [], // Backend expects string[] (URLs), not Files.
+      images: data.images || [],
       location_lat: data.location?.latitude,
       location_lng: data.location?.longitude,
       location_address: [

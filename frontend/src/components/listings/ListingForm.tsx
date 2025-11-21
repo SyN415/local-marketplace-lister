@@ -576,6 +576,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                 <Box>
                   {canGoBack && (
                     <Button
+                      type="button"
                       variant="outlined"
                       startIcon={<ChevronLeft />}
                       onClick={handleBack}
@@ -604,6 +605,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   {/* Save Draft Button */}
                   <Button
+                    type="button"
                     variant="outlined"
                     startIcon={isSaving ? <CircularProgress size={16} /> : <Save />}
                     onClick={handleSaveDraft}
@@ -630,6 +632,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                   {/* Next/Submit Button */}
                   {canGoNext ? (
                     <Button
+                      type="button"
                       variant="contained"
                       endIcon={<ChevronRight />}
                       onClick={handleNext}
