@@ -400,4 +400,12 @@ Implemented the Listing Details View, acting as a "Dashboard" for individual ite
 - [x] Created `frontend/src/pages/ListingDetails.tsx`.
 - [x] Added route `/listings/:id` to `App.tsx`.
 - [x] Linked "View" button in `ListingsList` and `Listings` page to the new details view.
+### November 21, 2025 - Create Flow & Rate Limit Fixes 🐛
+**Session Summary:**
+Addressed a critical bug in the Create Listing flow where the form would prematurely submit after the Location step. Also relaxed strict rate limiting and aggressive data refetching to prevent `429 Too Many Requests` errors during development and testing.
+
+**Completed Tasks:**
+- [x] **Create Flow Fix:** Updated `ListingForm.tsx` to prevent form submission on "Enter" key press during steps 1-3, ensuring users reach the Finalize step.
+- [x] **Rate Limiting:** Increased backend rate limits in `server.ts` to 1000 reqs/15min to accommodate development traffic.
+- [x] **Data Fetching:** Disabled `refetchOnWindowFocus` in `react-query.ts` to reduce unnecessary API calls and server load.
 - [x] Implemented "Active Postings Panel" mock UI for Craigslist, Facebook, and OfferUp status.

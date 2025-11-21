@@ -269,6 +269,12 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
 
   // Form submission
   const handleFormSubmit = useCallback(async (data: ListingFormData) => {
+    // Prevent premature submission on Enter key during creation (Step 1-3)
+    if (!isEdit && currentStep < 4) {
+      await handleNext();
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -309,7 +315,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [isEdit, listingId, events]);
+  }, [isEdit, listingId, events, currentStep, handleNext]);
 
   // Handle AI Analysis Result
   const handleAiAnalysis = useCallback((result: any) => {
