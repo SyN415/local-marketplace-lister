@@ -1,5 +1,4 @@
 import { supabase, setSupabaseSession } from '../lib/supabase';
-import { getAuthToken } from '../utils/auth';
 
 /**
  * Uploads a set of image files to Supabase storage
