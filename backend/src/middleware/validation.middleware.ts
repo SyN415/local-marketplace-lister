@@ -19,8 +19,6 @@ export const validateListingCreation = (
   const data: CreateListingRequest = req.body;
   const errors: string[] = [];
 
-  console.log('Incoming Listing Data:', JSON.stringify(data, null, 2));
-
   // Validate title
   if (!data.title || typeof data.title !== 'string') {
     errors.push('Title is required and must be a string');
@@ -31,12 +29,14 @@ export const validateListingCreation = (
   }
 
   // Validate description
-  if (!data.description || typeof data.description !== 'string') {
-    errors.push('Description is required and must be a string');
-  } else if (data.description.length < 10) {
-    errors.push('Description must be at least 10 characters long');
-  } else if (data.description.length > 5000) {
-    errors.push('Description must not exceed 5000 characters');
+  if (data.description !== undefined) {
+    if (typeof data.description !== 'string') {
+      errors.push('Description must be a string');
+    } else if (data.description.length > 0 && data.description.length < 10) {
+      errors.push('Description must be at least 10 characters long');
+    } else if (data.description.length > 5000) {
+      errors.push('Description must not exceed 5000 characters');
+    }
   }
 
   // Validate price
@@ -239,7 +239,6 @@ export const validateListingUpdate = (
   }
 
   if (errors.length > 0) {
-    console.log('Validation Errors:', errors);
     res.status(400).json({
       success: false,
       error: 'Validation failed',

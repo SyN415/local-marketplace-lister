@@ -79,7 +79,7 @@ class ListingService {
       const listingData = {
         user_id: userId,
         title: data.title.trim(),
-        description: data.description.trim(),
+        description: data.description ? data.description.trim() : '',
         price: Number(data.price),
         category: data.category,
         condition: data.condition,
@@ -536,7 +536,7 @@ class ListingService {
     if (!data.title || data.title.trim().length < 3) {
       errors.push('Title must be at least 3 characters long');
     }
-    if (!data.description || data.description.trim().length < 10) {
+    if (data.description && data.description.trim().length > 0 && data.description.trim().length < 10) {
       errors.push('Description must be at least 10 characters long');
     }
     if (typeof data.price !== 'number' || data.price < 0) {
