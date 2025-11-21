@@ -87,8 +87,8 @@ export const authAPI = {
   /**
    * Login user
    */
-  login: async (email: string, password: string): Promise<{ user: User; token: string }> => {
-    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string } }>>('/api/auth/login', { email, password });
+  login: async (email: string, password: string): Promise<{ user: User; token: string; supabaseAccessToken?: string }> => {
+    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string; supabase_access_token?: string } }>>('/api/auth/login', { email, password });
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Login failed');
@@ -96,15 +96,16 @@ export const authAPI = {
 
     return {
       user: response.data.data.user,
-      token: response.data.data.session.access_token
+      token: response.data.data.session.access_token,
+      supabaseAccessToken: response.data.data.session.supabase_access_token
     };
   },
 
   /**
    * Register new user
    */
-  signup: async (email: string, password: string, fullName?: string): Promise<{ user: User; token: string }> => {
-    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string } }>>('/api/auth/signup', { email, password, fullName });
+  signup: async (email: string, password: string, fullName?: string): Promise<{ user: User; token: string; supabaseAccessToken?: string }> => {
+    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string; supabase_access_token?: string } }>>('/api/auth/signup', { email, password, fullName });
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Signup failed');
@@ -112,7 +113,8 @@ export const authAPI = {
 
     return {
       user: response.data.data.user,
-      token: response.data.data.session.access_token
+      token: response.data.data.session.access_token,
+      supabaseAccessToken: response.data.data.session.supabase_access_token
     };
   },
 
@@ -136,6 +138,7 @@ export const authAPI = {
     await api.post('/api/auth/logout');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('supabase_access_token');
   },
 
   /**

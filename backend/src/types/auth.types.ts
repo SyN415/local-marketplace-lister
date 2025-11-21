@@ -33,6 +33,7 @@ export interface AuthResponse {
     expires_in: number;
     expires_at: number;
     token_type: string;
+    supabase_access_token?: string;
   };
   error?: string;
 }

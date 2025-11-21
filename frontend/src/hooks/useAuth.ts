@@ -31,6 +31,9 @@ export const useLogin = () => {
     onSuccess: (data) => {
       // Store token and user in localStorage
       localStorage.setItem('auth_token', data.token);
+      if (data.supabaseAccessToken) {
+        localStorage.setItem('supabase_access_token', data.supabaseAccessToken);
+      }
       localStorage.setItem('user', JSON.stringify(data.user));
       
       // Update current user query
@@ -90,6 +93,9 @@ export const useSignup = () => {
     onSuccess: (data) => {
       // Store token and user in localStorage
       localStorage.setItem('auth_token', data.token);
+      if (data.supabaseAccessToken) {
+        localStorage.setItem('supabase_access_token', data.supabaseAccessToken);
+      }
       localStorage.setItem('user', JSON.stringify(data.user));
       
       // Update current user query
@@ -131,6 +137,7 @@ export const useLogout = () => {
       
       // Clear localStorage
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('supabase_access_token');
       localStorage.removeItem('user');
     },
 
@@ -142,6 +149,7 @@ export const useLogout = () => {
       // Even if logout fails, clear local state
       queryClient.clear();
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('supabase_access_token');
       localStorage.removeItem('user');
       
       console.error('❌ Logout failed:', error);
@@ -202,6 +210,7 @@ export const useCurrentUser = () => {
       // Don't retry on authentication errors
       if (error?.response?.status === 401) {
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('supabase_access_token');
         localStorage.removeItem('user');
         return false;
       }

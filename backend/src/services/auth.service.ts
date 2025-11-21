@@ -138,6 +138,12 @@ class AuthService {
         };
       }
 
+      // Sign in to get Supabase session (needed for storage access)
+      const { data: signInData } = await supabaseAdmin.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       // Generate JWT token
       const token = this.generateToken(authData.user);
 
@@ -148,10 +154,11 @@ class AuthService {
         user: formattedUser,
         session: {
           access_token: token,
-          refresh_token: '', // Supabase handles refresh tokens internally
-          expires_in: 86400, // 24 hours in seconds
-          expires_at: Math.floor(Date.now() / 1000) + 86400,
-          token_type: 'bearer'
+          refresh_token: signInData?.session?.refresh_token || '',
+          expires_in: signInData?.session?.expires_in || 86400,
+          expires_at: signInData?.session?.expires_at || Math.floor(Date.now() / 1000) + 86400,
+          token_type: 'bearer',
+          supabase_access_token: signInData?.session?.access_token
         }
       };
 
@@ -220,7 +227,8 @@ class AuthService {
           refresh_token: signInData.session?.refresh_token || '',
           expires_in: signInData.session?.expires_in || 86400,
           expires_at: signInData.session?.expires_at || Math.floor(Date.now() / 1000) + 86400,
-          token_type: 'bearer'
+          token_type: 'bearer',
+          supabase_access_token: signInData.session?.access_token
         }
       };
 
@@ -393,7 +401,8 @@ class AuthService {
           refresh_token: data.session.refresh_token,
           expires_in: data.session.expires_in || 86400,
           expires_at: data.session.expires_at || Math.floor(Date.now() / 1000) + 86400,
-          token_type: 'bearer'
+          token_type: 'bearer',
+          supabase_access_token: data.session.access_token
         }
       };
 

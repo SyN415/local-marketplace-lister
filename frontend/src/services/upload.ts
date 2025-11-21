@@ -10,8 +10,10 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
   const uploadedUrls: string[] = [];
   const BUCKET_NAME = 'listings';
 
-  // Check for auth token from custom auth flow
-  const token = getAuthToken();
+  // Check for auth token - prefer Supabase token for storage, fallback to custom auth token
+  const supabaseToken = localStorage.getItem('supabase_access_token');
+  const authToken = getAuthToken();
+  const token = supabaseToken || authToken;
   
   if (!token) {
     console.error('Upload service - No auth token found in localStorage');
