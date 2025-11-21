@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getAuthToken } from '../utils/auth';
 
 /**
  * Uploads a set of image files to Supabase storage
@@ -9,13 +10,15 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
   const uploadedUrls: string[] = [];
   const BUCKET_NAME = 'listings';
 
-  // Debug: Check auth state
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log('Upload service - Auth Session:', session ? 'Active' : 'None', 'User:', session?.user?.id);
-
-  if (!session) {
+  // Check for auth token from custom auth flow
+  const token = getAuthToken();
+  
+  if (!token) {
+    console.error('Upload service - No auth token found in localStorage');
     throw new Error('User must be authenticated to upload images.');
   }
+
+  // Optional: Verify token expiry or structure if needed, but existence is the primary check here
 
   for (const file of files) {
     try {
@@ -25,9 +28,15 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `uploads/${fileName}`;
 
+      // Set the Authorization header with the token
+      // This allows Supabase Storage to verify the user even if supabase.auth.session() is empty
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_NAME)
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
       if (uploadError) {
         console.error('Error uploading file:', uploadError);

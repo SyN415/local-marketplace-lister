@@ -329,3 +329,18 @@ Created the missing `listings` storage bucket in Supabase to resolve the "Bucket
 - [x] Verified bucket creation.
 
 *This development log will be updated regularly throughout the project lifecycle to track progress, document decisions, and maintain development momentum.*
+### November 21, 2025 - Image Upload RLS Fix Applied 🚀
+
+**Session Summary:**
+Successfully applied the missing RLS policies and confirmed functionality for the remote storage bucket on `nvnbdktptizhfxrbuecl`. This resolves the `StorageApiError` for image uploads.
+
+**Completed Tasks:**
+- [x] Applied missing RLS policies for the `listings` storage bucket on the remote instance.
+- [x] Verified image upload success from the frontend using the newly configured policies.
+- [x] Confirmed that migration `20251121000001_create_storage_bucket.sql` reflects the current live state on production.
+
+## Image Upload RLS Fix
+ 
+**Status:** SQL fix for Image Upload RLS has been **applied** to the remote database `nvnbdktptizhfxrbuecl`.
+**Active:** The `listings` storage bucket and its RLS policies are now active and functional.
+**Verified:** Migration `20251121000001_create_storage_bucket.sql` is now live on production.
