@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase';
+import { facebookAuthService } from './facebook.auth.service';
 import {
   MarketplaceConnection,
   CreateConnectionRequest,
@@ -117,6 +118,81 @@ class ConnectionService {
       return {
         success: false,
         error: 'Failed to save connection'
+      };
+    }
+  }
+
+  /**
+   * Handle Facebook OAuth callback
+   */
+  async handleFacebookCallback(code: string, userId: string): Promise<ApiResponse<ConnectionResponse>> {
+    try {
+      // Exchange code for token
+      const tokenData = await facebookAuthService.exchangeCode(code);
+      
+      // Get user profile
+      const profile = await facebookAuthService.getUserProfile(tokenData.access_token);
+      
+      // Check if connection already exists
+      const { data: existingConnection } = await supabaseAdmin
+        .from('marketplace_connections')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('platform', 'facebook')
+        .single();
+
+      const connectionData = {
+        user_id: userId,
+        platform: 'facebook',
+        credentials: {
+           // Store tokens securely. In a real app, encrypt these!
+           accessToken: tokenData.access_token,
+           userId: profile.id,
+           name: profile.name,
+           email: profile.email,
+           expiresIn: tokenData.expires_in
+        },
+        is_active: true,
+        connected_at: new Date().toISOString()
+      };
+
+      let result;
+
+      if (existingConnection) {
+        const { data: updated, error } = await supabaseAdmin
+          .from('marketplace_connections')
+          .update({
+            ...connectionData,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingConnection.id)
+          .select('id, platform, is_active, connected_at')
+          .single();
+          
+         if (error) throw error;
+         result = updated;
+      } else {
+        const { data: created, error } = await supabaseAdmin
+          .from('marketplace_connections')
+          .insert(connectionData)
+          .select('id, platform, is_active, connected_at')
+          .single();
+
+        if (error) throw error;
+        result = created;
+      }
+
+      return {
+        success: true,
+        data: result as ConnectionResponse,
+        message: 'Successfully connected to Facebook'
+      };
+
+    } catch (error: any) {
+      console.error('Facebook callback handling error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to complete Facebook connection'
       };
     }
   }

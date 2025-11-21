@@ -1,10 +1,63 @@
 import { Router, Request, Response } from 'express';
 import { connectionService } from '../services/connection.service';
+import { facebookAuthService } from '../services/facebook.auth.service';
 import { verifyToken } from '../middleware/auth.middleware';
 import { validateConnectionCreation } from '../middleware/validation.middleware';
 import { CreateConnectionRequest } from '../types/connection.types';
 
 const router = Router();
+
+/**
+ * @route   GET /api/connections/facebook/auth
+ * @desc    Get Facebook OAuth URL
+ * @access  Private
+ */
+router.get('/facebook/auth', verifyToken, (req: Request, res: Response) => {
+  try {
+     if (!req.user) {
+       res.status(401).json({ success: false, error: 'User not authenticated' });
+       return;
+     }
+     // Pass user ID in state if needed, or just for CSRF
+     const state = req.user.id;
+     const authUrl = facebookAuthService.getAuthUrl(state);
+     res.status(200).json({ success: true, url: authUrl });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to generate auth URL' });
+  }
+});
+
+/**
+ * @route   POST /api/connections/facebook/callback
+ * @desc    Handle Facebook OAuth callback
+ * @access  Private
+ */
+router.post('/facebook/callback', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      res.status(400).json({ success: false, error: 'Authorization code is required' });
+      return;
+    }
+
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'User not authenticated' });
+      return;
+    }
+
+    const response = await connectionService.handleFacebookCallback(code, req.user.id);
+    
+    if (!response.success) {
+      res.status(400).json(response);
+      return;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Facebook callback route error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
 
 /**
  * @route   GET /api/connections

@@ -36,6 +36,12 @@ const PLATFORM_LABELS: Record<MarketplacePlatform, string> = {
   craigslist: 'Craigslist',
 };
 
+const PLATFORM_DESCRIPTIONS: Record<MarketplacePlatform, string> = {
+  facebook: 'Managed via Connected Account.',
+  offerup: '',
+  craigslist: 'Replies auto-forwarded to your email.',
+};
+
 const PLATFORM_ICONS: Record<MarketplacePlatform, React.ReactNode> = {
   facebook: <FacebookIcon color="primary" />,
   offerup: <StorefrontIcon color="success" />,
@@ -161,8 +167,8 @@ const CrossPostModal: React.FC<CrossPostModalProps> = ({ open, onClose, listingI
                         <Typography variant="body1" fontWeight="medium">
                           {PLATFORM_LABELS[conn.platform]}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Connected
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {PLATFORM_DESCRIPTIONS[conn.platform] || 'Connected'}
                         </Typography>
                       </Box>
                     </Box>

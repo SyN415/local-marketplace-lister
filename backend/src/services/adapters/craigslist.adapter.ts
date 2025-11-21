@@ -2,6 +2,7 @@ import axios from 'axios';
 import { create } from 'xmlbuilder2';
 import { MarketplaceAdapter } from './types';
 import { Listing } from '../../types/listing.types';
+import { emailService } from '../email.service';
 
 export class CraigslistAdapter implements MarketplaceAdapter {
   private validateUrl = 'https://post.craigslist.org/bulk-rss/validate';
@@ -24,7 +25,16 @@ export class CraigslistAdapter implements MarketplaceAdapter {
       throw new Error('Craigslist credentials (cl_username, cl_password) are missing.');
     }
 
-    const payload = this.generatePayload(listing);
+    // Generate email alias if jobId is present
+    let replyEmail = 'user@example.com'; // Default fallback
+    if (connection.jobId) {
+        replyEmail = emailService.generateAlias(connection.jobId);
+        console.log(`CraigslistAdapter: Using email alias ${replyEmail} for Job ${connection.jobId}`);
+    } else {
+        console.warn('CraigslistAdapter: No jobId found in connection data, using default email.');
+    }
+
+    const payload = this.generatePayload(listing, replyEmail);
     const xmlString = payload.end({ prettyPrint: true });
 
     console.log('CraigslistAdapter: Generated XML:', xmlString);
@@ -85,7 +95,7 @@ export class CraigslistAdapter implements MarketplaceAdapter {
     }
   }
 
-  private generatePayload(listing: Listing) {
+  private generatePayload(listing: Listing, replyEmail: string) {
     // Map fields to Craigslist RSS XML Schema
     // Reference: https://www.craigslist.org/about/bulk_posting_interface
     
@@ -113,7 +123,7 @@ export class CraigslistAdapter implements MarketplaceAdapter {
       // Area is required. We might need to pull this from connection settings or listing.
       // For now, hardcoding a placeholder or using a field if we had it.
       .ele('cl:area').txt('sfbay').up() // Defaulting to sfbay for MVP testing
-      .ele('cl:replyEmail', { privacy: 'C' }).txt('user@example.com').up(); // Needs real user email or anon
+      .ele('cl:replyEmail', { privacy: 'C' }).txt(replyEmail).up();
 
     // Images
     if (listing.images && listing.images.length > 0) {

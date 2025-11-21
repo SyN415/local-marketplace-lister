@@ -18,8 +18,26 @@ export class FacebookAdapter implements MarketplaceAdapter {
   async publish(listing: Listing, connection: any): Promise<any> {
     console.log(`FacebookAdapter: Publishing listing ${listing.id}...`);
     
+    // Retrieve access token if available, though Puppeteer flow relies on cookies.
+    // If we were using API, we'd use connection.credentials.accessToken.
+    // The current automation approach uses Puppeteer + Cookies, but ideally
+    // we would use the Graph API if it supported Marketplace posting (which it strictly limits).
+    // For now, we continue with Puppeteer but check connection validity.
+    
     if (!connection.cookies || !Array.isArray(connection.cookies)) {
-        throw new Error('Facebook cookies are missing or invalid.');
+        // Fallback: if no cookies, but we have OAuth token, we can't really use it
+        // for Puppeteer automation directly without a session.
+        // In a real scenario, we might use the token to get some data, but
+        // for posting, we still rely on browser automation session.
+        // So we check for cookies. If missing, we might need to ask user to re-auth extension.
+        
+        // However, if the requirement is to use the OAuth token to "verify auth",
+        // we can do a quick check here.
+        if (connection.credentials?.accessToken) {
+           console.log('FacebookAdapter: OAuth token present, but Puppeteer requires session cookies for posting.');
+        }
+        
+        throw new Error('Facebook cookies are missing or invalid. Please ensure the extension has captured your session.');
     }
 
     let browser: Browser | null = null;

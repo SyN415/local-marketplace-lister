@@ -10,6 +10,7 @@ import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Jobs from './pages/Jobs';
 import Connections from './pages/Connections';
+import FacebookCallback from './components/connections/FacebookCallback';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import CreateListing from './pages/CreateListing';
@@ -58,6 +59,15 @@ const AppRouter: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Connections />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/connections/facebook/callback"
+            element={
+              <ProtectedRoute>
+                <FacebookCallback />
               </ProtectedRoute>
             }
           />

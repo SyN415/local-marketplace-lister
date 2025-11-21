@@ -26,11 +26,22 @@ export const config = {
   // Social media integration
   FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID || '',
   FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET || '',
+  FACEBOOK_CALLBACK_URL: process.env.FACEBOOK_CALLBACK_URL || '',
 
   // Stripe
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
   STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID || '',
+
+  // Email Service
+  CENTRAL_EMAIL_USER: process.env.CENTRAL_EMAIL_USER || '',
+  CENTRAL_EMAIL_PASS: process.env.CENTRAL_EMAIL_PASS || '',
+  EMAIL_DOMAIN: process.env.EMAIL_DOMAIN || '',
+  IMAP_HOST: process.env.IMAP_HOST || '',
+  IMAP_PORT: parseInt(process.env.IMAP_PORT || '993', 10),
+  SMTP_HOST: process.env.SMTP_HOST || '',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
+  SMTP_SECURE: process.env.SMTP_SECURE === 'true',
 };
 
 export default config;

@@ -151,7 +151,8 @@ class JobQueueService {
       // Merge metadata into connection object for the adapter
       const connectionData = {
         ...connection,
-        ...connection.metadata
+        ...connection.metadata,
+        jobId: job.id
       };
       
       // Check connection

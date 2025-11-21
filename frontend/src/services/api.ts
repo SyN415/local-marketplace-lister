@@ -409,6 +409,32 @@ export const connectionsAPI = {
       throw new Error(response.data.error || 'Failed to delete connection');
     }
   },
+
+  /**
+   * Get Facebook Auth URL
+   */
+  getFacebookAuthUrl: async (): Promise<string> => {
+    const response = await api.get<ApiResponse<{ url: string }>>('/api/connections/facebook/auth');
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to get Facebook auth URL');
+    }
+
+    return response.data.data.url;
+  },
+
+  /**
+   * Handle Facebook Callback
+   */
+  facebookCallback: async (code: string): Promise<import('../types').MarketplaceConnection> => {
+    const response = await api.post<ApiResponse<import('../types').MarketplaceConnection>>('/api/connections/facebook/callback', { code });
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to connect Facebook account');
+    }
+
+    return response.data.data;
+  },
 };
 
 /**

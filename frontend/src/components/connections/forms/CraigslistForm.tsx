@@ -1,14 +1,5 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
-import {
-  TextField,
-  Button,
-  Stack,
-  Alert,
-  InputAdornment,
-  IconButton,
-} from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { Button, Stack, Alert, Typography, Box } from '@mui/material';
 import type { CreateConnectionData } from '../../../types/index';
 
 interface CraigslistFormProps {
@@ -18,72 +9,39 @@ interface CraigslistFormProps {
 }
 
 const CraigslistForm: React.FC<CraigslistFormProps> = ({ onSubmit, isLoading, error }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm();
-  const [showPassword, setShowPassword] = React.useState(false);
-
-  const handleFormSubmit = (data: any) => {
+  const handleEnable = () => {
     onSubmit({
       platform: 'craigslist',
       credentials: {
-        username: data.username,
-        password: data.password,
+        enabled: true
       },
     });
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)}>
-      <Stack spacing={3}>
-        {error && <Alert severity="error">{error}</Alert>}
-        
-        <Alert severity="info">
-          Your credentials are encrypted and stored securely. We use them only to post your listings to Craigslist.
-        </Alert>
+    <Stack spacing={3}>
+      {error && <Alert severity="error">{error}</Alert>}
+      
+      <Box>
+        <Typography variant="body1" gutterBottom>
+          Enable Craigslist integration to manage your listings.
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          We use email routing to handle your postings anonymously. No password required.
+        </Typography>
+      </Box>
 
-        <TextField
-          label="Craigslist Email / Username"
-          fullWidth
-          {...register('username', { required: 'Username is required' })}
-          error={!!errors.username}
-          helperText={errors.username?.message as string}
-          disabled={isLoading}
-        />
-
-        <TextField
-          label="Password"
-          type={showPassword ? 'text' : 'password'}
-          fullWidth
-          {...register('password', { required: 'Password is required' })}
-          error={!!errors.password}
-          helperText={errors.password?.message as string}
-          disabled={isLoading}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label="toggle password visibility"
-                  onClick={() => setShowPassword(!showPassword)}
-                  edge="end"
-                >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
-
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          size="large"
-          disabled={isLoading}
-          fullWidth
-        >
-          {isLoading ? 'Connecting...' : 'Connect Craigslist Account'}
-        </Button>
-      </Stack>
-    </form>
+      <Button
+        variant="contained"
+        color="primary"
+        size="large"
+        onClick={handleEnable}
+        disabled={isLoading}
+        fullWidth
+      >
+        {isLoading ? 'Enabling...' : 'Enable Craigslist Integration'}
+      </Button>
+    </Stack>
   );
 };
 
