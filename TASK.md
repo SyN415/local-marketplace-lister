@@ -310,6 +310,17 @@ Resolved blocking Content Security Policy (CSP) issues that were preventing map 
 - [x] Whitelisted `nominatim.openstreetmap.org` for geocoding.
 - [x] Whitelisted specific Supabase project URL for image resources.
 
+### November 21, 2025 - Storage Bucket Configuration 🪣
+**Session Summary:**
+Created the missing `listings` storage bucket in Supabase to resolve the "Bucket not found" error during image uploads. Added a new migration file to ensure the bucket exists and has the correct public/authenticated policies.
+
+**Completed Tasks:**
+- [x] Created migration `20251121000001_create_storage_bucket.sql`.
+- [x] Configured `listings` bucket as public.
+- [x] Added RLS policies for public viewing and authenticated uploads/updates/deletes.
+- [x] Applied migration to local database.
+
+---
 ---
 ### November 20, 2025 - AI Image Analysis Enhancement 🤖
 **Session Summary:**
