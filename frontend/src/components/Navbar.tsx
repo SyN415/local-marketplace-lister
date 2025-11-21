@@ -17,7 +17,7 @@ import {
   Divider,
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Logout, Settings, Person, Brightness4, Brightness7 } from '@mui/icons-material';
+import { Logout, Settings, Person, Brightness4, Brightness7, Link as LinkIcon, WorkHistory } from '@mui/icons-material';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { getUserDisplayName, getUserInitials } from '../utils/auth';
@@ -202,6 +202,16 @@ const Navbar: React.FC = () => {
                 </MenuItem>
                 
                 <Divider />
+
+                <MenuItem onClick={() => navigate('/dashboard/connections')}>
+                  <LinkIcon sx={{ mr: 1 }} />
+                  Connections
+                </MenuItem>
+
+                <MenuItem onClick={() => navigate('/dashboard/jobs')}>
+                  <WorkHistory sx={{ mr: 1 }} />
+                  Posting History
+                </MenuItem>
                 
                 <MenuItem onClick={() => navigate('/profile')}>
                   <Person sx={{ mr: 1 }} />

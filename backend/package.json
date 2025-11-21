@@ -26,6 +26,7 @@
     "@types/multer": "^1.4.7",
     "@types/node": "^20.4.5",
     "@types/uuid": "^9.0.2",
+    "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -36,8 +37,10 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "openai": "^6.9.1",
+    "puppeteer": "^24.31.0",
     "stripe": "^20.0.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "xmlbuilder2": "^4.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.3",

@@ -7,6 +7,10 @@ import {
   LISTING_CONDITIONS,
   LISTING_STATUSES
 } from '../types/listing.types';
+import {
+  CreateConnectionRequest,
+  MARKETPLACE_PLATFORMS
+} from '../types/connection.types';
 
 /**
  * Middleware for validating listing creation data
@@ -400,4 +404,40 @@ export const validateRequiredFields = (fields: string[]) => {
     
     next();
   };
+};
+/**
+ * Middleware for validating connection creation/update data
+ */
+export const validateConnectionCreation = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  const data: CreateConnectionRequest = req.body;
+  const errors: string[] = [];
+
+  // Validate platform
+  if (!data.platform || typeof data.platform !== 'string') {
+    errors.push('Platform is required and must be a string');
+  } else if (!MARKETPLACE_PLATFORMS.includes(data.platform as any)) {
+    errors.push(`Platform must be one of: ${MARKETPLACE_PLATFORMS.join(', ')}`);
+  }
+
+  // Validate credentials
+  if (!data.credentials || typeof data.credentials !== 'object' || Array.isArray(data.credentials)) {
+    errors.push('Credentials are required and must be an object');
+  } else if (Object.keys(data.credentials).length === 0) {
+    errors.push('Credentials cannot be empty');
+  }
+
+  if (errors.length > 0) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors
+    });
+    return;
+  }
+
+  next();
 };

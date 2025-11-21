@@ -34,10 +34,15 @@ export const useLogin = () => {
       if (data.supabaseAccessToken) {
         localStorage.setItem('supabase_access_token', data.supabaseAccessToken);
       }
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Ensure credits are present, default to 0 if missing
+      const userWithCredits = {
+        ...data.user,
+        credits: data.user.credits ?? 0
+      };
+      localStorage.setItem('user', JSON.stringify(userWithCredits));
       
       // Update current user query
-      queryClient.setQueryData(authKeys.currentUser, data.user);
+      queryClient.setQueryData(authKeys.currentUser, userWithCredits);
       
       console.log('✅ User logged in successfully');
     },
@@ -96,10 +101,15 @@ export const useSignup = () => {
       if (data.supabaseAccessToken) {
         localStorage.setItem('supabase_access_token', data.supabaseAccessToken);
       }
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Ensure credits are present, default to 0 if missing
+      const userWithCredits = {
+        ...data.user,
+        credits: data.user.credits ?? 0
+      };
+      localStorage.setItem('user', JSON.stringify(userWithCredits));
       
       // Update current user query
-      queryClient.setQueryData(authKeys.currentUser, data.user);
+      queryClient.setQueryData(authKeys.currentUser, userWithCredits);
       
       console.log('✅ User signed up successfully');
     },

@@ -364,6 +364,99 @@ export const listingsAPI = {
 
     return response.data.data;
   },
+  /**
+   * Connections API functions
+   */
+};
+
+/**
+ * Connections API functions
+ */
+export const connectionsAPI = {
+  /**
+   * Get all user connections
+   */
+  getConnections: async (): Promise<import('../types').MarketplaceConnection[]> => {
+    const response = await api.get<ApiResponse<import('../types').MarketplaceConnection[]>>('/api/connections');
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch connections');
+    }
+
+    return response.data.data;
+  },
+
+  /**
+   * Create or update a connection
+   */
+  createConnection: async (data: import('../types').CreateConnectionData): Promise<import('../types').MarketplaceConnection> => {
+    const response = await api.post<ApiResponse<import('../types').MarketplaceConnection>>('/api/connections', data);
+    
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create connection');
+    }
+
+    return response.data.data;
+  },
+
+  /**
+   * Delete a connection
+   */
+  deleteConnection: async (id: string): Promise<void> => {
+    const response = await api.delete<ApiResponse>(`/api/connections/${id}`);
+    
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to delete connection');
+    }
+  },
+};
+
+/**
+ * Postings API functions
+ */
+export const postingsAPI = {
+  /**
+   * Publish a listing to selected platforms
+   */
+  publishListing: async (listingId: string, platforms: string[]): Promise<{ success: boolean; jobs: import('../types').PostingJob[] }> => {
+    const response = await api.post<ApiResponse<{ success: boolean; jobs: import('../types').PostingJob[] }>>('/api/postings/publish', {
+      listingId,
+      platforms
+    });
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to publish listing');
+    }
+
+    return response.data.data;
+  },
+
+  /**
+   * Get status of posting jobs for a specific listing
+   */
+  getJobStatus: async (listingId: string): Promise<import('../types').PostingJob[]> => {
+    const response = await api.get<ApiResponse<{ jobs: import('../types').PostingJob[] }>>(`/api/postings/status/${listingId}`);
+
+    if (!response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch job status');
+    }
+
+    // The backend currently wraps it in { jobs: [...] }
+    return response.data.data.jobs;
+  },
+
+  /**
+   * Get all posting jobs for the current user
+   */
+  getUserJobs: async (): Promise<import('../types').PostingJob[]> => {
+    const response = await api.get<ApiResponse<{ jobs: import('../types').PostingJob[] }>>('/api/postings/user');
+
+    if (!response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch user jobs');
+    }
+
+    return response.data.data.jobs;
+  }
 };
 
 /**

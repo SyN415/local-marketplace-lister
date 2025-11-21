@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -27,24 +27,45 @@ import {
   Refresh as RefreshIcon,
   Public as PublicIcon,
   Facebook as FacebookIcon,
-  Storefront as StorefrontIcon
+  Storefront as StorefrontIcon,
+  Share as ShareIcon
 } from '@mui/icons-material';
 import { useGetListing, useDeleteListing } from '../hooks/useListings';
+import CrossPostModal from '../components/listings/CrossPostModal';
+import { postingsAPI } from '../services/api';
+import type { PostingJob, MarketplacePlatform } from '../types';
 
-// Mock data for cross-posting status (since it's not in the DB yet based on the types)
-const MOCK_CROSS_POSTS = [
-  { id: 'craigslist', name: 'Craigslist', status: 'live', url: 'https://sfbay.craigslist.org', icon: <PublicIcon /> },
-  { id: 'facebook', name: 'Facebook Marketplace', status: 'not_posted', url: null, icon: <FacebookIcon /> },
-  { id: 'offerup', name: 'OfferUp', status: 'not_posted', url: null, icon: <StorefrontIcon /> },
+const PLATFORMS: { id: MarketplacePlatform; name: string; icon: React.ReactNode }[] = [
+  { id: 'craigslist', name: 'Craigslist', icon: <PublicIcon /> },
+  { id: 'facebook', name: 'Facebook Marketplace', icon: <FacebookIcon /> },
+  { id: 'offerup', name: 'OfferUp', icon: <StorefrontIcon /> },
 ];
 
 const ListingDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [crossPostModalOpen, setCrossPostModalOpen] = useState(false);
+  const [postingJobs, setPostingJobs] = useState<PostingJob[]>([]);
 
   const { data: listing, isLoading, error } = useGetListing(id || '');
   const deleteMutation = useDeleteListing(id || '');
+
+  useEffect(() => {
+    if (id) {
+      fetchJobStatus();
+    }
+  }, [id]);
+
+  const fetchJobStatus = async () => {
+    if (!id) return;
+    try {
+      const jobs = await postingsAPI.getJobStatus(id);
+      setPostingJobs(jobs);
+    } catch (err) {
+      console.error('Failed to fetch job status:', err);
+    }
+  };
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this listing?')) {
@@ -91,6 +112,13 @@ const ListingDetails: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <CrossPostModal
+        open={crossPostModalOpen}
+        onClose={() => setCrossPostModalOpen(false)}
+        listingId={id || ''}
+        onSuccess={fetchJobStatus}
+      />
+
       {/* Header Navigation */}
       <Button 
         startIcon={<ArrowBackIcon />} 
@@ -224,58 +252,92 @@ const ListingDetails: React.FC = () => {
               Manage your listings across different platforms.
             </Typography>
 
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={<ShareIcon />}
+              onClick={() => setCrossPostModalOpen(true)}
+              sx={{ mb: 3 }}
+            >
+              Post to Marketplaces
+            </Button>
+
             <Stack spacing={2}>
-              {MOCK_CROSS_POSTS.map((platform) => (
-                <Paper 
-                  key={platform.id} 
-                  elevation={0}
-                  sx={{ 
-                    p: 2, 
-                    borderRadius: 2, 
-                    border: '1px solid', 
-                    borderColor: 'divider',
-                    bgcolor: 'background.paper',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Box sx={{ color: 'text.secondary' }}>{platform.icon}</Box>
-                    <Box>
-                      <Typography variant="subtitle2" fontWeight="bold">
-                        {platform.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {platform.status === 'live' ? (
-                          <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                        ) : (
-                          <CancelIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
-                        )}
-                        <Typography variant="caption" color={platform.status === 'live' ? 'success.main' : 'text.disabled'}>
-                          {platform.status === 'live' ? 'Live' : 'Not Posted'}
+              {PLATFORMS.map((platform) => {
+                const job = postingJobs.find(j => j.platform === platform.id);
+                const status = job ? job.status : 'not_posted';
+                const isLive = status === 'completed';
+                const isPending = status === 'pending' || status === 'processing';
+                const isFailed = status === 'failed';
+                
+                let statusColor = 'text.disabled';
+                let statusText = 'Not Posted';
+                let StatusIcon = CancelIcon;
+
+                if (isLive) {
+                  statusColor = 'success.main';
+                  statusText = 'Live';
+                  StatusIcon = CheckCircleIcon;
+                } else if (isPending) {
+                  statusColor = 'warning.main';
+                  statusText = 'Processing';
+                  StatusIcon = RefreshIcon; // Or a loading spinner
+                } else if (isFailed) {
+                  statusColor = 'error.main';
+                  statusText = 'Failed';
+                  StatusIcon = CancelIcon;
+                }
+
+                return (
+                  <Paper
+                    key={platform.id}
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'background.paper',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box sx={{ color: 'text.secondary' }}>{platform.icon}</Box>
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight="bold">
+                          {platform.name}
                         </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {isPending && <CircularProgress size={10} />}
+                          {!isPending && <StatusIcon sx={{ fontSize: 14, color: statusColor }} />}
+                          <Typography variant="caption" color={statusColor} sx={{ textTransform: 'capitalize' }}>
+                            {statusText}
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
-                  </Box>
 
-                  <Box>
-                    {platform.status === 'live' ? (
-                      <Tooltip title="View Posting">
-                        <IconButton size="small" component="a" href={platform.url!} target="_blank" color="primary">
-                          <OpenInNewIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title="Post Now">
-                        <IconButton size="small" color="secondary">
-                          <RefreshIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Box>
-                </Paper>
-              ))}
+                    <Box>
+                      {isLive && job?.result_data?.url && (
+                        <Tooltip title="View Posting">
+                          <IconButton size="small" component="a" href={job.result_data.url} target="_blank" color="primary">
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {isFailed && (
+                         <Tooltip title="Retry">
+                          <IconButton size="small" color="error" onClick={() => setCrossPostModalOpen(true)}>
+                            <RefreshIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </Paper>
+                );
+              })}
             </Stack>
           </Paper>
 

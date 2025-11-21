@@ -1,7 +1,8 @@
 import { supabaseAdmin } from '../config/supabase';
-import { 
-  User, 
-  AuthResponse, 
+import { createClient } from '@supabase/supabase-js';
+import {
+  User,
+  AuthResponse,
   LoginRequest, 
   SignupRequest, 
   PasswordResetRequest,
@@ -72,6 +73,9 @@ class AuthService {
    */
   async signup(request: SignupRequest): Promise<ApiResponse<AuthResponse>> {
     try {
+      // Create a temporary client for user authentication operations to avoid polluting the admin client
+      const authClient = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+
       const { email, password, full_name, phone } = request;
 
       // Check if user already exists
@@ -120,10 +124,12 @@ class AuthService {
       };
 
       console.log('Attempting to create profile with Admin Client for user:', authData.user.id);
+      console.log('Profile Data:', JSON.stringify(profileData, null, 2));
 
-      const { error: profileError } = await supabaseAdmin
+      const { data: profileInsertData, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .insert(profileData);
+        .insert(profileData)
+        .select();
 
       if (profileError) {
         console.error('Create user profile error details:', JSON.stringify(profileError, null, 2));
@@ -139,7 +145,8 @@ class AuthService {
       }
 
       // Sign in to get Supabase session (needed for storage access)
-      const { data: signInData } = await supabaseAdmin.auth.signInWithPassword({
+      // Use authClient instead of supabaseAdmin to avoid persisting session on admin client
+      const { data: signInData } = await authClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -186,9 +193,12 @@ class AuthService {
     try {
       const { email, password } = request;
 
-      // Since we can't directly check password with admin API, 
+      // Create a temporary client for user authentication operations to avoid polluting the admin client
+      const authClient = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+
+      // Since we can't directly check password with admin API,
       // we need to use the regular auth flow
-      const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -208,11 +218,17 @@ class AuthService {
       }
 
       // Fetch user profile to include credits
-      const { data: profile } = await supabaseAdmin
+      const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('*')
         .eq('id', signInData.user.id)
         .single();
+
+      if (profileError) {
+        console.error('Error fetching profile during login:', profileError);
+      } else {
+        console.log('Profile fetched successfully:', profile);
+      }
 
       // Generate custom JWT token
       const token = this.generateToken(signInData.user);

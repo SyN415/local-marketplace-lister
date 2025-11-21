@@ -16,6 +16,11 @@ router.post('/signup', validateRequiredFields(['email', 'password']), async (req
   try {
     const signupRequest: SignupRequest = req.body;
 
+    // Map camelCase to snake_case if needed
+    if (req.body.fullName && !signupRequest.full_name) {
+      signupRequest.full_name = req.body.fullName;
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(signupRequest.email)) {

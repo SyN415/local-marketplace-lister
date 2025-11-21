@@ -8,6 +8,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Page components
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
+import Jobs from './pages/Jobs';
+import Connections from './pages/Connections';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import CreateListing from './pages/CreateListing';
@@ -47,6 +49,24 @@ const AppRouter: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/connections"
+            element={
+              <ProtectedRoute>
+                <Connections />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/jobs"
+            element={
+              <ProtectedRoute>
+                <Jobs />
               </ProtectedRoute>
             }
           />

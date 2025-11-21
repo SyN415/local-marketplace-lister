@@ -12,6 +12,9 @@ import { healthRoutes } from './routes/health.routes';
 import { aiRoutes } from './routes/ai.routes';
 import paymentRoutes from './routes/payment.routes';
 import webhookRoutes from './routes/webhook.routes';
+import { jobQueueService } from './services/job-queue.service';
+import { connectionRoutes } from './routes/connection.routes';
+import { postingRoutes } from './routes/posting.routes';
 
 const app = express();
 
@@ -61,7 +64,9 @@ app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/connections', connectionRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/postings', postingRoutes);
 
 // Serve static files from the frontend build directory
 const frontendPath = path.join(__dirname, '../../frontend/dist');
@@ -78,6 +83,11 @@ app.get('*', (req, res) => {
 const PORT = config.PORT || 3000;
 
 if (config.NODE_ENV !== 'test') {
+  // Start job queue processor (every 10 seconds)
+  setInterval(() => {
+    jobQueueService.processJobs().catch(err => console.error('Job Queue Error:', err));
+  }, 10000);
+
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.NODE_ENV}`);
