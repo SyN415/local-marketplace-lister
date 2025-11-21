@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, setSupabaseSession } from '../lib/supabase';
 import { getAuthToken } from '../utils/auth';
 
 /**
@@ -12,16 +12,34 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
 
   // Attempt to get a fresh session from Supabase to ensure token validity
   // This handles token refreshing if the current access token is expired
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  // If no session, try to restore from localStorage refresh token
+  if (!session) {
+    const refreshToken = localStorage.getItem('supabase_refresh_token');
+    const accessToken = localStorage.getItem('supabase_access_token');
+    
+    if (refreshToken && accessToken) {
+      console.log('Upload service - attempting to restore session from storage');
+      await setSupabaseSession(accessToken, refreshToken);
+      // Get session again after setting it
+      const result = await supabase.auth.getSession();
+      session = result.data.session;
+    }
+  }
   
-  // Use the fresh session token if available, otherwise fallback to storage
+  // Use the fresh session token if available
   let token: string | null | undefined = session?.access_token;
   
   if (!token) {
-    // Check for auth token - fallback to custom auth token
+    // Fallback to stored access token (likely expired but worth a try if session failed)
     const supabaseToken = localStorage.getItem('supabase_access_token');
-    const authToken = getAuthToken();
-    token = supabaseToken || authToken;
+    token = supabaseToken;
+    
+    if (!token) {
+        console.error('Upload service - No auth token found', { sessionError });
+        throw new Error('User must be authenticated to upload images.');
+    }
   }
   
   if (!token) {

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authAPI } from '../services/api';
 import { authKeys } from '../lib/query-keys';
+import { setSupabaseSession } from '../lib/supabase';
 import type { User } from '../types';
 
 /**
@@ -31,9 +32,20 @@ export const useLogin = () => {
     onSuccess: (data) => {
       // Store token and user in localStorage
       localStorage.setItem('auth_token', data.token);
+      
       if (data.supabaseAccessToken) {
         localStorage.setItem('supabase_access_token', data.supabaseAccessToken);
       }
+      
+      if (data.refreshToken) {
+        localStorage.setItem('supabase_refresh_token', data.refreshToken);
+      }
+      
+      // Initialize Supabase session
+      if (data.supabaseAccessToken && data.refreshToken) {
+        setSupabaseSession(data.supabaseAccessToken, data.refreshToken);
+      }
+
       // Ensure credits are present, default to 0 if missing
       const userWithCredits = {
         ...data.user,
@@ -98,9 +110,20 @@ export const useSignup = () => {
     onSuccess: (data) => {
       // Store token and user in localStorage
       localStorage.setItem('auth_token', data.token);
+      
       if (data.supabaseAccessToken) {
         localStorage.setItem('supabase_access_token', data.supabaseAccessToken);
       }
+      
+      if (data.refreshToken) {
+        localStorage.setItem('supabase_refresh_token', data.refreshToken);
+      }
+      
+      // Initialize Supabase session
+      if (data.supabaseAccessToken && data.refreshToken) {
+        setSupabaseSession(data.supabaseAccessToken, data.refreshToken);
+      }
+      
       // Ensure credits are present, default to 0 if missing
       const userWithCredits = {
         ...data.user,
@@ -148,6 +171,7 @@ export const useLogout = () => {
       // Clear localStorage
       localStorage.removeItem('auth_token');
       localStorage.removeItem('supabase_access_token');
+      localStorage.removeItem('supabase_refresh_token');
       localStorage.removeItem('user');
     },
 
@@ -160,6 +184,7 @@ export const useLogout = () => {
       queryClient.clear();
       localStorage.removeItem('auth_token');
       localStorage.removeItem('supabase_access_token');
+      localStorage.removeItem('supabase_refresh_token');
       localStorage.removeItem('user');
       
       console.error('❌ Logout failed:', error);
@@ -189,6 +214,14 @@ export const useCurrentUser = () => {
       if (!token) {
         // No token available, return null
         return null;
+      }
+
+      // Ensure Supabase session is initialized if we have tokens
+      const supabaseAccessToken = localStorage.getItem('supabase_access_token');
+      const supabaseRefreshToken = localStorage.getItem('supabase_refresh_token');
+      
+      if (supabaseAccessToken && supabaseRefreshToken) {
+        setSupabaseSession(supabaseAccessToken, supabaseRefreshToken);
       }
       
       // If we have a cached user, use it for immediate UI update
@@ -221,6 +254,7 @@ export const useCurrentUser = () => {
       if (error?.response?.status === 401) {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('supabase_access_token');
+        localStorage.removeItem('supabase_refresh_token');
         localStorage.removeItem('user');
         return false;
       }

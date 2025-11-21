@@ -87,8 +87,22 @@ export const authAPI = {
   /**
    * Login user
    */
-  login: async (email: string, password: string): Promise<{ user: User; token: string; supabaseAccessToken?: string }> => {
-    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string; supabase_access_token?: string } }>>('/api/auth/login', { email, password });
+  login: async (email: string, password: string): Promise<{
+    user: User;
+    token: string;
+    supabaseAccessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+  }> => {
+    const response = await api.post<ApiResponse<{
+      user: User;
+      session: {
+        access_token: string;
+        supabase_access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      }
+    }>>('/api/auth/login', { email, password });
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Login failed');
@@ -97,15 +111,31 @@ export const authAPI = {
     return {
       user: response.data.data.user,
       token: response.data.data.session.access_token,
-      supabaseAccessToken: response.data.data.session.supabase_access_token
+      supabaseAccessToken: response.data.data.session.supabase_access_token,
+      refreshToken: response.data.data.session.refresh_token,
+      expiresIn: response.data.data.session.expires_in
     };
   },
 
   /**
    * Register new user
    */
-  signup: async (email: string, password: string, fullName?: string): Promise<{ user: User; token: string; supabaseAccessToken?: string }> => {
-    const response = await api.post<ApiResponse<{ user: User; session: { access_token: string; supabase_access_token?: string } }>>('/api/auth/signup', { email, password, fullName });
+  signup: async (email: string, password: string, fullName?: string): Promise<{
+    user: User;
+    token: string;
+    supabaseAccessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+  }> => {
+    const response = await api.post<ApiResponse<{
+      user: User;
+      session: {
+        access_token: string;
+        supabase_access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      }
+    }>>('/api/auth/signup', { email, password, fullName });
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Signup failed');
@@ -114,7 +144,9 @@ export const authAPI = {
     return {
       user: response.data.data.user,
       token: response.data.data.session.access_token,
-      supabaseAccessToken: response.data.data.session.supabase_access_token
+      supabaseAccessToken: response.data.data.session.supabase_access_token,
+      refreshToken: response.data.data.session.refresh_token,
+      expiresIn: response.data.data.session.expires_in
     };
   },
 
