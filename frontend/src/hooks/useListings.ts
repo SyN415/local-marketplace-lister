@@ -479,6 +479,11 @@ export const useListings = (options?: {
     setPagination(prev => ({ ...prev, page: 1 }));
   }, []);
 
+  // Set specific page
+  const setPage = useCallback((page: number) => {
+    setPagination(prev => ({ ...prev, page }));
+  }, []);
+
   // Search listings
   const searchListings = useCallback((query: string) => {
     updateFilters({ searchQuery: query });
@@ -507,6 +512,7 @@ export const useListings = (options?: {
     updateSort,
     clearFilters,
     resetPage,
+    setPage,
     refetch,
     searchListings,
   };

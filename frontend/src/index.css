@@ -1,14 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', sans-serif;
+  --font-sans: 'Rajdhani', sans-serif;
+  --font-brand: 'Orbitron', sans-serif;
   
-  --color-primary: #0055FF;
+  --color-primary: #D1478E;
+  --color-secondary: #E66A9A;
+  --color-accent: #FF8C42;
+
   --color-background: #FFFFFF;
   --color-surface: #F5F5F5;
   --color-text: #000000;
   --color-text-secondary: #666666;
   --color-border: #E5E5E5;
+
+  --spacing-lg: 2rem;
 }
 
 :root {

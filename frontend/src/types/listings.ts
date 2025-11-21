@@ -304,6 +304,7 @@ export interface UseListingsResult {
   updateSort: (sort: Partial<ListingsSortOptions>) => void;
   clearFilters: () => void;
   resetPage: () => void;
+  setPage: (page: number) => void;
   refetch: () => void;
   searchListings: (query: string) => void;
 }

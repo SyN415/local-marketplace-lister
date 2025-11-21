@@ -11,6 +11,9 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import CreateListing from './pages/CreateListing';
+import EditListing from './pages/EditListing';
+import ListingDetails from './pages/ListingDetails';
+import Listings from './pages/Listings';
 import Pricing from './pages/Pricing';
 import Success from './pages/payment/Success';
 import Cancel from './pages/payment/Cancel';
@@ -58,11 +61,37 @@ const AppRouter: React.FC = () => {
           />
           
           <Route
+            path="/listings"
+            element={
+              <ProtectedRoute>
+                <Listings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/listings/:id"
+            element={
+              <ProtectedRoute>
+                <ListingDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/listings/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditListing />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/my-listings"
             element={
               <ProtectedRoute>
-                {/* TODO: Create MyListings component */}
-                <div>My Listings (Coming Soon)</div>
+                <Listings />
               </ProtectedRoute>
             }
           />

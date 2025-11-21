@@ -3,30 +3,42 @@ import { createTheme, type ThemeOptions } from '@mui/material/styles';
 // Common settings across both themes
 const commonSettings: ThemeOptions = {
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Rajdhani", "Inter", "Roboto", "Helvetica", "Arial", sans-serif',
     h1: {
+      fontFamily: '"Orbitron", sans-serif',
       fontSize: '2.5rem',
       fontWeight: 700,
+      letterSpacing: '0.05em',
     },
     h2: {
+      fontFamily: '"Orbitron", sans-serif',
       fontSize: '2rem',
       fontWeight: 700,
+      letterSpacing: '0.05em',
     },
     h3: {
+      fontFamily: '"Orbitron", sans-serif',
       fontSize: '1.75rem',
-      fontWeight: 600,
+      fontWeight: 700,
+      letterSpacing: '0.05em',
     },
     h4: {
+      fontFamily: '"Orbitron", sans-serif',
       fontSize: '1.5rem',
-      fontWeight: 600,
+      fontWeight: 700,
+      letterSpacing: '0.05em',
     },
     h5: {
+      fontFamily: '"Orbitron", sans-serif',
       fontSize: '1.25rem',
-      fontWeight: 600,
+      fontWeight: 700,
+      letterSpacing: '0.05em',
     },
     h6: {
+      fontFamily: '"Orbitron", sans-serif',
       fontSize: '1rem',
-      fontWeight: 600,
+      fontWeight: 700,
+      letterSpacing: '0.05em',
     },
   },
   components: {
@@ -42,15 +54,15 @@ const commonSettings: ThemeOptions = {
           },
         },
         containedPrimary: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+          background: 'linear-gradient(135deg, #D1478E 0%, #E66A9A 100%)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)',
+            background: 'linear-gradient(135deg, #C0357D 0%, #D55989 100%)',
           },
         },
         containedSecondary: {
-          background: 'linear-gradient(135deg, #f97316 0%, #ec4899 100%)',
+          background: 'linear-gradient(135deg, #FF8C42 0%, #E66A9A 100%)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #ea580c 0%, #db2777 100%)',
+            background: 'linear-gradient(135deg, #EE7B31 0%, #D55989 100%)',
           },
         },
       },
@@ -83,14 +95,14 @@ export const getTheme = (mode: 'light' | 'dark') => {
         ? {
             // Light mode palette
             primary: {
-              main: '#6366f1', // Indigo 500
-              light: '#818cf8',
-              dark: '#4f46e5',
+              main: '#D1478E', // Mid-tone Magenta
+              light: '#DA6C9E',
+              dark: '#A73871',
             },
             secondary: {
-              main: '#ec4899', // Pink 500
-              light: '#f472b6',
-              dark: '#db2777',
+              main: '#E66A9A',
+              light: '#EB88AE',
+              dark: '#B8557B',
             },
             background: {
               default: '#f8fafc', // Slate 50
@@ -104,14 +116,14 @@ export const getTheme = (mode: 'light' | 'dark') => {
         : {
             // Dark mode palette
             primary: {
-              main: '#818cf8', // Indigo 400
-              light: '#a5b4fc',
-              dark: '#6366f1',
+              main: '#E66A9A', // Using lighter secondary as primary for dark mode
+              light: '#FBCFE8',
+              dark: '#D1478E',
             },
             secondary: {
-              main: '#f472b6', // Pink 400
-              light: '#fbcfe8',
-              dark: '#ec4899',
+              main: '#FF8C42', // Accent color for secondary in dark mode
+              light: '#FFAD75',
+              dark: '#E57026',
             },
             background: {
               default: '#0f172a', // Slate 900

@@ -4,6 +4,7 @@ import { useFormContext, Controller } from 'react-hook-form';
 import { MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Circle, useMap } from 'react-leaflet';
 import type { LatLngExpression } from 'leaflet';
+import zipcodes from 'zipcodes';
 import type { LocationFieldProps } from '../../../types/forms';
 
 const MIN_DISTANCE = 5;
@@ -40,6 +41,14 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
   useEffect(() => {
     const fetchCoordinates = async () => {
       if (zipCode && zipCode.length >= 5) {
+        // 1. Auto-fill City/State using local library (instant)
+        const locationData = zipcodes.lookup(zipCode);
+        if (locationData) {
+          setValue('location.city', locationData.city, { shouldValidate: true });
+          setValue('location.state', locationData.state, { shouldValidate: true });
+        }
+
+        // 2. Fetch coordinates for map (async)
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/search?format=json&postalcode=${zipCode}&country=us`
@@ -49,8 +58,6 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
             const { lat, lon } = data[0];
             setMapCenter([parseFloat(lat), parseFloat(lon)]);
             setZoomLevel(10); // Zoom in when location found
-            
-            // Optional: Auto-fill city/state if empty (could be added later)
           }
         } catch (error) {
           console.error("Error fetching coordinates:", error);
@@ -61,7 +68,7 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
     // Debounce could be added here, but length check is a basic guard
     const timeoutId = setTimeout(fetchCoordinates, 500);
     return () => clearTimeout(timeoutId);
-  }, [zipCode]);
+  }, [zipCode, setValue]);
 
   const handleDistanceChange = (_event: Event, newValue: number | number[]) => {
     const val = newValue as number;

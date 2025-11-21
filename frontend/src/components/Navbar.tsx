@@ -83,17 +83,18 @@ const Navbar: React.FC = () => {
             sx={{
               flexGrow: 1,
               textDecoration: 'none',
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+              background: 'linear-gradient(135deg, #D1478E 0%, #E66A9A 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
+              fontFamily: '"Orbitron", sans-serif',
               fontWeight: 800,
-              letterSpacing: '-0.5px',
+              letterSpacing: '0.05em',
               '&:hover': {
                 opacity: 0.9,
               },
             }}
           >
-            Marketplace Hustle
+            Local Hustle
           </Typography>
           
           {/* Navigation Links */}
@@ -133,7 +134,7 @@ const Navbar: React.FC = () => {
                 <Button
                   color="inherit"
                   component={RouterLink}
-                  to="/my-listings"
+                  to="/listings"
                   sx={{ minWidth: 'auto', fontWeight: 600 }}
                 >
                   My Listings
@@ -242,7 +243,7 @@ const Navbar: React.FC = () => {
                 size="small"
                 sx={{
                   fontWeight: 600,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                  background: 'linear-gradient(135deg, #D1478E 0%, #E66A9A 100%)',
                 }}
               >
                 Sign Up
