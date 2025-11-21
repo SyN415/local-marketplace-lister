@@ -138,11 +138,14 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     setValue,
     watch,
     reset,
+    control,
     formState: { errors, isValid },
   } = methods;
 
   // Watch form data for auto-save
   const watchedData = watch();
+  const selectedPlatforms = watchedData.platforms || [];
+  const estimatedCost = selectedPlatforms.length; // 1 credit per platform
 
   // Auto-save functionality
   useEffect(() => {
@@ -526,8 +529,9 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
   const canGoBack = currentStep > 1;
 
   return (
-    <FormProvider {...methods}>
-      <Container maxWidth="md" sx={{ py: 4 }}>
+    <>
+      <FormProvider {...methods}>
+        <Container maxWidth="md" sx={{ py: 4 }}>
         <Paper
           elevation={0}
           sx={{
