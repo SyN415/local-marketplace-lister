@@ -71,6 +71,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
   // Form state
   const [currentStep, setCurrentStep] = useState<FormStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false); // Prevent double-click race conditions
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -232,14 +233,23 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
 
   // Navigation handlers
   const handleNext = useCallback(async () => {
-    const isValid = await validateStep(currentStep);
-    if (isValid && currentStep < 4) {
-      AnalyticsUtils.trackStepExit(currentStep);
-      setCurrentStep(prev => (prev + 1) as FormStep);
-      AnalyticsUtils.trackStepEntry(currentStep + 1 as FormStep);
-      events?.onStepChange?.((currentStep + 1) as FormStep);
+    if (isNavigating) return;
+    
+    setIsNavigating(true);
+    try {
+      const isValid = await validateStep(currentStep);
+      
+      if (isValid && currentStep < 4) {
+        AnalyticsUtils.trackStepExit(currentStep);
+        setCurrentStep(prev => (prev + 1) as FormStep);
+        AnalyticsUtils.trackStepEntry(currentStep + 1 as FormStep);
+        events?.onStepChange?.((currentStep + 1) as FormStep);
+      }
+    } finally {
+      // Small delay to prevent double-clicks registering on the next step's button
+      setTimeout(() => setIsNavigating(false), 500);
     }
-  }, [currentStep, validateStep, events]);
+  }, [currentStep, validateStep, events, isNavigating]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 1) {
@@ -335,6 +345,9 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
 
   // Form submission handler - triggers modal
   const handleFormSubmit = useCallback(async (data: ListingFormData) => {
+    // Prevent double-submission or race conditions
+    if (isNavigating || isSubmitting) return;
+
     // Prevent premature submission on Enter key during creation (Step 1-3)
     if (!isEdit && currentStep < 4) {
       await handleNext();
@@ -687,7 +700,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                       variant="contained"
                       endIcon={<ChevronRight />}
                       onClick={handleNext}
-                      disabled={isSubmitting || isSaving}
+                      disabled={isSubmitting || isSaving || isNavigating}
                       disableElevation
                       sx={{
                         px: 4,
@@ -708,7 +721,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
                     <Button
                       type="submit"
                       variant="contained"
-                      disabled={!isValid || isSubmitting || isSaving}
+                      disabled={!isValid || isSubmitting || isSaving || isNavigating}
                       disableElevation
                       startIcon={
                         isSubmitting ? (
