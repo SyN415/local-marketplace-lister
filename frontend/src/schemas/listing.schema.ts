@@ -21,6 +21,17 @@ export const LISTING_CATEGORIES = [
 ] as const;
 
 /**
+ * Target platforms for listings
+ */
+export const TARGET_PLATFORMS = [
+  'facebook',
+  'craigslist',
+  'offerup',
+  'nextdoor',
+  'mercari'
+] as const;
+
+/**
  * Condition options for listings
  */
 export const LISTING_CONDITIONS = [
@@ -93,6 +104,11 @@ export const ListingFormSchema = z.object({
 
   // Step 3: Location
   location: LocationSchema,
+
+  // Step 4: Platform Selection
+  platforms: z.array(z.enum(TARGET_PLATFORMS))
+    .min(1, 'Please select at least one platform')
+    .default(['facebook']),
 }).refine(
   (data) => {
     // Custom validation: premium items (>$1000) must have detailed descriptions
@@ -156,7 +172,9 @@ export const validateFormStep = (
     3: ListingFormSchema.pick({
       location: true,
     }),
-    4: ListingFormSchema, // Final step validates everything
+    4: ListingFormSchema.pick({
+      platforms: true,
+    }),
   };
 
   const result = stepSchemas[step].safeParse(data);
@@ -216,6 +234,7 @@ export const getDefaultValues = (): Partial<ListingFormData> => ({
     latitude: undefined,
     longitude: undefined,
   },
+  platforms: ['facebook'],
 });
 
 /**

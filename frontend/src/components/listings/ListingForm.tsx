@@ -11,12 +11,22 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
+  Card,
+  CardContent,
 } from '@mui/material';
-import { FormProvider, useForm } from 'react-hook-form';
+import { FormProvider, useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronLeft, ChevronRight, Save, CheckCircle, AutoAwesome } from '@mui/icons-material';
+import { ChevronLeft, ChevronRight, Save, CheckCircle, AutoAwesome, Share } from '@mui/icons-material';
 import type { ListingFormData, FormStep } from '../../schemas/listing.schema';
-import { ListingFormSchema } from '../../schemas/listing.schema';
+import { ListingFormSchema, TARGET_PLATFORMS } from '../../schemas/listing.schema';
 import type { UseFormOptions, FormEvents } from '../../types/forms';
 import { DraftStorage, AnalyticsUtils } from '../../utils/form';
 import { uploadListingImages } from '../../services/upload';
@@ -65,6 +75,8 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<ListingFormData | null>(null);
 
   // Steps configuration
   const steps = [
@@ -88,9 +100,9 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     },
     {
       number: 4 as FormStep,
-      title: 'Review & Submit',
-      description: 'Review your listing before publishing',
-      fields: [],
+      title: 'Finalize',
+      description: 'Select platforms and publish',
+      fields: ['platforms'],
     },
   ];
 
@@ -113,6 +125,7 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
         latitude: undefined,
         longitude: undefined,
       },
+      platforms: ['facebook'],
       ...initialData,
     },
     mode: 'onChange',
@@ -267,18 +280,17 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     }
   }, [getValues, currentStep, listingId, events]);
 
-  // Form submission
-  const handleFormSubmit = useCallback(async (data: ListingFormData) => {
-    // Prevent premature submission on Enter key during creation (Step 1-3)
-    if (!isEdit && currentStep < 4) {
-      await handleNext();
-      return;
-    }
-
+  // Execute actual submission after confirmation
+  const executeSubmission = useCallback(async () => {
+    if (!pendingSubmission) return;
+    
+    setConfirmOpen(false);
     setIsSubmitting(true);
     setSubmitError(null);
 
     try {
+      const data = pendingSubmission;
+      
       // Upload images
       let uploadedUrls: string[] = [];
       if (data.images && data.images.length > 0) {
@@ -314,8 +326,27 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
       events?.onError?.(error as Error);
     } finally {
       setIsSubmitting(false);
+      setPendingSubmission(null);
     }
-  }, [isEdit, listingId, events, currentStep, handleNext]);
+  }, [pendingSubmission, isEdit, listingId, events]);
+
+  // Form submission handler - triggers modal
+  const handleFormSubmit = useCallback(async (data: ListingFormData) => {
+    // Prevent premature submission on Enter key during creation (Step 1-3)
+    if (!isEdit && currentStep < 4) {
+      await handleNext();
+      return;
+    }
+
+    // Validate platforms selection manually just in case
+    if (!data.platforms || data.platforms.length === 0) {
+      setValidationErrors({ platforms: 'Please select at least one platform' });
+      return;
+    }
+
+    setPendingSubmission(data);
+    setConfirmOpen(true);
+  }, [isEdit, currentStep, handleNext]);
 
   // Handle AI Analysis Result
   const handleAiAnalysis = useCallback((result: any) => {
@@ -387,91 +418,101 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
 
       case 4:
         return (
-          <Box sx={{ display: 'grid', gap: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Review Your Listing
-            </Typography>
-            
-            <Paper variant="outlined" sx={{ p: 3 }}>
-              <Box sx={{ display: 'grid', gap: 2 }}>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Title
+          <Box sx={{ display: 'grid', gap: 4 }}>
+            {/* Platform Selection Section */}
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Share color="primary" /> Select Platforms
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Choose where you want your listing to appear.
+              </Typography>
+              
+              <Paper variant="outlined" sx={{ p: 3, bgcolor: 'background.default' }}>
+                <Controller
+                  name="platforms"
+                  control={control}
+                  render={({ field }) => (
+                    <FormGroup>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                        {TARGET_PLATFORMS.map((platform) => (
+                          <FormControlLabel
+                            key={platform}
+                            control={
+                              <Checkbox
+                                checked={field.value?.includes(platform)}
+                                onChange={(e) => {
+                                  const current = field.value || [];
+                                  const newValue = e.target.checked
+                                    ? [...current, platform]
+                                    : current.filter((p: string) => p !== platform);
+                                  field.onChange(newValue);
+                                }}
+                              />
+                            }
+                            label={platform.charAt(0).toUpperCase() + platform.slice(1)}
+                            sx={{ textTransform: 'capitalize' }}
+                          />
+                        ))}
+                      </Box>
+                    </FormGroup>
+                  )}
+                />
+                {errors.platforms && (
+                  <Typography color="error" variant="caption" sx={{ mt: 1, display: 'block' }}>
+                    {errors.platforms.message}
                   </Typography>
-                  <Typography variant="body1">
-                    {watchedData.title || 'Not provided'}
+                )}
+              </Paper>
+
+              {/* Cost Estimate */}
+              <Card sx={{ mt: 3, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.100' }} elevation={0}>
+                <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, '&:last-child': { pb: 2 } }}>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="bold" color="primary.900">
+                      Estimated Cost
+                    </Typography>
+                    <Typography variant="caption" color="primary.700">
+                      Based on selected platforms
+                    </Typography>
+                  </Box>
+                  <Typography variant="h4" fontWeight="bold" color="primary.main">
+                    {estimatedCost} <Typography component="span" variant="body2" color="primary.700">Credits</Typography>
                   </Typography>
-                </Box>
-                
-                <Divider />
-                
-                <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: '1fr 1fr' }}>
+                </CardContent>
+              </Card>
+            </Box>
+
+            <Divider />
+
+            {/* Review Section */}
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Review Summary
+              </Typography>
+              
+              <Paper variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'grid', gap: 2 }}>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">
-                      Price
+                      Title & Price
                     </Typography>
-                    <Typography variant="body1">
-                      ${watchedData.price?.toLocaleString() || '0'}
+                    <Typography variant="body1" fontWeight="500">
+                      {watchedData.title} • ${watchedData.price?.toLocaleString()}
                     </Typography>
                   </Box>
                   
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">
-                      Category
+                      Location
                     </Typography>
                     <Typography variant="body1">
-                      {watchedData.category || 'Not selected'}
-                    </Typography>
-                  </Box>
-                  
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Condition
-                    </Typography>
-                    <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>
-                      {watchedData.condition ? watchedData.condition.replace('_', ' ') : 'Not selected'}
+                      {[watchedData.location?.city, watchedData.location?.state].filter(Boolean).join(', ')} ({watchedData.location?.zipCode})
                     </Typography>
                   </Box>
                 </Box>
-                
-                {watchedData.description && (
-                  <>
-                    <Divider />
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Description
-                      </Typography>
-                      <Typography variant="body1">
-                        {watchedData.description}
-                      </Typography>
-                    </Box>
-                  </>
-                )}
-                
-                {watchedData.location?.address && (
-                  <>
-                    <Divider />
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Location
-                      </Typography>
-                      <Typography variant="body1">
-                        {[
-                          watchedData.location.address,
-                          watchedData.location.city,
-                          watchedData.location.state,
-                          watchedData.location.zipCode,
-                        ].filter(Boolean).join(', ')}
-                      </Typography>
-                    </Box>
-                  </>
-                )}
-              </Box>
-            </Paper>
-            
-            <Alert severity="success" icon={<CheckCircle />}>
-              Your listing is ready to be published. Review all details before submitting.
-            </Alert>
+              </Paper>
+            </Box>
           </Box>
         );
 
@@ -704,6 +745,34 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
         </Paper>
       </Container>
     </FormProvider>
+
+    {/* Confirmation Dialog */}
+    <Dialog
+      open={confirmOpen}
+      onClose={() => setConfirmOpen(false)}
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-description"
+    >
+      <DialogTitle id="confirm-dialog-title">
+        Ready to Post?
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText id="confirm-dialog-description">
+          You are about to create this listing on <strong>{selectedPlatforms.length} platform(s)</strong>.
+          <br /><br />
+          This action will deduct <strong>{estimatedCost} credits</strong> from your account.
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setConfirmOpen(false)} color="inherit">
+          Cancel
+        </Button>
+        <Button onClick={executeSubmission} variant="contained" autoFocus>
+          Confirm & Post
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 };
 

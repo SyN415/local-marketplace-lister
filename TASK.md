@@ -409,3 +409,13 @@ Addressed a critical bug in the Create Listing flow where the form would prematu
 - [x] **Rate Limiting:** Increased backend rate limits in `server.ts` to 1000 reqs/15min to accommodate development traffic.
 - [x] **Data Fetching:** Disabled `refetchOnWindowFocus` in `react-query.ts` to reduce unnecessary API calls and server load.
 - [x] Implemented "Active Postings Panel" mock UI for Craigslist, Facebook, and OfferUp status.
+
+### November 21, 2025 - Listing Finalization & Platform Selection 🎯
+**Session Summary:**
+Redesigned the final step of the listing creation process to include platform selection and a clear confirmation flow. This prevents accidental submissions and gives users control over where their listing appears, while also providing transparent cost estimation.
+
+**Completed Tasks:**
+- [x] **Step 4 Redesign:** Transformed "Review & Submit" into "Finalize" step with explicit Platform Selection (Facebook, Craigslist, OfferUp, etc.).
+- [x] **Cost Estimation:** Added real-time credit cost calculation based on selected platforms.
+- [x] **Confirmation Modal:** Implemented a final confirmation dialog ("Ready to Post?") to prevent accidental submissions and confirm credit usage.
+- [x] **Bug Fix:** Resolved the "skip to end" issue by adding strict keydown handlers to `LocationFields` inputs, preventing Enter key from triggering premature form submission.

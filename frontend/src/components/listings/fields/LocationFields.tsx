@@ -75,6 +75,13 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
     setValue('location.distance', val, { shouldDirty: true, shouldValidate: true });
   };
 
+  // Prevent Enter key from submitting the form
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+    }
+  };
+
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
       borderRadius: 0,
@@ -114,6 +121,7 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
                     required
                     fullWidth
                     disabled={disabled}
+                    onKeyDown={handleKeyDown}
                     error={!!fieldState.error || !!errors?.zipCode}
                     helperText={fieldState.error?.message || errors?.zipCode}
                     sx={inputStyles}
@@ -170,6 +178,7 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
                       fullWidth
                       size="small"
                       disabled={disabled}
+                      onKeyDown={handleKeyDown}
                       error={!!fieldState.error || !!errors?.city}
                       helperText={fieldState.error?.message || errors?.city}
                       sx={inputStyles}
@@ -187,6 +196,7 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
                       fullWidth
                       size="small"
                       disabled={disabled}
+                      onKeyDown={handleKeyDown}
                       error={!!fieldState.error || !!errors?.state}
                       helperText={fieldState.error?.message || errors?.state}
                       sx={inputStyles}
@@ -204,6 +214,7 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
                     fullWidth
                     size="small"
                     disabled={disabled}
+                    onKeyDown={handleKeyDown}
                     placeholder="Specific address is hidden on public listing"
                     error={!!fieldState.error || !!errors?.address}
                     helperText={fieldState.error?.message || errors?.address}
