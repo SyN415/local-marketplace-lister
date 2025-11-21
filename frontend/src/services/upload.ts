@@ -10,17 +10,24 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
   const uploadedUrls: string[] = [];
   const BUCKET_NAME = 'listings';
 
-  // Check for auth token - prefer Supabase token for storage, fallback to custom auth token
-  const supabaseToken = localStorage.getItem('supabase_access_token');
-  const authToken = getAuthToken();
-  const token = supabaseToken || authToken;
+  // Attempt to get a fresh session from Supabase to ensure token validity
+  // This handles token refreshing if the current access token is expired
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  // Use the fresh session token if available, otherwise fallback to storage
+  let token: string | null | undefined = session?.access_token;
   
   if (!token) {
-    console.error('Upload service - No auth token found in localStorage');
+    // Check for auth token - fallback to custom auth token
+    const supabaseToken = localStorage.getItem('supabase_access_token');
+    const authToken = getAuthToken();
+    token = supabaseToken || authToken;
+  }
+  
+  if (!token) {
+    console.error('Upload service - No auth token found', { sessionError });
     throw new Error('User must be authenticated to upload images.');
   }
-
-  // Optional: Verify token expiry or structure if needed, but existence is the primary check here
 
   for (const file of files) {
     try {
