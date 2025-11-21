@@ -9,6 +9,14 @@ export const uploadListingImages = async (files: File[]): Promise<string[]> => {
   const uploadedUrls: string[] = [];
   const BUCKET_NAME = 'listings';
 
+  // Debug: Check auth state
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log('Upload service - Auth Session:', session ? 'Active' : 'None', 'User:', session?.user?.id);
+
+  if (!session) {
+    throw new Error('User must be authenticated to upload images.');
+  }
+
   for (const file of files) {
     try {
       // Generate a unique file path: userId/listingId/filename or just a random path

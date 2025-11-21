@@ -257,6 +257,14 @@ This entry documents the critical fixes deployed for user signup reliability and
 ---
 
 ### November 20, 2025 - AI Image Analysis Enhancement 🤖
+**Session Summary:**
+Refactored `ai.service.ts` to act as an expert sales copywriter, generating JSON outputs with sellable item descriptions and standardized categories. Fixed frontend `CategorySelect` to use the new category list.
+
+**Completed Tasks:**
+- [x] Update backend AI prompt for JSON output.
+- [x] Enforce "Apparel, Electronics, etc." category list.
+- [x] Updated `CategorySelect.tsx` and schema to match new categories.
+
 ### November 20, 2025 - TypeScript Build Error Resolution 🛠️
 **Session Summary:**
 Resolved several TypeScript build errors that were blocking the CI/CD pipeline. The errors were primarily caused by unused variables and imports in the frontend codebase. These strict checks are enforced to maintain code quality and prevent potential bugs.
@@ -312,25 +320,12 @@ Resolved blocking Content Security Policy (CSP) issues that were preventing map 
 
 ### November 21, 2025 - Storage Bucket Configuration 🪣
 **Session Summary:**
-Created the missing `listings` storage bucket in Supabase to resolve the "Bucket not found" error during image uploads. Added a new migration file to ensure the bucket exists and has the correct public/authenticated policies.
+Created the missing `listings` storage bucket in Supabase to resolve the "Bucket not found" error during image uploads. Used the Supabase MCP tool to directly execute SQL queries to create the bucket and applying the necessary public/authenticated policies since the migration file approach wasn't auto-applying in the current environment.
 
 **Completed Tasks:**
-- [x] Created migration `20251121000001_create_storage_bucket.sql`.
-- [x] Configured `listings` bucket as public.
-- [x] Added RLS policies for public viewing and authenticated uploads/updates/deletes.
-- [x] Applied migration to local database.
-
----
----
-### November 20, 2025 - AI Image Analysis Enhancement 🤖
-**Session Summary:**
-Refactoring the AI service to provide more targeted, sales-oriented analysis of uploaded images. The goal is to better identify sellable items and generate persuasive descriptions that drive sales, rather than generic scene descriptions.
-
-**Current Task Requirements:**
-- [ ] Identify sellable items (Apparel, Electronics, Home & Garden, etc.).
-- [ ] Generate concise, persuasive, sales-oriented descriptions.
-- [ ] Return structured JSON: `{ itemDescription, category }`.
-- [ ] Handle "no sellable items" case.
-- [ ] Update AI prompt with specific role (Expert sales copywriter) and constraints.
+- [x] Verified bucket absence using MCP `execute_sql`.
+- [x] Executed SQL to create `listings` bucket.
+- [x] Executed SQL to set up RLS policies (Public Select, Authenticated Insert/Update/Delete).
+- [x] Verified bucket creation.
 
 *This development log will be updated regularly throughout the project lifecycle to track progress, document decisions, and maintain development momentum.*
