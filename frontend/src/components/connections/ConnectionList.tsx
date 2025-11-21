@@ -22,7 +22,11 @@ interface ConnectionListProps {
 
 const PlatformIcon = ({ platform }: { platform: string }) => {
   // You can replace these with actual logos or specific icons if available
-  return <Store />;
+  return (
+    <Box title={platform} display="flex" alignItems="center">
+      <Store />
+    </Box>
+  );
 };
 
 const ConnectionList: React.FC<ConnectionListProps> = ({ connections, onDelete, onAdd }) => {
@@ -60,7 +64,7 @@ const ConnectionList: React.FC<ConnectionListProps> = ({ connections, onDelete, 
   return (
     <Grid container spacing={3}>
       {connections.map((connection) => (
-        <Grid item xs={12} sm={6} md={4} key={connection.id}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }} key={connection.id}>
           <Card
             sx={{
               background: 'rgba(255, 255, 255, 0.05)',
@@ -107,7 +111,7 @@ const ConnectionList: React.FC<ConnectionListProps> = ({ connections, onDelete, 
           </Card>
         </Grid>
       ))}
-      <Grid item xs={12} sm={6} md={4}>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
         <Button
           fullWidth
           variant="outlined"
