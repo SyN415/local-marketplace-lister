@@ -9,6 +9,20 @@ export interface MarketplaceConnection {
   is_active: boolean;
   connected_at: string;
   metadata?: Record<string, any>;
+  contact_email?: string;
+  contact_phone?: string;
+  proxy_assignment_id?: string;
+}
+
+export interface CraigslistConnectionData {
+  contactEmail: string;
+  contactPhone?: string;
+  showPhoneOnListings?: boolean;
+  enabled: boolean;
+}
+
+export interface ConnectionWithProxy extends MarketplaceConnection {
+  proxyEmail?: string;
 }
 
 export interface CreateConnectionRequest {
@@ -26,6 +40,9 @@ export interface ConnectionResponse {
   platform: string;
   is_active: boolean;
   connected_at: string;
+  contact_email?: string;
+  contact_phone?: string;
+  proxy_email?: string;
 }
 
 export const MARKETPLACE_PLATFORMS = ['facebook', 'offerup', 'craigslist'] as const;

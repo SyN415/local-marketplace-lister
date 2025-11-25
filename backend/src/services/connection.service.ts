@@ -1,11 +1,12 @@
 import { supabaseAdmin } from '../config/supabase';
 import { facebookAuthService } from './facebook.auth.service';
+import { emailProxyService } from './email-proxy.service';
 import {
-  MarketplaceConnection,
   CreateConnectionRequest,
   ConnectionResponse,
   ApiResponse,
-  MARKETPLACE_PLATFORMS
+  MARKETPLACE_PLATFORMS,
+  CraigslistConnectionData
 } from '../types/connection.types';
 
 class ConnectionService {
@@ -16,7 +17,15 @@ class ConnectionService {
     try {
       const { data, error } = await supabaseAdmin
         .from('marketplace_connections')
-        .select('id, platform, is_active, connected_at')
+        .select(`
+          id,
+          platform,
+          is_active,
+          connected_at,
+          contact_email,
+          contact_phone,
+          proxy_assignment_id
+        `)
         .eq('user_id', userId);
 
       if (error) {
@@ -27,9 +36,36 @@ class ConnectionService {
         };
       }
 
+      // Enrich with proxy email if assignment exists
+      const connections = await Promise.all(data.map(async (conn: any) => {
+        let proxy_email;
+        if (conn.proxy_assignment_id) {
+          // In a real query we could join, but for now this works given low volume of connections per user
+          const { data: assignment } = await supabaseAdmin
+            .from('email_proxy_assignments')
+            .select(`
+              full_alias,
+              email_proxy_pool!inner(email)
+            `)
+            .eq('id', conn.proxy_assignment_id)
+            .single();
+          
+          if (assignment) {
+             const proxyPool = assignment.email_proxy_pool as unknown as { email: string };
+             const [localPart, domain] = proxyPool.email.split('@');
+             proxy_email = `${localPart}+${assignment.full_alias}@${domain}`;
+          }
+        }
+
+        return {
+          ...conn,
+          proxy_email
+        };
+      }));
+
       return {
         success: true,
-        data: data as ConnectionResponse[],
+        data: connections as ConnectionResponse[],
         message: 'Connections retrieved successfully'
       };
     } catch (error) {
@@ -71,45 +107,96 @@ class ConnectionService {
         .eq('platform', data.platform)
         .single();
 
+      // Extract contact info if Craigslist
+      let contactEmail = null;
+      let contactPhone = null;
+      let proxyAssignmentId = null;
+
+      if (data.platform === 'craigslist') {
+        const creds = data.credentials as CraigslistConnectionData;
+        contactEmail = creds.contactEmail;
+        contactPhone = creds.contactPhone;
+
+        // Try to assign a proxy if this is a new connection or re-activating
+        if (!existingConnection) {
+          const proxyEmail = await emailProxyService.assignProxy(userId);
+          // If we got a proxy (mocked for now), we would get the ID.
+          // Since assignProxy returns string/null currently, we'd need to fetch the ID.
+          // For this implementation step, let's just use the placeholder logic in the service.
+          // In real implementation:
+          // 1. service returns object { email, id }
+          // 2. we store id here
+        }
+      }
+
       let result;
+      
+      const updateData: any = {
+        credentials: data.credentials,
+        is_active: true,
+        connected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (contactEmail) updateData.contact_email = contactEmail;
+      if (contactPhone) updateData.contact_phone = contactPhone;
       
       if (existingConnection) {
         // Update existing connection
         const { data: updated, error } = await supabaseAdmin
           .from('marketplace_connections')
-          .update({
-            credentials: data.credentials,
-            is_active: true,
-            connected_at: new Date().toISOString(),
-            updated_at: new Date().toISOString() // Assuming there is an updated_at trigger or column
-          })
+          .update(updateData)
           .eq('id', existingConnection.id)
-          .select('id, platform, is_active, connected_at')
+          .select('id, platform, is_active, connected_at, contact_email, contact_phone, proxy_assignment_id')
           .single();
         
         if (error) throw error;
         result = updated;
       } else {
         // Create new connection
+        const insertData: any = {
+          user_id: userId,
+          platform: data.platform,
+          credentials: data.credentials,
+          is_active: true,
+          connected_at: new Date().toISOString()
+        };
+
+        if (contactEmail) insertData.contact_email = contactEmail;
+        if (contactPhone) insertData.contact_phone = contactPhone;
+
         const { data: created, error } = await supabaseAdmin
           .from('marketplace_connections')
-          .insert({
-            user_id: userId,
-            platform: data.platform,
-            credentials: data.credentials,
-            is_active: true,
-            connected_at: new Date().toISOString()
-          })
-          .select('id, platform, is_active, connected_at')
+          .insert(insertData)
+          .select('id, platform, is_active, connected_at, contact_email, contact_phone, proxy_assignment_id')
           .single();
 
         if (error) throw error;
         result = created;
       }
+      
+      // If we have a proxy assignment, we should fetch the email to return
+      let proxyEmail;
+      if (result.proxy_assignment_id) {
+         const { data: assignment } = await supabaseAdmin
+            .from('email_proxy_assignments')
+            .select(`
+              full_alias,
+              email_proxy_pool!inner(email)
+            `)
+            .eq('id', result.proxy_assignment_id)
+            .single();
+          
+          if (assignment) {
+             const proxyPool = assignment.email_proxy_pool as unknown as { email: string };
+             const [localPart, domain] = proxyPool.email.split('@');
+             proxyEmail = `${localPart}+${assignment.full_alias}@${domain}`;
+          }
+      }
 
       return {
         success: true,
-        data: result as ConnectionResponse,
+        data: { ...result, proxy_email: proxyEmail } as ConnectionResponse,
         message: `Successfully connected to ${data.platform}`
       };
 
@@ -195,6 +282,13 @@ class ConnectionService {
         error: error.message || 'Failed to complete Facebook connection'
       };
     }
+  }
+
+  /**
+   * Assign an email proxy to a connection
+   */
+  async assignEmailProxy(userId: string, connectionId: string): Promise<string | null> {
+    return emailProxyService.assignProxy(userId);
   }
 
   /**
