@@ -76,22 +76,22 @@ const StatsCard: React.FC<StatsCardProps> = ({
         </div>
 
         {loading ? (
-          <Skeleton className="h-14 w-3/5" />
+          <Skeleton className="h-10 w-3/5" />
         ) : error ? (
-          <Alert variant="destructive" className="p-2 min-h-[40px] flex items-center rounded-none border-none">
+          <Alert variant="destructive" className="p-2 min-h-[30px] flex items-center rounded-none border-none">
             <AlertCircle className="h-4 w-4 mr-2" />
             <AlertTitle className="mb-0 text-sm">Error</AlertTitle>
           </Alert>
         ) : (
-          <div className="text-4xl sm:text-5xl font-black text-foreground mb-0 leading-none tracking-tight font-display">
+          <div className="text-3xl sm:text-4xl font-black text-foreground mb-0 leading-none tracking-tight font-display">
             {formatValue(value)}
           </div>
         )}
 
         {clickable && !loading && !error && (
           <Badge 
-            variant="outline" 
-            className="mt-4 text-xs h-6 rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            variant="outline"
+            className="mt-3 text-xs h-5 rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground"
           >
             Click to filter
           </Badge>

@@ -75,9 +75,9 @@ const Navbar: React.FC = () => {
         <div className="container mx-auto flex h-16 items-center px-4">
           {/* Logo/Home Link */}
           <RouterLink to="/" className="mr-6 flex items-center space-x-2">
-            <img src="/jp1.jpg" alt="Jigglypost" className="h-10 w-auto rounded-sm" />
+            <img src="/jp1.jpg" alt="Jigglepost" className="h-10 w-auto rounded-sm" />
             <span className="hidden font-display text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent sm:inline-block">
-              Jigglypost
+              Jigglepost
             </span>
           </RouterLink>
           
