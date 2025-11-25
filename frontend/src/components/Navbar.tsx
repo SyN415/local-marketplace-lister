@@ -76,10 +76,11 @@ const Navbar: React.FC = () => {
         <div className="container mx-auto flex h-16 items-center px-4">
           {/* Logo/Home Link */}
           <RouterLink to="/" className="mr-6 flex items-center space-x-2">
-            <img src={logo} alt="Jigglepost" className="h-10 w-auto rounded-sm" />
-            <span className="hidden font-display text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent sm:inline-block">
-              Jigglepost
-            </span>
+            <img
+              src={logo}
+              alt="Jigglepost"
+              className="h-16 w-auto rounded-sm mix-blend-multiply dark:invert dark:mix-blend-screen"
+            />
           </RouterLink>
           
           {/* Navigation Links */}

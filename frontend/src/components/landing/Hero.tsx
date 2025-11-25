@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, PlayCircle } from 'lucide-react';
 import { Button } from '../ui/button';
+import jp1 from '../../assets/jp1.jpg';
 
 const Hero: React.FC = () => {
   const navigate = useNavigate();
@@ -20,8 +21,9 @@ const Hero: React.FC = () => {
             >
               <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-black leading-[0.9] mb-4 text-fg uppercase tracking-tighter">
                 Dominate <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary flex items-center gap-4">
                   Local Markets.
+                  <img src={jp1} alt="Jigglepost" className="h-16 w-16 md:h-24 md:w-24 rounded-full border-4 border-bg shadow-xl animate-bounce" />
                 </span>
               </h1>
             </motion.div>
@@ -104,8 +106,9 @@ const Hero: React.FC = () => {
                 <motion.div
                   animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute -bottom-5 -left-5 bg-white p-4 border-2 border-black shadow-[8px_8px_0px_#000] z-20"
+                  className="absolute -bottom-5 -left-5 bg-white p-4 border-2 border-black shadow-[8px_8px_0px_#000] z-20 flex items-center gap-3"
                 >
+                  <img src={jp1} alt="Growth" className="h-10 w-10 rounded-full" />
                   <h6 className="text-black font-black uppercase text-lg">
                     +127% Growth
                   </h6>

@@ -83,7 +83,7 @@
 }
 
 /* Dark Mode Overrides */
-@theme dark {
+:root.dark {
   --color-bg: oklch(15% 0 0); /* #0f172a */
   --color-fg: oklch(98% 0 0); /* #f8fafc */
   --color-muted: oklch(20% 0 0); /* #0f172a */

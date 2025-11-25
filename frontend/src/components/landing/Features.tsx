@@ -1,14 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Share2, Archive, Sparkles, TrendingUp } from 'lucide-react';
+import { Archive, Sparkles, TrendingUp } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { cn } from '../../lib/utils';
+import jp1 from '../../assets/jp1.jpg';
 
 const features = [
   {
     title: 'Cross-Listing Engine',
     description: 'Post your items to Facebook Marketplace, Craigslist, and OfferUp in seconds. Multiply your reach instantly.',
-    icon: <Share2 className="h-8 w-8" />,
+    icon: <img src={jp1} alt="Jigglepost Mascot" className="h-8 w-8 rounded-full" />,
     color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20',
   },
   {
