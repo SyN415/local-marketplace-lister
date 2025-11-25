@@ -12,6 +12,7 @@ import Connections from './pages/Connections';
 import FacebookCallback from './components/connections/FacebookCallback';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import AuthCallback from './pages/AuthCallback';
 import CreateListing from './pages/CreateListing';
 import EditListing from './pages/EditListing';
 import ListingDetails from './pages/ListingDetails';
@@ -39,6 +40,7 @@ const AppRouter: React.FC = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/payment/success" element={<Success />} />
           <Route path="/payment/cancel" element={<Cancel />} />

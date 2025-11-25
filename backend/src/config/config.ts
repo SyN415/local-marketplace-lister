@@ -14,6 +14,9 @@ export const config = {
   // Security
   JWT_SECRET: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
   COOKIE_SECRET: process.env.COOKIE_SECRET || 'your-cookie-secret-change-in-production',
+  encryption: {
+    key: process.env.ENCRYPTION_KEY,
+  },
   
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
@@ -42,6 +45,21 @@ export const config = {
   SMTP_HOST: process.env.SMTP_HOST || '',
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
   SMTP_SECURE: process.env.SMTP_SECURE === 'true',
+
+  // Google API
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/auth/google/callback`,
+  },
+
+  // SMTP for Email Routing
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+  },
 };
 
 export default config;

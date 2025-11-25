@@ -264,6 +264,73 @@ class AuthService {
   }
 
   /**
+   * Initiate Google OAuth flow
+   */
+  async getGoogleAuthUrl(): Promise<string> {
+    const { data, error } = await supabaseAdmin.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: config.google.redirectUri,
+        scopes: 'email profile',
+      },
+    });
+
+    if (error) throw error;
+    return data.url;
+  }
+
+  /**
+   * Handle Google OAuth callback
+   */
+  async handleGoogleCallback(code: string): Promise<{ user: any; token: string }> {
+    // Exchange the code for session
+    const { data: authData, error: authError } = await supabaseAdmin.auth.exchangeCodeForSession(code);
+    
+    if (authError) throw authError;
+
+    const supabaseUser = authData.user;
+    if (!supabaseUser) throw new Error('No user returned from Google auth');
+
+    // Check if profile exists, create if not
+    let { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', supabaseUser.id)
+      .single();
+
+    if (profileError && profileError.code === 'PGRST116') {
+      // Profile doesn't exist, create one
+      const { data: newProfile, error: insertError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          id: supabaseUser.id,
+          email: supabaseUser.email,
+          full_name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0],
+          avatar_url: supabaseUser.user_metadata?.avatar_url,
+          credits: 5,  // Initial credits
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      profile = newProfile;
+    } else if (profileError) {
+      throw profileError;
+    }
+
+    // Generate our custom JWT
+    const token = this.generateToken(supabaseUser.id);
+
+    // Format user for frontend
+    const formattedUser = this.formatUserResponse(supabaseUser, profile);
+
+    return {
+      user: formattedUser,
+      token,
+    };
+  }
+
+  /**
    * Logout user by invalidating session
    * @param token - User's access token
    * @returns API response

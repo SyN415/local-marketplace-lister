@@ -1,13 +1,14 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser, Page, ElementHandle } from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import axios from 'axios';
-import { MarketplaceAdapter } from './types';
-import { Listing } from '../../types/listing.types';
+import { PlatformAdapter, PublishResult, PublishOptions, AdapterCredentials } from './types';
 
-export class OfferUpAdapter implements MarketplaceAdapter {
-  async connect(credentials: any): Promise<boolean> {
+export class OfferUpAdapter implements PlatformAdapter {
+  readonly platform = 'offerup';
+
+  async connect(credentials: AdapterCredentials): Promise<boolean> {
     if (!credentials.cookies || !Array.isArray(credentials.cookies)) {
       console.warn('OfferUpAdapter: Missing or invalid cookies in credentials.');
       return false;
@@ -15,11 +16,15 @@ export class OfferUpAdapter implements MarketplaceAdapter {
     return true;
   }
 
-  async publish(listing: Listing, connection: any): Promise<any> {
+  async publish(listing: PublishOptions, connection: AdapterCredentials): Promise<PublishResult> {
     console.log(`OfferUpAdapter: Publishing listing ${listing.id}...`);
     
     if (!connection.cookies || !Array.isArray(connection.cookies)) {
-        throw new Error('OfferUp cookies are missing or invalid.');
+         return {
+             success: false,
+             platform: this.platform,
+             error: 'OfferUp cookies are missing or invalid.'
+         };
     }
 
     let browser: Browser | null = null;
@@ -44,7 +49,8 @@ export class OfferUpAdapter implements MarketplaceAdapter {
 
         // Set Cookies
         console.log('OfferUpAdapter: Setting cookies...');
-        await page.setCookie(...connection.cookies);
+        // Cast cookies to any because Puppeteer types can be strict about cookie properties
+        await page.setCookie(...(connection.cookies as any[]));
 
         // Navigate
         console.log('OfferUpAdapter: Navigating to posting page...');
@@ -62,10 +68,6 @@ export class OfferUpAdapter implements MarketplaceAdapter {
         if (listing.images && listing.images.length > 0) {
             console.log('OfferUpAdapter: Processing images...');
             
-            // Download images to tmp
-            // We'll just take the first image for MVP if multiple uploads are complex, 
-            // but OfferUp usually supports multiple via the same input or sequential.
-            // Let's try all.
             for (const imageUrl of listing.images) {
                 try {
                     const tempPath = await this.downloadImage(imageUrl);
@@ -79,7 +81,8 @@ export class OfferUpAdapter implements MarketplaceAdapter {
                 // OfferUp usually has a hidden file input or a button that triggers it
                 const fileInput = await page.$('input[type="file"]');
                 if (fileInput) {
-                    await fileInput.uploadFile(...tempFiles);
+                    const input = fileInput as ElementHandle<HTMLInputElement>;
+                    await input.uploadFile(...tempFiles);
                     console.log('OfferUpAdapter: Images uploaded, waiting for processing...');
                     await new Promise(r => setTimeout(r, 5000)); 
                 } else {
@@ -169,7 +172,7 @@ export class OfferUpAdapter implements MarketplaceAdapter {
         const zipInput = await page.$('input[name="zipcode"]') || await page.$('input[placeholder*="Zip"]');
         if (zipInput) {
             // If empty, fill it. (How to know if empty? evaluate value)
-            const val = await page.evaluate(el => el.value, zipInput);
+            const val = await page.evaluate(el => (el as HTMLInputElement).value, zipInput);
             if (!val) {
                  // Default or from listing if available (listing doesn't have location yet in type, maybe metadata?)
                  await zipInput.type('90210'); // Placeholder or need to add location to Listing type
@@ -193,11 +196,14 @@ export class OfferUpAdapter implements MarketplaceAdapter {
              });
              
              if (success || !page.url().includes('posting')) {
+                 const finalUrl = page.url();
+                 await browser.close();
                  return {
                     success: true,
-                    external_id: 'PENDING_OFFERUP_VERIFICATION',
-                    url: page.url(),
-                    platform_response: { message: 'Automation sequence completed' }
+                    platform: this.platform,
+                    listingUrl: finalUrl,
+                    platformListingId: `offerup-${Date.now()}`, // Placeholder
+                    metadata: { steps: ['completed'] }
                  };
              } else {
                  throw new Error('Post button clicked but success not confirmed.');
@@ -210,10 +216,11 @@ export class OfferUpAdapter implements MarketplaceAdapter {
     } catch (error: any) {
         console.error('OfferUpAdapter: Fatal Error', error);
         
+        let screenshotPath = '';
         if (browser) {
              const pages = await browser.pages();
              if (pages.length > 0) {
-                 const screenshotPath = path.join(os.tmpdir(), `offerup_error_${listing.id}_${Date.now()}.png`);
+                 screenshotPath = path.join(os.tmpdir(), `offerup_error_${listing.id}_${Date.now()}.png`);
                  try {
                     await pages[0].screenshot({ path: screenshotPath });
                     console.log(`OfferUpAdapter: Saved error screenshot to ${screenshotPath}`);
@@ -221,27 +228,35 @@ export class OfferUpAdapter implements MarketplaceAdapter {
                      console.error('OfferUpAdapter: Failed to save screenshot', e);
                  }
              }
+             await browser.close();
         }
         
-        throw error;
-    } finally {
-        if (browser) {
-            await browser.close();
-        }
         // Cleanup temp files
         for (const file of tempFiles) {
              try { fs.unlinkSync(file); } catch (e) {}
         }
+
+        return {
+            success: false,
+            platform: this.platform,
+            error: error.message,
+            metadata: { screenshot: screenshotPath }
+        };
     }
   }
 
   // Helper to find elements by text content
   private async findByText(page: Page, text: string, tag = '*') {
       // XPath to find element containing text
-      const xpath = `//${tag}[contains(text(), "${text}")]`;
-      const elements = await page.$$(xpath);
-      if (elements.length > 0) {
-          return elements[0];
+      // Puppeteer 22+ Xpath support via xpath/ prefix for querySelector
+      try {
+          const xpath = `xpath///${tag}[contains(text(), "${text}")]`;
+          const elements = await page.$$(xpath);
+          if (elements.length > 0) {
+              return elements[0];
+          }
+      } catch (e) {
+          console.warn(`XPath search failed for ${text}`, e);
       }
       return null;
   }

@@ -14,7 +14,10 @@ import paymentRoutes from './routes/payment.routes';
 import webhookRoutes from './routes/webhook.routes';
 import { jobQueueService } from './services/job-queue.service';
 import { connectionRoutes } from './routes/connection.routes';
+import { emailRoutes } from './routes/email.routes';
 import { postingRoutes } from './routes/posting.routes';
+import adminRoutes from './routes/admin.routes';
+import { startPeriodicTasks } from './jobs/periodic-tasks';
 
 const app = express();
 
@@ -64,9 +67,11 @@ app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/email-stats', emailRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/postings', postingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve static files from the frontend build directory
 const frontendPath = path.join(__dirname, '../../frontend/dist');
@@ -92,7 +97,10 @@ if (config.NODE_ENV !== 'test') {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.NODE_ENV}`);
     console.log(`🔗 Frontend URL: ${config.FRONTEND_URL}`);
-    console.log(`� Health check: http://localhost:${PORT}/health`);
+    console.log(` Health check: http://localhost:${PORT}/health`);
+    
+    // Start periodic tasks
+    startPeriodicTasks();
   });
 }
 

@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { useAuthContext } from '../contexts/AuthContext';
 import { handleApiError } from '../services/api';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 interface SignupFormData {
   email: string;
@@ -133,6 +134,17 @@ const Signup = () => {
             {getErrorMessage()}
           </Alert>
         )}
+
+        <GoogleSignInButton className="w-full mb-4" />
+
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">Or sign up with email</span>
+          </div>
+        </div>
         
         {/* Signup Form */}
         <Box component="form" onSubmit={handleSubmit} noValidate>

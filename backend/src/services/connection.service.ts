@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase';
 import { facebookAuthService } from './facebook.auth.service';
 import { emailProxyService } from './email-proxy.service';
+import { encryptionService } from './encryption.service';
 import {
   CreateConnectionRequest,
   ConnectionResponse,
@@ -118,21 +119,21 @@ class ConnectionService {
         contactPhone = creds.contactPhone;
 
         // Try to assign a proxy if this is a new connection or re-activating
-        if (!existingConnection) {
-          const proxyEmail = await emailProxyService.assignProxy(userId);
-          // If we got a proxy (mocked for now), we would get the ID.
-          // Since assignProxy returns string/null currently, we'd need to fetch the ID.
-          // For this implementation step, let's just use the placeholder logic in the service.
-          // In real implementation:
-          // 1. service returns object { email, id }
-          // 2. we store id here
-        }
+          if (!existingConnection) {
+            const assignment = await emailProxyService.assignProxy(userId);
+            if (assignment) {
+              proxyAssignmentId = assignment.id;
+            }
+          }
       }
 
       let result;
       
+      // Encrypt credentials before storing
+      const encryptedCredentials = encryptionService.encrypt(data.credentials);
+
       const updateData: any = {
-        credentials: data.credentials,
+        encrypted_credentials: encryptedCredentials,
         is_active: true,
         connected_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -157,7 +158,7 @@ class ConnectionService {
         const insertData: any = {
           user_id: userId,
           platform: data.platform,
-          credentials: data.credentials,
+          encrypted_credentials: encryptedCredentials,
           is_active: true,
           connected_at: new Date().toISOString()
         };
@@ -228,17 +229,20 @@ class ConnectionService {
         .eq('platform', 'facebook')
         .single();
 
+      const credentials = {
+        accessToken: tokenData.access_token,
+        userId: profile.id,
+        name: profile.name,
+        email: profile.email,
+        expiresIn: tokenData.expires_in
+      };
+
+      const encryptedCredentials = encryptionService.encrypt(credentials);
+
       const connectionData = {
         user_id: userId,
         platform: 'facebook',
-        credentials: {
-           // Store tokens securely. In a real app, encrypt these!
-           accessToken: tokenData.access_token,
-           userId: profile.id,
-           name: profile.name,
-           email: profile.email,
-           expiresIn: tokenData.expires_in
-        },
+        encrypted_credentials: encryptedCredentials,
         is_active: true,
         connected_at: new Date().toISOString()
       };
@@ -288,7 +292,8 @@ class ConnectionService {
    * Assign an email proxy to a connection
    */
   async assignEmailProxy(userId: string, connectionId: string): Promise<string | null> {
-    return emailProxyService.assignProxy(userId);
+    const assignment = await emailProxyService.assignProxy(userId);
+    return assignment ? assignment.proxyEmail : null;
   }
 
   /**

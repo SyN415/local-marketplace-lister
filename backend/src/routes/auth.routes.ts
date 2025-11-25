@@ -3,6 +3,7 @@ import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
 import { verifyToken, requireAuth, validateRequiredFields } from '../middleware/auth.middleware';
 import { LoginRequest, SignupRequest, PasswordResetRequest } from '../types/auth.types';
+import { config } from '../config/config';
 
 const router = Router();
 
@@ -54,6 +55,84 @@ router.post('/signup', validateRequiredFields(['email', 'password']), async (req
       success: false,
       error: 'Internal server error during signup'
     });
+  }
+});
+
+/**
+ * @route   GET /api/auth/google
+ * @desc    Get Google OAuth URL
+ * @access  Public
+ */
+router.get('/google', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const url = await authService.getGoogleAuthUrl();
+    res.json({ url });
+  } catch (error) {
+    console.error('Error getting Google auth URL:', error);
+    res.status(500).json({ error: 'Failed to initiate Google auth' });
+  }
+});
+
+/**
+ * @route   GET /api/auth/google/callback
+ * @desc    Handle Google OAuth callback
+ * @access  Public
+ */
+router.get('/google/callback', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.query;
+    
+    if (!code || typeof code !== 'string') {
+      res.redirect(`${config.FRONTEND_URL}/login?error=missing_code`);
+      return;
+    }
+
+    const { user, token } = await authService.handleGoogleCallback(code);
+    
+    // Redirect to frontend with token
+    res.redirect(`${config.FRONTEND_URL}/auth/callback?token=${token}`);
+  } catch (error) {
+    console.error('Error handling Google callback:', error);
+    res.redirect(`${config.FRONTEND_URL}/login?error=auth_failed`);
+  }
+});
+
+/**
+ * @route   GET /api/auth/google
+ * @desc    Get Google OAuth URL
+ * @access  Public
+ */
+router.get('/google', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const url = await authService.getGoogleAuthUrl();
+    res.json({ url });
+  } catch (error) {
+    console.error('Error getting Google auth URL:', error);
+    res.status(500).json({ error: 'Failed to initiate Google auth' });
+  }
+});
+
+/**
+ * @route   GET /api/auth/google/callback
+ * @desc    Handle Google OAuth callback
+ * @access  Public
+ */
+router.get('/google/callback', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.query;
+    
+    if (!code || typeof code !== 'string') {
+      res.redirect(`${config.FRONTEND_URL}/login?error=missing_code`);
+      return;
+    }
+
+    const { user, token } = await authService.handleGoogleCallback(code);
+    
+    // Redirect to frontend with token
+    res.redirect(`${config.FRONTEND_URL}/auth/callback?token=${token}`);
+  } catch (error) {
+    console.error('Error handling Google callback:', error);
+    res.redirect(`${config.FRONTEND_URL}/login?error=auth_failed`);
   }
 });
 

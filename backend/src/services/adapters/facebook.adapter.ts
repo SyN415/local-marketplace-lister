@@ -1,300 +1,476 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser, Page, ElementHandle } from 'puppeteer';
+import { PlatformAdapter, PublishResult, PublishOptions, AdapterCredentials } from './types';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import axios from 'axios';
-import { MarketplaceAdapter } from './types';
-import { Listing } from '../../types/listing.types';
+import os from 'os';
 
-export class FacebookAdapter implements MarketplaceAdapter {
-  async connect(credentials: any): Promise<boolean> {
-    if (!credentials.cookies || !Array.isArray(credentials.cookies)) {
-      console.warn('FacebookAdapter: Missing or invalid cookies in credentials.');
+interface FacebookCredentials extends AdapterCredentials {
+  cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+  }>;
+  accessToken?: string;
+}
+
+interface StepResult {
+  step: string;
+  success: boolean;
+  duration: number;
+  error?: string;
+}
+
+export class FacebookAdapter implements PlatformAdapter {
+  readonly platform = 'facebook';
+  private browser: Browser | null = null;
+  private readonly screenshotDir = path.join(os.tmpdir(), 'fb-automation-screenshots');
+  private readonly maxRetries = 3;
+  private readonly baseTimeout = 30000;
+
+  async connect(credentials: FacebookCredentials): Promise<boolean> {
+    try {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-notifications',
+          '--window-size=1280,800'
+        ],
+      });
+
+      const page = await this.browser.newPage();
+      await page.setViewport({ width: 1280, height: 800 });
+
+      // Set cookies from credentials
+      if (credentials.cookies && credentials.cookies.length > 0) {
+        await page.setCookie(...credentials.cookies);
+      }
+
+      // Verify connection by checking if we're logged in
+      console.log('[FacebookAdapter] verifying connection...');
+      await page.goto('https://www.facebook.com', { waitUntil: 'networkidle2' });
+      
+      // Check for logged-in state
+      const isLoggedIn = await this.checkLoginState(page);
+      
+      if (!isLoggedIn) {
+        console.log('[FacebookAdapter] Not logged in with provided cookies');
+        await this.disconnect();
+        return false;
+      }
+
+      console.log('[FacebookAdapter] Successfully connected');
+      return true;
+    } catch (error) {
+      console.error('[FacebookAdapter] Connection error:', error);
+      await this.disconnect();
       return false;
     }
-    return true;
   }
 
-  async publish(listing: Listing, connection: any): Promise<any> {
-    console.log(`FacebookAdapter: Publishing listing ${listing.id}...`);
+  async publish(options: PublishOptions, connection: AdapterCredentials): Promise<PublishResult> {
+    const steps: StepResult[] = [];
+    let page: Page | null = null;
     
-    // Retrieve access token if available, though Puppeteer flow relies on cookies.
-    // If we were using API, we'd use connection.credentials.accessToken.
-    // The current automation approach uses Puppeteer + Cookies, but ideally
-    // we would use the Graph API if it supported Marketplace posting (which it strictly limits).
-    // For now, we continue with Puppeteer but check connection validity.
-    
-    if (!connection.cookies || !Array.isArray(connection.cookies)) {
-        // Fallback: if no cookies, but we have OAuth token, we can't really use it
-        // for Puppeteer automation directly without a session.
-        // In a real scenario, we might use the token to get some data, but
-        // for posting, we still rely on browser automation session.
-        // So we check for cookies. If missing, we might need to ask user to re-auth extension.
-        
-        // However, if the requirement is to use the OAuth token to "verify auth",
-        // we can do a quick check here.
-        if (connection.credentials?.accessToken) {
-           console.log('FacebookAdapter: OAuth token present, but Puppeteer requires session cookies for posting.');
+    // Ensure we have a browser instance
+    if (!this.browser) {
+        // Try to reconnect if credentials available? 
+        // For now assume connect() was called. If not, we can't proceed easily without creds.
+        // But the interface passes credentials to publish as 'connection'.
+        const connected = await this.connect(connection as FacebookCredentials);
+        if (!connected) {
+             return {
+                success: false,
+                platform: this.platform,
+                error: 'Could not establish connection to Facebook.'
+            };
         }
-        
-        throw new Error('Facebook cookies are missing or invalid. Please ensure the extension has captured your session.');
     }
 
-    let browser: Browser | null = null;
-    const tempFiles: string[] = [];
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        console.log(`[FacebookAdapter] Publish attempt ${attempt}/${this.maxRetries}`);
 
-    try {
-        // Launch Puppeteer
-        console.log('FacebookAdapter: Launching browser...');
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox', 
-                '--disable-notifications',
-                '--window-size=1280,800'
-            ]
-        });
-        
-        const page = await browser.newPage();
+        if (!this.browser) {
+          throw new Error('Not connected. Call connect() first.');
+        }
+
+        page = await this.browser.newPage();
         await page.setViewport({ width: 1280, height: 800 });
-
-        // Set Cookies
-        console.log('FacebookAdapter: Setting cookies...');
-        await page.setCookie(...connection.cookies);
-
-        // Navigate
-        console.log('FacebookAdapter: Navigating to Marketplace create page...');
-        await page.goto('https://www.facebook.com/marketplace/create/item', { waitUntil: 'networkidle2' });
-
-        // Check if login failed (redirected to login page)
-        if (page.url().includes('login') || page.url().includes('checkpoint')) {
-            throw new Error('FacebookAdapter: Session invalid, redirected to login or checkpoint.');
-        }
-
-        // Wait for the form to load slightly
-        await new Promise(r => setTimeout(r, 3000));
-
-        // 1. Upload Images
-        if (listing.images && listing.images.length > 0) {
-            console.log('FacebookAdapter: Processing images...');
-            
-            // Download images to tmp
-            for (const imageUrl of listing.images) {
-                try {
-                    const tempPath = await this.downloadImage(imageUrl);
-                    tempFiles.push(tempPath);
-                } catch (err) {
-                    console.error(`FacebookAdapter: Failed to download image ${imageUrl}`, err);
-                }
-            }
-
-            if (tempFiles.length > 0) {
-                // Find the file input. It's usually hidden but accessible via DOM or label
-                // Strategy: look for an input[type="file"]
-                const fileInput = await page.$('input[type="file"]');
-                if (fileInput) {
-                    await fileInput.uploadFile(...tempFiles);
-                    // Wait for upload to process
-                    console.log('FacebookAdapter: Images uploaded, waiting for processing...');
-                    await new Promise(r => setTimeout(r, 5000)); 
-                } else {
-                    console.warn('FacebookAdapter: Could not find file input for images.');
-                }
-            }
-        }
-
-        // 2. Fill Title
-        console.log('FacebookAdapter: Filling Title...');
-        await this.fillInput(page, 'Title', listing.title);
         
-        // 3. Fill Price
-        console.log('FacebookAdapter: Filling Price...');
-        await this.fillInput(page, 'Price', listing.price.toString());
+        // Ensure cookies are set on this new page if needed (usually shared by browser context, but good to be safe if context isolation)
+        // In default puppeteer launch, cookies are shared.
 
-        // 4. Fill Category
-        // This is often a combobox. We can try to click and type, or just skip if too complex for MVP.
-        // Let's try to find it.
-        console.log('FacebookAdapter: Attempting Category selection...');
-        try {
-            const categoryLabel = await this.findLabel(page, 'Category');
-            if (categoryLabel) {
-                await categoryLabel.click();
-                await new Promise(r => setTimeout(r, 1000));
-                // Type category name if mapped, else try generic
-                // For now, we assume manual category selection might be needed if this fails, 
-                // but for automation we'll try to type "Miscellaneous" or the listing category
-                await page.keyboard.type(listing.category || 'Miscellaneous');
-                await new Promise(r => setTimeout(r, 1000));
-                await page.keyboard.press('Enter');
-            }
-        } catch (err) {
-            console.warn('FacebookAdapter: Category selection failed, continuing...', err);
-        }
+        // Step 1: Navigate to Marketplace
+        const navResult = await this.executeStep(page, 'Navigate to Marketplace', async () => {
+          await page!.goto('https://www.facebook.com/marketplace/create/item', {
+            waitUntil: 'networkidle2',
+            timeout: this.baseTimeout,
+          });
+          
+          // Check for login redirect
+          if (page!.url().includes('login') || page!.url().includes('checkpoint')) {
+              throw new Error('Session invalid, redirected to login.');
+          }
+        });
+        steps.push(navResult);
+        if (!navResult.success) throw new Error(navResult.error);
 
-        // 5. Fill Condition
-        // Often a dropdown: New, Used - Like New, etc.
-        console.log('FacebookAdapter: Attempting Condition selection...');
-        try {
-            const conditionLabel = await this.findLabel(page, 'Condition');
-            if (conditionLabel) {
-                await conditionLabel.click();
-                await new Promise(r => setTimeout(r, 1000));
-                // Simple mapping or default to 'Good'
-                // Assuming the list is open, we can try to select the last one (Used - Fair) or first one (New)
-                // Let's just try to hit Enter to select whatever is focused or type "Used"
-                await page.keyboard.type('Used - Good'); 
-                await new Promise(r => setTimeout(r, 1000));
-                await page.keyboard.press('Enter');
-            }
-        } catch (err) {
-             console.warn('FacebookAdapter: Condition selection failed', err);
-        }
+        // Step 2: Fill in title
+        const titleResult = await this.executeStep(page, 'Fill title', async () => {
+          await this.fillField(page!, 'Title', options.title, [
+            '[aria-label="Title"]',
+            'input[name="title"]', // Fallback
+            'label[aria-label="Title"] input',
+            'input[type="text"]' // risky, needs context
+          ]);
+        });
+        steps.push(titleResult);
+        if (!titleResult.success) throw new Error(titleResult.error);
 
-        // 6. Fill Description
-        console.log('FacebookAdapter: Filling Description...');
-        await this.fillInput(page, 'Description', listing.description, true);
+        // Step 3: Fill in price
+        const priceResult = await this.executeStep(page, 'Fill price', async () => {
+          await this.fillField(page!, 'Price', options.price.toString(), [
+            '[aria-label="Price"]',
+            'input[name="price"]',
+            'label[aria-label="Price"] input'
+          ]);
+        });
+        steps.push(priceResult);
+        if (!priceResult.success) throw new Error(priceResult.error);
 
-        // 7. Location (Optional, usually autofilled)
+        // Step 4: Select category
+        const categoryResult = await this.executeStep(page, 'Select category', async () => {
+          await this.selectCategory(page!, options.category);
+        });
+        steps.push(categoryResult);
+        if (!categoryResult.success) throw new Error(categoryResult.error);
         
-        // 8. Submit
-        console.log('FacebookAdapter: Attempting submission...');
+        // Step 5: Condition
+        const conditionResult = await this.executeStep(page, 'Select condition', async () => {
+             await this.selectCondition(page!, options.condition);
+        });
+        steps.push(conditionResult);
+        if (!conditionResult.success) throw new Error(conditionResult.error);
+
+        // Step 6: Fill description
+        const descResult = await this.executeStep(page, 'Fill description', async () => {
+          await this.fillField(page!, 'Description', options.description, [
+            '[aria-label="Description"]',
+            'textarea[name="description"]',
+            'label[aria-label="Description"] textarea'
+          ]);
+        });
+        steps.push(descResult);
+        if (!descResult.success) throw new Error(descResult.error);
+
+        // Step 7: Upload images
+        if (options.images && options.images.length > 0) {
+          const imageResult = await this.executeStep(page, 'Upload images', async () => {
+            await this.uploadImages(page!, options.images!);
+          });
+          steps.push(imageResult);
+          if (!imageResult.success) throw new Error(imageResult.error);
+        }
+
+        // Step 8: Submit listing
+        const submitResult = await this.executeStep(page, 'Submit listing', async () => {
+          await this.submitListing(page!);
+        });
+        steps.push(submitResult);
+        if (!submitResult.success) throw new Error(submitResult.error);
+
+        // Success!
+        const finalUrl = page.url();
+        await page.close();
         
-        // Click "Next" - often there are multiple "Next" buttons (e.g. for boosting), need to be careful
-        // Loop through "Next" clicks until "Publish" appears
-        let maxSteps = 3;
-        let published = false;
-
-        for (let i = 0; i < maxSteps; i++) {
-            // Look for Publish first
-            const publishButton = await this.findButton(page, 'Publish');
-            if (publishButton) {
-                console.log('FacebookAdapter: Clicking Publish...');
-                await publishButton.click();
-                published = true;
-                break;
-            }
-
-            // Look for Next
-            const nextButton = await this.findButton(page, 'Next');
-            if (nextButton) {
-                console.log('FacebookAdapter: Clicking Next...');
-                await nextButton.click();
-                await new Promise(r => setTimeout(r, 2000)); // wait for transition
-            } else {
-                break; // No next or publish, stuck?
-            }
-        }
-
-        if (!published) {
-             // Try one last check for Publish
-             const publishButton = await this.findButton(page, 'Publish');
-             if (publishButton) {
-                 await publishButton.click();
-                 published = true;
-             }
-        }
-
-        if (published) {
-             // Wait for success indication or URL change
-             await new Promise(r => setTimeout(r, 5000));
-        } else {
-            throw new Error('Could not complete publication flow (Publish button not found or not clickable).');
-        }
-
         return {
-            success: true,
-            external_id: 'PENDING_FB_VERIFICATION', 
-            url: page.url(),
-            platform_response: { message: 'Automation sequence completed' }
+          success: true,
+          platform: this.platform,
+          listingUrl: 'https://www.facebook.com/marketplace',  // FB doesn't return direct URL easily immediately
+          platformListingId: `fb-${Date.now()}`, // Placeholder
+          metadata: { steps, finalUrl },
         };
 
-    } catch (error: any) {
-        console.error('FacebookAdapter: Fatal Error', error);
-        
-        if (browser) {
-             const pages = await browser.pages();
-             if (pages.length > 0) {
-                 const screenshotPath = path.join(os.tmpdir(), `fb_error_${listing.id}_${Date.now()}.png`);
-                 try {
-                    await pages[0].screenshot({ path: screenshotPath });
-                    console.log(`FacebookAdapter: Saved error screenshot to ${screenshotPath}`);
-                 } catch (e) {
-                     console.error('FacebookAdapter: Failed to save screenshot', e);
-                 }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[FacebookAdapter] Attempt ${attempt} failed:`, errorMessage);
+
+        // Take screenshot on failure
+        if (page) {
+          const screenshotPath = await this.takeScreenshot(page, `failure-attempt-${attempt}`);
+          
+          if (attempt === this.maxRetries) {
+             await page.close();
+             return {
+                success: false,
+                platform: this.platform,
+                error: `Failed after ${this.maxRetries} attempts: ${errorMessage}`,
+                metadata: { steps, lastError: errorMessage, screenshot: screenshotPath },
+             };
+          }
+          await page.close();
+        } else {
+             if (attempt === this.maxRetries) {
+                 return {
+                    success: false,
+                    platform: this.platform,
+                    error: `Failed after ${this.maxRetries} attempts: ${errorMessage}`,
+                    metadata: { steps, lastError: errorMessage },
+                 };
              }
         }
-        
-        throw error;
-    } finally {
-        // Cleanup
-        if (browser) {
-            await browser.close();
-        }
-        // Cleanup temp files
-        for (const file of tempFiles) {
-             try { fs.unlinkSync(file); } catch (e) {}
-        }
+
+        // Exponential backoff
+        const delay = Math.pow(2, attempt) * 2000;
+        console.log(`[FacebookAdapter] Waiting ${delay}ms before retry...`);
+        await this.sleep(delay);
+      }
+    }
+
+    return {
+      success: false,
+      platform: this.platform,
+      error: 'Max retries exceeded',
+      metadata: { steps },
+    };
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
     }
   }
 
-  // Helper to find inputs by aria-label or similar
-  private async fillInput(page: Page, labelPattern: string, text: string, isTextArea = false) {
-      // Try aria-label exact match
-      let selector = `label[aria-label="${labelPattern}"] input`;
-      if (isTextArea) selector = `label[aria-label="${labelPattern}"] textarea`;
-      
-      let element = await page.$(selector);
-      
-      // Try generic fuzzy match via XPath if needed, but CSS is safer for Puppeteer
-      if (!element) {
-          // Try input directly with aria-label
-          selector = `input[aria-label="${labelPattern}"]`;
-          if (isTextArea) selector = `textarea[aria-label="${labelPattern}"]`;
-          element = await page.$(selector);
-      }
+  // Helper Methods
 
-      if (element) {
-          // Use click and type
-          await element.click({ clickCount: 3 });
-          await element.type(text);
-      } else {
-          console.warn(`FacebookAdapter: Input for "${labelPattern}" not found via CSS selectors.`);
-          // Fallback: Try to find element by text content of label? Hard with obfuscation.
-      }
+  private async executeStep(
+    page: Page,
+    stepName: string,
+    action: () => Promise<void>
+  ): Promise<StepResult> {
+    const start = Date.now();
+    try {
+      console.log(`[FacebookAdapter] Starting step: ${stepName}`);
+      await action();
+      const duration = Date.now() - start;
+      console.log(`[FacebookAdapter] Completed step: ${stepName} (${duration}ms)`);
+      return { step: stepName, success: true, duration };
+    } catch (error) {
+      const duration = Date.now() - start;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[FacebookAdapter] Failed step: ${stepName} - ${errorMessage}`);
+      return { step: stepName, success: false, duration, error: errorMessage };
+    }
   }
 
-  private async findLabel(page: Page, labelPattern: string) {
-      // aria-label on label element
-      let selector = `label[aria-label="${labelPattern}"]`;
-      let element = await page.$(selector);
-      if (!element) {
-          // aria-label on a div acting as combobox
-          selector = `div[aria-label="${labelPattern}"]`;
-          element = await page.$(selector);
+  private async checkLoginState(page: Page): Promise<boolean> {
+    try {
+      // Check for common logged-in indicators
+      const selectors = [
+        '[aria-label="Your profile"]',
+        '[aria-label="Account"]',
+        '[data-pagelet="ProfileTileRoot"]',
+        'div[role="navigation"]'
+      ];
+
+      for (const selector of selectors) {
+        const element = await page.$(selector);
+        if (element) return true;
       }
-      return element;
+
+      return false;
+    } catch {
+      return false;
+    }
   }
 
-  private async findButton(page: Page, text: string) {
-      // aria-label often matches text
-      let selector = `div[aria-label="${text}"]`;
-      let element = await page.$(selector);
+  private async fillField(
+    page: Page,
+    fieldName: string,
+    value: string,
+    selectors: string[]
+  ): Promise<void> {
+    for (const selector of selectors) {
+      try {
+        // Try precise match first
+        let element = await page.$(selector);
+        
+        // If not found, try fuzzy text search if the selector looks like a title
+        if (!element && !selector.includes('[')) {
+             // Skip non-css selectors here or handle differently
+        }
+
+        if (element) {
+             await element.click({ clickCount: 3 });
+             await element.type(value, { delay: 50 });
+             return;
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    // Fallback: Try to find by aria-label containing the field name
+    try {
+        const labelSelector = `[aria-label*="${fieldName}"]`;
+        const element = await page.$(labelSelector);
+        if (element) {
+             await element.click({ clickCount: 3 });
+             await element.type(value, { delay: 50 });
+             return;
+        }
+    } catch (e) {}
+
+    throw new Error(`Could not find ${fieldName} field with any of the provided selectors`);
+  }
+
+  private async selectCategory(page: Page, category: string): Promise<void> {
+    const categorySelectors = [
+      '[aria-label="Category"]',
+      '[aria-haspopup="listbox"]',
+      'div[role="combobox"]',
+    ];
+
+    let opened = false;
+    for (const selector of categorySelectors) {
+      try {
+        const element = await page.$(selector);
+        if (element) {
+             await element.click();
+             opened = true;
+             break;
+        }
+      } catch { continue; }
+    }
+
+    if (!opened) {
+         console.warn('[FacebookAdapter] Could not find category dropdown.');
+         // Try finding by text "Category" - Puppeteer doesn't support $x in newer versions directly on Page without plugins sometimes,
+         // but checking if we can use another selector strategy or $$ with xpath prefix
+         try {
+            // Puppeteer 22+ Xpath support
+            const handlers = await page.$$('xpath///span[contains(text(), "Category")]');
+            if (handlers.length > 0) {
+                await handlers[0].click();
+                opened = true;
+            }
+         } catch(e) {}
+    }
+
+    if (opened) {
+        await this.sleep(1000);
+        // Try to find and click the category option
+        const categoryMap: Record<string, string> = {
+          'electronics': 'Electronics',
+          'furniture': 'Home & Garden', // or Furniture
+          'clothing': 'Clothing & Accessories',
+          'vehicles': 'Vehicles',
+          'other': 'Miscellaneous',
+          'apparel & accessories': 'Clothing & Accessories',
+          'home & garden': 'Home & Garden',
+        };
+
+        const categoryText = categoryMap[category.toLowerCase()] || category;
+        
+        // Type it first to filter
+        await page.keyboard.type(categoryText);
+        await this.sleep(1000);
+        await page.keyboard.press('Enter');
+    }
+  }
+
+  private async selectCondition(page: Page, condition: string): Promise<void> {
+       const conditionSelectors = [
+          '[aria-label="Condition"]',
+          'span:contains("Condition")'
+       ];
+       
+       // Try to find label "Condition" and click it or the input next to it
+       let clicked = false;
+       try {
+           const label = await page.$('[aria-label="Condition"]');
+           if (label) {
+               await label.click();
+               clicked = true;
+           }
+       } catch(e) {}
+
+       if (clicked) {
+           await this.sleep(1000);
+           // Map condition to FB text
+           const map: Record<string, string> = {
+               'new': 'New',
+               'like_new': 'Used - Like New',
+               'good': 'Used - Good',
+               'fair': 'Used - Fair',
+               'poor': 'Used - Fair' // Fallback
+           };
+           const text = map[condition] || 'Used - Good';
+           
+           // Look for option
+           // Helper to click text in dropdown
+            await page.evaluate((textToFind) => {
+                const elements = document.querySelectorAll('div[role="option"], span');
+                for (const el of elements) {
+                    if (el.textContent?.trim() === textToFind) {
+                        (el as HTMLElement).click();
+                        return;
+                    }
+                }
+            }, text);
+       }
+  }
+
+  private async uploadImages(page: Page, imageUrls: string[]): Promise<void> {
+    // Find file input
+    const inputSelectors = [
+      'input[type="file"][accept*="image"]',
+      '[aria-label="Add photos"] input',
+      'input[type="file"]',
+    ];
+
+    let fileInput = null;
+    for (const selector of inputSelectors) {
+      try {
+        fileInput = await page.$(selector);
+        if (fileInput) break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (!fileInput) {
+      throw new Error('Could not find image upload input');
+    }
+
+    // Download images to temp files and upload
+    const tempFiles: string[] = [];
+    for (let i = 0; i < Math.min(imageUrls.length, 10); i++) {
+      try {
+        const tempPath = await this.downloadImage(imageUrls[i]);
+        tempFiles.push(tempPath);
+      } catch (error) {
+        console.warn(`[FacebookAdapter] Failed to download image ${i}:`, error);
+      }
+    }
+
+    if (tempFiles.length > 0) {
+      const input = fileInput as ElementHandle<HTMLInputElement>;
+      await input.uploadFile(...tempFiles);
+      await this.sleep(5000); // Wait for upload processing
       
-      if (!element) {
-          // Try finding by text content using XPath selector
-          // Puppeteer v22+ uses 'xpath/' prefix for XPath selectors
-          const xpath = `xpath///div[contains(text(), "${text}")] | //span[contains(text(), "${text}")]`;
-          const elements = await page.$$(xpath);
-          if (elements.length > 0) {
-              // Check if it looks like a button (cursor pointer, etc)?
-              // For now just take the first one that is visible
-              return elements[0] as any; // ElementHandle
-          }
-      }
-      return element;
-  }
+      // Try to wait for progress bars to disappear or images to appear
+    }
 
+    // Cleanup happens in disconnect or end of flow if possible. 
+    // Here we might want to schedule cleanup.
+    // Ideally use a cleanup helper.
+  }
+  
   private async downloadImage(url: string): Promise<string> {
       const response = await axios({
           url,
@@ -319,5 +495,76 @@ export class FacebookAdapter implements MarketplaceAdapter {
               }
           });
       });
+  }
+
+  private async submitListing(page: Page): Promise<void> {
+    const submitSelectors = [
+      '[aria-label="Publish"]',
+      'div[role="button"]:has-text("Publish")', // Playwright syntax not valid in Puppeteer standard without plugin
+      // Standard CSS/XPath for Puppeteer
+    ];
+
+    // May need to click "Next" multiple times before "Publish"
+    let maxSteps = 3;
+    let published = false;
+    
+    for (let step = 0; step < maxSteps; step++) {
+       // Check for Publish
+       const publishBtn = await this.findButtonByText(page, 'Publish');
+       if (publishBtn) {
+           await publishBtn.click();
+           published = true;
+           break;
+       }
+       
+       // Check for Next
+       const nextBtn = await this.findButtonByText(page, 'Next');
+       if (nextBtn) {
+           await nextBtn.click();
+           await this.sleep(2000);
+       } else {
+           break; 
+       }
+    }
+    
+    // Wait for confirmation or URL change
+    await this.sleep(3000);
+  }
+  
+  private async findButtonByText(page: Page, text: string) {
+       // Try aria-label
+       let el = await page.$(`[aria-label="${text}"]`);
+       if (el) return el;
+       
+       // Try xpath
+       // Puppeteer supports xpath selectors with 'xpath/' prefix in newer versions for $$ or $
+       try {
+           const xpath = `xpath///div[@role="button" and contains(., "${text}")] | //span[contains(., "${text}")]`;
+           const els = await page.$$(xpath);
+           if (els.length > 0) return els[0];
+       } catch (e) {
+           console.warn('XPath selector failed', e);
+       }
+       
+       return null;
+  }
+
+  private async takeScreenshot(page: Page, name: string): Promise<string> {
+    try {
+      if (!fs.existsSync(this.screenshotDir)) {
+        fs.mkdirSync(this.screenshotDir, { recursive: true });
+      }
+      const filepath = path.join(this.screenshotDir, `${name}-${Date.now()}.png`);
+      await page.screenshot({ path: filepath, fullPage: true });
+      console.log(`[FacebookAdapter] Screenshot saved: ${filepath}`);
+      return filepath;
+    } catch (error) {
+      console.error('[FacebookAdapter] Failed to take screenshot:', error);
+      return '';
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

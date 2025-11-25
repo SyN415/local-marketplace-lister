@@ -33,6 +33,7 @@ interface AuthActions {
   updateProfile: (updates: Partial<User>) => void;
   clearErrors: () => void;
   refetchUser: () => void;
+  setToken: (token: string) => void;
 }
 
 // Combined auth context value
@@ -86,6 +87,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handleRefetchUser = useCallback(() => {
     authState.refetchUser();
   }, []); // Empty deps - relies on closure
+
+  const setToken = useCallback((token: string) => {
+    localStorage.setItem('auth_token', token);
+    authState.refetchUser();
+  }, [authState]);
   
   // Handle login success (redirect after successful login)
   // Debug log for auth state changes
@@ -142,6 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateProfile: handleUpdateProfile,
     clearErrors: handleClearErrors,
     refetchUser: handleRefetchUser,
+    setToken,
   }), [
     // Only include primitive values and objects that change when actual data changes
     authState.user,
@@ -163,6 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     handleUpdateProfile,
     handleClearErrors,
     handleRefetchUser,
+    setToken,
   ]);
   
   return (

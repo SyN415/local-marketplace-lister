@@ -327,3 +327,12 @@ export interface AriaLabels {
   errorSummary?: string;
   fieldLabels?: Record<string, string>;
 }
+/**
+ * Craigslist connection form data
+ */
+export interface CraigslistConnectionForm {
+  contactEmail: string;
+  contactPhone?: string;
+  showPhoneOnListings: boolean;
+  enabled: boolean;
+}

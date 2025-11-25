@@ -1,9 +1,9 @@
 import { supabaseAdmin } from '../config/supabase';
-import puppeteer from 'puppeteer';
-import { MarketplaceAdapter } from './adapters/types';
+import { PlatformAdapter } from './adapters/types';
 import { CraigslistAdapter } from './adapters/craigslist.adapter';
 import { FacebookAdapter } from './adapters/facebook.adapter';
 import { OfferUpAdapter } from './adapters/offerup.adapter';
+import { PublishResult } from './adapters/types';
 
 interface PostingJob {
   id: string;
@@ -18,23 +18,9 @@ interface PostingJob {
   updated_at: string;
 }
 
-// Stub Adapter for now
-class StubAdapter implements MarketplaceAdapter {
-  async connect(credentials: any): Promise<boolean> {
-    console.log('StubAdapter: Connecting...', credentials);
-    return true;
-  }
-  async publish(listing: any, connection: any): Promise<any> {
-    console.log('StubAdapter: Publishing listing...', listing);
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return { success: true, external_id: 'stub-123', url: 'https://example.com/stub-123' };
-  }
-}
-
 class JobQueueService {
   private isProcessing = false;
-  private adapters: Record<string, MarketplaceAdapter> = {
+  private adapters: Record<string, PlatformAdapter> = {
     'craigslist': new CraigslistAdapter(),
     'facebook': new FacebookAdapter(),
     'offerup': new OfferUpAdapter(),
@@ -56,6 +42,10 @@ class JobQueueService {
       console.error('Error adding job:', error);
       throw error;
     }
+
+    // Trigger processing immediately if not already running (for low latency in MVP)
+    // In production, this might be handled by a separate worker process polling DB
+    this.processJobs().catch(err => console.error('Background processing trigger failed', err));
 
     return data;
   }
@@ -95,6 +85,7 @@ class JobQueueService {
 
     try {
       // 1. Fetch pending jobs
+      // We can also retry failed jobs that haven't exceeded max attempts?
       const { data: jobs, error } = await supabaseAdmin
         .from('posting_jobs')
         .select('*, listings(*)')
@@ -155,35 +146,47 @@ class JobQueueService {
         jobId: job.id
       };
       
-      // Check connection
+      // Connect
       const isConnected = await adapter.connect(connectionData);
       if (!isConnected) {
         throw new Error('Adapter connection failed');
       }
 
       // Publish
-      const result = await adapter.publish(job.listings, connectionData);
+      const result: PublishResult = await adapter.publish(job.listings, connectionData);
 
-      // Mark as completed
-      await supabaseAdmin
-        .from('posting_jobs')
-        .update({
-          status: 'completed',
-          result_data: result,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', job.id);
+      // Disconnect
+      if (adapter.disconnect) {
+          await adapter.disconnect();
+      }
 
-      console.log(`Job ${job.id} completed successfully.`);
+      if (result.success) {
+        // Mark as completed
+        await supabaseAdmin
+            .from('posting_jobs')
+            .update({
+            status: 'completed',
+            result_data: result,
+            updated_at: new Date().toISOString()
+            })
+            .eq('id', job.id);
+
+        console.log(`Job ${job.id} completed successfully.`);
+      } else {
+        // Handle logic failure from adapter (e.g. max retries exhausted)
+        throw new Error(result.error || 'Unknown adapter failure');
+      }
 
     } catch (error: any) {
       console.error(`Job ${job.id} failed:`, error);
       
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       await supabaseAdmin
         .from('posting_jobs')
         .update({
           status: 'failed',
-          error_log: error.message,
+          error_log: errorMessage,
           updated_at: new Date().toISOString(),
           attempts: (job.attempts || 0) + 1
         })

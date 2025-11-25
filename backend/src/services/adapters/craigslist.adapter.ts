@@ -1,14 +1,14 @@
 import axios from 'axios';
 import { create } from 'xmlbuilder2';
-import { MarketplaceAdapter } from './types';
-import { Listing } from '../../types/listing.types';
+import { PlatformAdapter, PublishResult, PublishOptions, AdapterCredentials } from './types';
 import { emailService } from '../email.service';
 
-export class CraigslistAdapter implements MarketplaceAdapter {
+export class CraigslistAdapter implements PlatformAdapter {
+  readonly platform = 'craigslist';
   private validateUrl = 'https://post.craigslist.org/bulk-rss/validate';
   private postUrl = 'https://post.craigslist.org/bulk-rss/post';
 
-  async connect(credentials: any): Promise<boolean> {
+  async connect(credentials: AdapterCredentials): Promise<boolean> {
     // For Craigslist RSS, auth is per-request (Basic Auth usually, or specific account headers).
     // We can just verify we have the necessary fields.
     if (!credentials.cl_username || !credentials.cl_password) {
@@ -18,11 +18,15 @@ export class CraigslistAdapter implements MarketplaceAdapter {
     return true;
   }
 
-  async publish(listing: Listing, connection: any): Promise<any> {
+  async publish(listing: PublishOptions, connection: AdapterCredentials): Promise<PublishResult> {
     console.log(`CraigslistAdapter: Publishing listing ${listing.id}...`);
 
     if (!connection.cl_username || !connection.cl_password) {
-      throw new Error('Craigslist credentials (cl_username, cl_password) are missing.');
+      return {
+          success: false,
+          platform: this.platform,
+          error: 'Craigslist credentials (cl_username, cl_password) are missing.'
+      };
     }
 
     // Generate email alias if jobId is present
@@ -45,10 +49,6 @@ export class CraigslistAdapter implements MarketplaceAdapter {
       'Content-Type': 'application/x-www-form-urlencoded' // Craigslist often expects XML posted as form data or direct body
     };
     
-    // NOTE: The Craigslist Bulk API usually expects the XML as the body. 
-    // Some docs suggest it might be a specific content type. 
-    // For this MVP, we will send text/xml or application/xml.
-    
     const requestConfig = {
         headers: {
             ...authHeader,
@@ -62,7 +62,11 @@ export class CraigslistAdapter implements MarketplaceAdapter {
       const validateResponse = await axios.post(this.validateUrl, xmlString, requestConfig);
 
       if (validateResponse.status !== 200) {
-          throw new Error(`Validation failed with status ${validateResponse.status}`);
+           return {
+               success: false,
+               platform: this.platform,
+               error: `Validation failed with status ${validateResponse.status}`
+           };
       }
 
       // Check for success in response body if needed. Craigslist often returns XML response.
@@ -73,29 +77,35 @@ export class CraigslistAdapter implements MarketplaceAdapter {
       const postResponse = await axios.post(this.postUrl, xmlString, requestConfig);
 
       if (postResponse.status !== 200) {
-        throw new Error(`Posting failed with status ${postResponse.status}`);
+        return {
+            success: false,
+            platform: this.platform,
+            error: `Posting failed with status ${postResponse.status}`
+        };
       }
 
       console.log('CraigslistAdapter: Post successful', postResponse.data);
 
-      // Parse response to get ID/URL if possible. 
-      // For MVP, we return success.
       return {
         success: true,
-        external_id: 'PENDING_CL_ID', // We might need to parse this from response
-        platform_response: postResponse.data
+        platform: this.platform,
+        platformListingId: 'PENDING_CL_ID', // We might need to parse this from response
+        metadata: { response: postResponse.data }
       };
 
     } catch (error: any) {
-      console.error('CraigslistAdapter: Error publishing', error.response?.data || error.message);
+      const msg = error.response?.data || error.message;
+      console.error('CraigslistAdapter: Error publishing', msg);
       
-      // For MVP, if it's an auth error or network error, we rethrow.
-      // If it's a validation error, we might want to capture that.
-      throw new Error(`Craigslist publish failed: ${error.message}`);
+      return {
+          success: false,
+          platform: this.platform,
+          error: `Craigslist publish failed: ${msg}`
+      };
     }
   }
 
-  private generatePayload(listing: Listing, replyEmail: string) {
+  private generatePayload(listing: PublishOptions, replyEmail: string) {
     // Map fields to Craigslist RSS XML Schema
     // Reference: https://www.craigslist.org/about/bulk_posting_interface
     

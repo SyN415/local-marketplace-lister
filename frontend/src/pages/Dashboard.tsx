@@ -24,6 +24,7 @@ import { useDefaultPalette } from '../hooks/useLogoColors';
 import { useDashboard } from '../hooks/useDashboard';
 import { getUserDisplayName } from '../utils/auth';
 import StatsCards from '../components/dashboard/StatsCards';
+import { EmailProxyStats } from '../components/dashboard/EmailProxyStats';
 import RecentListings from '../components/dashboard/RecentListings';
 import { Mascot } from '../components/ui/Mascot';
 import { Button } from '../components/ui/button';
@@ -256,7 +257,14 @@ const Dashboard: React.FC = () => {
 
           {/* Stats Overview */}
           <motion.section variants={itemVariants}>
-            <StatsCards />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="md:col-span-2 lg:col-span-2">
+                <StatsCards />
+              </div>
+              <div className="md:col-span-2 lg:col-span-1">
+                <EmailProxyStats />
+              </div>
+            </div>
           </motion.section>
 
           {/* Recent Listings */}

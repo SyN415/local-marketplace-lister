@@ -114,6 +114,12 @@ export const categoryKeys = {
   /** Category listings */
   listings: (category: string) => ['categories', category] as const,
 } as const;
+/**
+ * Email query keys
+ */
+export const emailKeys = {
+  stats: ['email', 'stats'] as const,
+} as const;
 
 /**
  * Combined query key factory
@@ -170,6 +176,8 @@ export const invalidateQueries = {
   /** Invalidate listing queries */
   listings: () => listingKeys.all(),
   
+  /** Invalidate email stats */
+  emailStats: () => emailKeys.stats,
   /** Invalidate specific listing */
   listing: (id: string) => [listingKeys.detail(id)[0], id] as const,
   
