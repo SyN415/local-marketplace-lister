@@ -9,6 +9,7 @@ import {
   Link as LinkIcon, 
   History
 } from 'lucide-react';
+import logo from '../assets/jp1.jpg';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { getUserDisplayName, getUserInitials } from '../utils/auth';
@@ -75,7 +76,7 @@ const Navbar: React.FC = () => {
         <div className="container mx-auto flex h-16 items-center px-4">
           {/* Logo/Home Link */}
           <RouterLink to="/" className="mr-6 flex items-center space-x-2">
-            <img src="/jp1.jpg" alt="Jigglepost" className="h-10 w-auto rounded-sm" />
+            <img src={logo} alt="Jigglepost" className="h-10 w-auto rounded-sm" />
             <span className="hidden font-display text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent sm:inline-block">
               Jigglepost
             </span>

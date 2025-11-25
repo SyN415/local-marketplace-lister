@@ -65,12 +65,12 @@ const StatsCard: React.FC<StatsCardProps> = ({
       )}
       onClick={handleClick}
     >
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground font-display">
+      <CardContent className="p-4">
+        <div className="flex flex-row items-center justify-between gap-2 mb-2">
+          <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground font-display truncate" title={title}>
             {title}
           </h4>
-          <div className="text-foreground scale-125">
+          <div className="text-foreground flex-shrink-0">
             {icon}
           </div>
         </div>
