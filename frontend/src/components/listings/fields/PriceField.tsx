@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { TextField, InputAdornment, Box, Typography } from '@mui/material';
-import { AttachMoney } from '@mui/icons-material';
 import { useFormContext, Controller } from 'react-hook-form';
+import { AttachMoney } from '@mui/icons-material';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { cn } from '../../../lib/utils';
 import type { TextFieldProps } from '../../../types/forms';
 
 // Internal component to handle decimal input state
@@ -12,7 +14,6 @@ interface PriceInputProps extends Omit<TextFieldProps, 'onChange' | 'value' | 'e
   helperText?: React.ReactNode;
   onFocus?: (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onBlur?: (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  InputProps?: any;
 }
 
 const PriceInput: React.FC<PriceInputProps> = ({
@@ -20,7 +21,8 @@ const PriceInput: React.FC<PriceInputProps> = ({
   onChange,
   onFocus,
   onBlur,
-  InputProps,
+  error,
+  className,
   ...props
 }) => {
   const [localValue, setLocalValue] = useState('');
@@ -44,62 +46,45 @@ const PriceInput: React.FC<PriceInputProps> = ({
   };
 
   return (
-    <TextField
-      {...props as any}
-      value={localValue}
-      onChange={handleChange}
-      onFocus={(e) => {
-        setIsFocused(true);
-        if (onFocus) onFocus(e);
-      }}
-      onBlur={(e) => {
-        setIsFocused(false);
-        // On blur, ensure valid string format matches the number
-        const num = parseFloat(localValue);
-        setLocalValue(num ? num.toString() : '');
-        if (onBlur) onBlur(e);
-      }}
-      sx={{
-        '& .MuiOutlinedInput-root': {
-          borderRadius: 0,
-          '& fieldset': {
-            borderColor: 'divider',
-          },
-          '&:hover fieldset': {
-            borderColor: 'text.primary',
-          },
-          '&.Mui-focused fieldset': {
-            borderWidth: 2,
-          },
-        },
-        '& .MuiInputLabel-root': {
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          fontSize: '0.75rem',
-        },
-      }}
-      InputProps={{
-        ...InputProps,
-        inputMode: 'decimal',
-      }}
-    />
+    <div className="relative">
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+        <AttachMoney fontSize="small" />
+      </div>
+      <Input
+        {...props}
+        value={localValue}
+        onChange={handleChange}
+        onFocus={(e) => {
+          setIsFocused(true);
+          if (onFocus) onFocus(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          // On blur, ensure valid string format matches the number
+          const num = parseFloat(localValue);
+          setLocalValue(num ? num.toString() : '');
+          if (onBlur) onBlur(e);
+        }}
+        inputMode="decimal"
+        className={cn(
+          "pl-9",
+          error && "border-destructive focus-visible:ring-destructive",
+          className
+        )}
+      />
+    </div>
   );
 };
 
 /**
  * PriceField component for listing prices with currency formatting
- * Provides real-time validation and user-friendly price input
  */
 const PriceField: React.FC<TextFieldProps> = ({
   name = 'price',
   label = 'Price',
   required = true,
-  fullWidth = true,
-  margin = 'normal',
-  variant = 'outlined',
   helperText,
-  error: customError,
+  className,
   ...props
 }) => {
   const {
@@ -111,7 +96,7 @@ const PriceField: React.FC<TextFieldProps> = ({
   const isTouched = touchedFields[name];
 
   return (
-    <Box>
+    <div className={cn("space-y-2", className)}>
       <Controller
         name={name}
         control={control}
@@ -127,92 +112,56 @@ const PriceField: React.FC<TextFieldProps> = ({
           },
         }}
         render={({ field, fieldState }) => (
-          <PriceInput
-            {...props}
-            {...field}
-            fullWidth={fullWidth}
-            label={label}
-            required={required}
-            margin={margin}
-            variant={variant}
-            type="text"
-            error={!!fieldState.error}
-            helperText={
-              <Box>
-                <Typography variant="caption" color={error && isTouched ? 'error' : 'text.secondary'}>
-                  {error && isTouched
-                    ? error
-                    : helperText || 'Enter the price for your listing'
-                  }
-                </Typography>
-                {field.value > 0 && !error && (
-                  <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: 'block' }}>
-                    Price: ${field.value.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-                  </Typography>
-                )}
-              </Box>
-            }
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <AttachMoney color="action" />
-                </InputAdornment>
-              ),
-              ...(props as any).InputProps,
-            }}
-          />
+          <div className="space-y-1">
+            <Label 
+              htmlFor={name}
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
+            
+            <PriceInput
+              {...props}
+              {...field}
+              id={name}
+              label={label}
+              error={!!fieldState.error}
+            />
+
+            <div className="flex justify-between items-start text-xs mt-1">
+              <span className={cn(
+                "text-muted-foreground",
+                error && isTouched && "text-destructive"
+              )}>
+                {error && isTouched 
+                  ? error 
+                  : helperText || 'Enter the price for your listing'}
+              </span>
+              
+              {field.value > 0 && !error && (
+                <span className="text-green-600 dark:text-green-400 font-medium ml-2">
+                  ${field.value.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </span>
+              )}
+            </div>
+          </div>
         )}
       />
       
       {/* Price ranges info */}
-      <Box
-        sx={{
-          mt: 1,
-          p: 1,
-          bgcolor: 'grey.50',
-          borderRadius: 0,
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Typography variant="caption" color="text.secondary">
-          <strong>Price Guidelines:</strong>
-        </Typography>
-        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
-          • Research similar items to set competitive prices<br />
-          • Consider item condition and market demand<br />
-          • Factor in shipping costs if applicable
-        </Typography>
-      </Box>
-    </Box>
+      <div className="mt-2 p-2 rounded-sm bg-muted/50 border border-border text-xs text-muted-foreground">
+        <strong>Price Guidelines:</strong>
+        <ul className="mt-1 list-disc list-inside space-y-0.5">
+          <li>Research similar items to set competitive prices</li>
+          <li>Consider item condition and market demand</li>
+          <li>Factor in shipping costs if applicable</li>
+        </ul>
+      </div>
+    </div>
   );
 };
 
 export default PriceField;
-
-/**
- * JSDoc for form integration
- * 
- * @example
- * ```tsx
- * <ListingForm>
- *   <PriceField
- *     name="price"
- *     label="Asking Price"
- *     required={true}
- *     helperText="Set a fair price based on market research"
- *   />
- * </ListingForm>
- * ```
- * 
- * @remarks
- * - Uses React Hook Form Controller for form integration
- * - Automatically formats currency input
- * - Validates price ranges
- * - Shows formatted price preview
- * - Includes pricing guidelines
- * - Fully responsive and accessible
- */

@@ -1,57 +1,29 @@
 import React from 'react';
-import { Box, Button, Container, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import { ArrowRight, PlayCircle } from 'lucide-react';
+import { Button } from '../ui/button';
 
 const Hero: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        minHeight: '90vh',
-        display: 'flex',
-        alignItems: 'center',
-        overflow: 'hidden',
-        bgcolor: 'background.default',
-        pt: { xs: 12, md: 0 },
-        borderBottom: '2px solid #000',
-      }}
-    >
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gap: 8,
-            alignItems: 'center',
-          }}
-        >
+    <div className="relative min-h-[90vh] flex items-center overflow-hidden bg-bg pt-12 md:pt-0 border-b border-border">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           {/* Text Content */}
-          <Box>
+          <div>
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <Typography
-                variant="h1"
-                component="h1"
-                sx={{
-                  fontSize: { xs: '3.5rem', md: '4.5rem', lg: '5.5rem' },
-                  fontWeight: 900,
-                  lineHeight: 0.9,
-                  mb: 4,
-                  color: 'text.primary',
-                  textTransform: 'uppercase',
-                  letterSpacing: '-0.04em',
-                }}
-              >
-                Dominate Local Marketplaces.
-              </Typography>
+              <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-black leading-[0.9] mb-4 text-fg uppercase tracking-tighter">
+                Dominate <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+                  Local Markets.
+                </span>
+              </h1>
             </motion.div>
 
             <motion.div
@@ -59,19 +31,9 @@ const Hero: React.FC = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <Typography
-                variant="h5"
-                color="text.secondary"
-                sx={{
-                  mb: 6,
-                  maxWidth: '600px',
-                  fontWeight: 500,
-                  lineHeight: 1.4,
-                  fontSize: '1.25rem'
-                }}
-              >
+              <p className="font-ui text-xl text-muted-fg mb-6 max-w-[600px] font-medium leading-relaxed">
                 Cross-post to Facebook, Craigslist, and OfferUp instantly. Manage inventory, track sales, and scale your hustle with AI-powered tools.
-              </Typography>
+              </p>
             </motion.div>
 
             <motion.div
@@ -79,142 +41,81 @@ const Hero: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 2,
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div className="flex flex-wrap gap-4">
                 <Button
-                  variant="contained"
-                  color="primary"
-                  size="large"
-                  endIcon={<ArrowForwardIcon />}
+                  size="lg"
                   onClick={() => navigate('/signup')}
-                  disableElevation
-                  sx={{
-                    px: 5,
-                    py: 2,
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    borderRadius: 0,
-                    textTransform: 'uppercase',
-                    border: '2px solid',
-                    borderColor: 'primary.main',
-                    '&:hover': {
-                        bgcolor: 'transparent',
-                        color: 'primary.main'
-                    }
-                  }}
+                  className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity text-white rounded-none border-2 border-transparent uppercase font-bold px-8 py-6 h-auto text-lg"
                 >
                   Start for Free
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
+                
                 <Button
-                  variant="outlined"
-                  color="inherit"
-                  size="large"
-                  startIcon={<PlayCircleOutlineIcon />}
-                  sx={{
-                    px: 5,
-                    py: 2,
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    borderRadius: 0,
-                    textTransform: 'uppercase',
-                    border: '2px solid',
-                    borderColor: 'text.primary',
-                    color: 'text.primary',
-                    '&:hover': {
-                      bgcolor: 'text.primary',
-                      color: 'background.paper',
-                      borderColor: 'text.primary',
-                    },
-                  }}
+                  variant="outline"
+                  size="lg"
+                  className="rounded-none border-2 border-fg text-fg hover:bg-fg hover:text-bg uppercase font-bold px-8 py-6 h-auto text-lg"
                 >
+                  <PlayCircle className="mr-2 h-5 w-5" />
                   View Demo
                 </Button>
-              </Box>
+              </div>
             </motion.div>
-          </Box>
+          </div>
 
           {/* Visual/Dashboard Mockup */}
-          <Box>
+          <div>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.4, ease: "circOut" }}
             >
-              <Box sx={{ position: 'relative' }}>
-                <Box
-                  sx={{
-                    position: 'relative',
-                    width: '100%',
-                    aspectRatio: '16/10',
-                    bgcolor: 'background.paper',
-                    borderRadius: 0,
-                    border: '2px solid',
-                    borderColor: 'text.primary',
-                    boxShadow: '12px 12px 0px currentColor',
-                    color: 'text.primary',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
-                >
+              <div className="relative">
+                <div className="relative w-full aspect-[16/10] bg-card rounded-none border-2 border-fg shadow-[12px_12px_0px_currentColor] text-fg overflow-hidden flex flex-col">
                   {/* Mockup Header */}
-                  <Box sx={{ p: 1.5, borderBottom: '2px solid', borderColor: 'inherit', display: 'flex', gap: 1, bgcolor: 'action.hover' }}>
-                    <Box sx={{ width: 12, height: 12, borderRadius: 0, border: '1px solid', borderColor: 'inherit', bgcolor: 'background.paper' }} />
-                    <Box sx={{ width: 12, height: 12, borderRadius: 0, border: '1px solid', borderColor: 'inherit', bgcolor: 'background.paper' }} />
-                    <Box sx={{ width: 12, height: 12, borderRadius: 0, border: '1px solid', borderColor: 'inherit', bgcolor: 'background.paper' }} />
-                  </Box>
+                  <div className="p-3 border-b-2 border-inherit flex gap-2 bg-muted/50">
+                    <div className="w-3 h-3 rounded-none border border-inherit bg-bg" />
+                    <div className="w-3 h-3 rounded-none border border-inherit bg-bg" />
+                    <div className="w-3 h-3 rounded-none border border-inherit bg-bg" />
+                  </div>
                   
                   {/* Mockup Content */}
-                  <Box sx={{ p: 3, flex: 1, display: 'flex', gap: 2, bgcolor: 'background.paper' }}>
+                  <div className="p-6 flex-1 flex gap-4 bg-bg">
                     {/* Sidebar */}
-                    <Box sx={{ width: '25%', borderRight: '2px solid', borderColor: 'divider', pr: 2 }}>
-                        <Box sx={{ height: 20, width: '80%', bgcolor: 'text.primary', mb: 2 }} />
-                        <Box sx={{ height: 10, width: '100%', bgcolor: 'action.hover', mb: 1 }} />
-                        <Box sx={{ height: 10, width: '100%', bgcolor: 'action.hover', mb: 1 }} />
-                        <Box sx={{ height: 10, width: '100%', bgcolor: 'action.hover', mb: 1 }} />
-                    </Box>
+                    <div className="w-1/4 border-r-2 border-border pr-4">
+                      <div className="h-5 w-4/5 bg-fg mb-4" />
+                      <div className="h-2.5 w-full bg-muted mb-2" />
+                      <div className="h-2.5 w-full bg-muted mb-2" />
+                      <div className="h-2.5 w-full bg-muted mb-2" />
+                    </div>
                     
                     {/* Main Area */}
-                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <Box sx={{ height: '20%', bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }} />
-                      <Box sx={{ display: 'flex', gap: 2, height: '40%' }}>
-                        <Box sx={{ flex: 1, bgcolor: 'primary.main', border: '1px solid', borderColor: 'divider' }} />
-                        <Box sx={{ flex: 1, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }} />
-                      </Box>
-                    </Box>
-                  </Box>
-                </Box>
+                    <div className="flex-1 flex flex-col gap-4">
+                      <div className="h-[20%] bg-muted border border-border" />
+                      <div className="flex gap-4 h-[40%]">
+                        <div className="flex-1 bg-primary border border-border opacity-20" />
+                        <div className="flex-1 bg-bg border border-border" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Floating Badge */}
                 <motion.div
                   animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  style={{
-                    position: 'absolute',
-                    bottom: '-20px',
-                    left: '-20px',
-                    background: '#fff',
-                    padding: '16px 24px',
-                    border: '2px solid #000',
-                    boxShadow: '8px 8px 0px #000',
-                    zIndex: 2,
-                  }}
+                  className="absolute -bottom-5 -left-5 bg-white p-4 border-2 border-black shadow-[8px_8px_0px_#000] z-20"
                 >
-                  <Typography variant="h6" fontWeight="900" sx={{ color: '#000', textTransform: 'uppercase' }}>
+                  <h6 className="text-black font-black uppercase text-lg">
                     +127% Growth
-                  </Typography>
+                  </h6>
                 </motion.div>
-              </Box>
+              </div>
             </motion.div>
-          </Box>
-        </Box>
-      </Container>
-    </Box>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

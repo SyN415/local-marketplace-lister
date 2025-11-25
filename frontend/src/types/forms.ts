@@ -42,6 +42,7 @@ export interface BaseFieldProps {
   fullWidth?: boolean;
   margin?: 'none' | 'dense' | 'normal';
   variant?: 'outlined' | 'filled' | 'standard';
+  className?: string;
 }
 
 /**

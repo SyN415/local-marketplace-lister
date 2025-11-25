@@ -1,26 +1,29 @@
-import React, { useState } from 'react';
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  Box,
-  IconButton,
-  Menu,
-  MenuItem,
-  Avatar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Tooltip,
-  Divider,
-} from '@mui/material';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Logout, Settings, Person, Brightness4, Brightness7, Link as LinkIcon, WorkHistory } from '@mui/icons-material';
+import { 
+  LogOut, 
+  Settings, 
+  User, 
+  Moon, 
+  Sun, 
+  Link as LinkIcon, 
+  History,
+  CreditCard
+} from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { getUserDisplayName, getUserInitials } from '../utils/auth';
+import { Button } from './ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose
+} from './ui/dialog';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -28,33 +31,38 @@ const Navbar: React.FC = () => {
   const { mode, toggleTheme } = useThemeContext();
   
   // Menu states
-  const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   
-  // Handle user menu open
-  const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setUserMenuAnchor(event.currentTarget);
-  };
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
-  // Handle user menu close
-  const handleUserMenuClose = () => {
-    setUserMenuAnchor(null);
+  // Handle user menu toggle
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
   };
   
   // Handle logout confirmation
   const handleLogoutClick = () => {
     setLogoutDialogOpen(true);
-    handleUserMenuClose();
+    setIsMenuOpen(false);
   };
   
   // Confirm logout
   const handleLogoutConfirm = () => {
     logout();
-    setLogoutDialogOpen(false);
-  };
-  
-  // Cancel logout
-  const handleLogoutCancel = () => {
     setLogoutDialogOpen(false);
   };
   
@@ -64,233 +72,205 @@ const Navbar: React.FC = () => {
   
   return (
     <>
-      <AppBar
-        position="sticky"
-        elevation={0}
-        sx={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          color: 'text.primary'
-        }}
-      >
-        <Toolbar>
+      <header className="sticky top-0 z-50 w-full border-b border-glass-border bg-glass-bg backdrop-blur-md">
+        <div className="container mx-auto flex h-16 items-center px-4">
           {/* Logo/Home Link */}
-          <Typography
-            variant="h5"
-            component={RouterLink}
-            to="/"
-            sx={{
-              flexGrow: 1,
-              textDecoration: 'none',
-              background: 'linear-gradient(135deg, #D1478E 0%, #E66A9A 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              fontFamily: '"Orbitron", sans-serif',
-              fontWeight: 800,
-              letterSpacing: '0.05em',
-              '&:hover': {
-                opacity: 0.9,
-              },
-            }}
-          >
-            Local Hustle
-          </Typography>
+          <RouterLink to="/" className="mr-6 flex items-center space-x-2">
+            <img src="/jp1.jpg" alt="Jigglypost" className="h-10 w-auto rounded-sm" />
+            <span className="hidden font-display text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent sm:inline-block">
+              Jigglypost
+            </span>
+          </RouterLink>
           
           {/* Navigation Links */}
-          <Box sx={{ display: 'flex', gap: 1, mr: 2, alignItems: 'center' }}>
-            <IconButton sx={{ ml: 1 }} onClick={toggleTheme} color="inherit">
-              {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-            </IconButton>
+          <nav className="flex items-center space-x-4 lg:space-x-6 flex-1">
             <Button
-              color="inherit"
-              component={RouterLink}
-              to="/"
-              sx={{ minWidth: 'auto', fontWeight: 600 }}
+              variant="ghost"
+              asChild
+              className="text-sm font-medium transition-colors hover:text-primary"
             >
-              Home
+              <RouterLink to="/">Home</RouterLink>
             </Button>
             
             {/* Show authenticated user only links */}
             {isAuthenticated && (
               <>
                 <Button
-                  color="inherit"
-                  component={RouterLink}
-                  to="/create-listing"
-                  sx={{
-                    minWidth: 'auto',
-                    fontWeight: 600,
-                    background: 'rgba(99, 102, 241, 0.1)',
-                    color: 'primary.main',
-                    '&:hover': {
-                      background: 'rgba(99, 102, 241, 0.2)',
-                    }
-                  }}
+                  variant="ghost"
+                  asChild
+                  className="text-sm font-medium transition-colors hover:text-primary bg-primary/10 hover:bg-primary/20 text-primary"
                 >
-                  Sell
+                  <RouterLink to="/create-listing">Sell</RouterLink>
                 </Button>
                 
                 <Button
-                  color="inherit"
-                  component={RouterLink}
-                  to="/listings"
-                  sx={{ minWidth: 'auto', fontWeight: 600 }}
+                  variant="ghost"
+                  asChild
+                  className="text-sm font-medium transition-colors hover:text-primary"
                 >
-                  My Listings
+                  <RouterLink to="/listings">My Listings</RouterLink>
                 </Button>
               </>
             )}
-          </Box>
-          
-          {/* Auth Section */}
-          {isAuthenticated && user ? (
-            // User Menu (when authenticated)
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Tooltip title={`${userDisplayName}`}>
-                <IconButton
-                  color="inherit"
-                  onClick={handleUserMenuOpen}
-                  sx={{ p: 0.5 }}
+          </nav>
+
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-9 w-9"
+            >
+              {mode === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+            
+            {/* Auth Section */}
+            {isAuthenticated && user ? (
+              // User Menu (when authenticated)
+              <div className="relative" ref={menuRef}>
+                <Button
+                  variant="ghost"
+                  className="relative h-8 w-8 rounded-full p-0"
+                  onClick={toggleMenu}
                 >
-                  <Avatar
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      fontSize: '0.875rem',
-                      bgcolor: 'secondary.main',
-                    }}
-                  >
-                    {userInitials}
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.avatarUrl} alt={userDisplayName} />
+                    <AvatarFallback className="bg-secondary text-secondary-foreground">
+                      {userInitials}
+                    </AvatarFallback>
                   </Avatar>
-                </IconButton>
-              </Tooltip>
-              
-              <Menu
-                anchorEl={userMenuAnchor}
-                open={Boolean(userMenuAnchor)}
-                onClose={handleUserMenuClose}
-                onClick={handleUserMenuClose}
-                PaperProps={{
-                  elevation: 3,
-                  sx: {
-                    mt: 1.5,
-                    minWidth: 200,
-                  },
-                }}
-              >
-                <MenuItem disabled>
-                  <Box>
-                    <Typography variant="subtitle2">{userDisplayName}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {user.email}
-                    </Typography>
-                  </Box>
-                </MenuItem>
+                </Button>
+                
+                {isMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-56 rounded-md border border-border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95">
+                    <div className="px-2 py-1.5 text-sm font-semibold">
+                      <div className="truncate">{userDisplayName}</div>
+                      <div className="truncate text-xs font-normal text-muted-foreground">
+                        {user.email}
+                      </div>
+                    </div>
+                    
+                    <div className="h-px bg-border my-1" />
+                    
+                    <div 
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        navigate('/pricing');
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="font-bold text-primary">Credits: {user?.credits ?? 0}</span>
+                        <span className="text-xs text-primary underline">Add</span>
+                      </div>
+                    </div>
+                    
+                    <div className="h-px bg-border my-1" />
 
-                <Divider />
+                    <div 
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        navigate('/dashboard/connections');
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      <LinkIcon className="mr-2 h-4 w-4" />
+                      <span>Connections</span>
+                    </div>
 
-                <MenuItem onClick={() => navigate('/pricing')}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                    <Typography variant="body2" fontWeight="bold" color="primary">
-                      Credits: {user?.credits ?? 0}
-                    </Typography>
-                    <Typography variant="caption" color="primary" sx={{ ml: 1, textDecoration: 'underline' }}>
-                      Add
-                    </Typography>
-                  </Box>
-                </MenuItem>
+                    <div 
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        navigate('/dashboard/jobs');
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      <History className="mr-2 h-4 w-4" />
+                      <span>Posting History</span>
+                    </div>
+                    
+                    <div 
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        navigate('/profile');
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </div>
+                    
+                    <div 
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        navigate('/settings');
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </div>
+                    
+                    <div className="h-px bg-border my-1" />
+                    
+                    <div 
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                      onClick={handleLogoutClick}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>{isLoggingOut ? 'Signing out...' : 'Sign out'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Login/Register buttons (when not authenticated)
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="font-semibold"
+                >
+                  <RouterLink to="/login">Sign In</RouterLink>
+                </Button>
                 
-                <Divider />
-
-                <MenuItem onClick={() => navigate('/dashboard/connections')}>
-                  <LinkIcon sx={{ mr: 1 }} />
-                  Connections
-                </MenuItem>
-
-                <MenuItem onClick={() => navigate('/dashboard/jobs')}>
-                  <WorkHistory sx={{ mr: 1 }} />
-                  Posting History
-                </MenuItem>
-                
-                <MenuItem onClick={() => navigate('/profile')}>
-                  <Person sx={{ mr: 1 }} />
-                  Profile
-                </MenuItem>
-                
-                <MenuItem onClick={() => navigate('/settings')}>
-                  <Settings sx={{ mr: 1 }} />
-                  Settings
-                </MenuItem>
-                
-                <Divider />
-                
-                <MenuItem onClick={handleLogoutClick} disabled={isLoggingOut}>
-                  <Logout sx={{ mr: 1 }} />
-                  {isLoggingOut ? 'Signing out...' : 'Sign out'}
-                </MenuItem>
-              </Menu>
-            </Box>
-          ) : (
-            // Login/Register buttons (when not authenticated)
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                color="inherit"
-                component={RouterLink}
-                to="/login"
-                variant="text"
-                size="small"
-                sx={{ fontWeight: 600 }}
-              >
-                Sign In
-              </Button>
-              
-              <Button
-                color="primary"
-                component={RouterLink}
-                to="/signup"
-                variant="contained"
-                size="small"
-                sx={{
-                  fontWeight: 600,
-                  background: 'linear-gradient(135deg, #D1478E 0%, #E66A9A 100%)',
-                }}
-              >
-                Sign Up
-              </Button>
-            </Box>
-          )}
-        </Toolbar>
-      </AppBar>
+                <Button
+                  size="sm"
+                  asChild
+                  className="font-semibold bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity text-white border-0"
+                >
+                  <RouterLink to="/signup">Sign Up</RouterLink>
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
       
       {/* Logout Confirmation Dialog */}
-      <Dialog
-        open={logoutDialogOpen}
-        onClose={handleLogoutCancel}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>
-          Confirm Sign Out
-        </DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to sign out of your account?
-          </Typography>
+      <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Confirm Sign Out</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to sign out of your account?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:gap-0">
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={handleLogoutConfirm}
+              disabled={isLoggingOut}
+            >
+              Sign Out
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleLogoutCancel}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleLogoutConfirm}
-            variant="contained"
-            color="error"
-            disabled={isLoggingOut}
-          >
-            Sign Out
-          </Button>
-        </DialogActions>
       </Dialog>
     </>
   );

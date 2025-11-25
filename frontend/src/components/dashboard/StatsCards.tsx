@@ -2,21 +2,19 @@ import React from 'react';
 import {
   Card,
   CardContent,
-  Typography,
-  Box,
-  Skeleton,
-  Chip,
-  Alert,
-  useTheme,
-  useMediaQuery,
-} from '@mui/material';
+} from '../ui/card';
+import { Skeleton } from '../ui/skeleton';
+import { Badge } from '../ui/badge';
+import { Alert, AlertTitle } from '../ui/alert';
 import {
-  Inventory2 as InventoryIcon,
-  Visibility as VisibleIcon,
-  Edit as DraftIcon,
-  CheckCircle as SoldIcon,
-} from '@mui/icons-material';
+  Package,
+  Eye,
+  FileEdit,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
 import { useDashboardStats } from '../../hooks/useDashboard';
+import { cn } from '../../lib/utils';
 
 interface StatsCardProps {
   title: string;
@@ -38,9 +36,6 @@ const StatsCard: React.FC<StatsCardProps> = ({
   onClick,
   clickable = false,
 }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
   const handleClick = () => {
     if (clickable && onClick) {
       onClick();
@@ -64,100 +59,42 @@ const StatsCard: React.FC<StatsCardProps> = ({
 
   return (
     <Card
-      elevation={0}
-      sx={{
-        height: '100%',
-        borderRadius: 0,
-        border: '2px solid #000',
-        transition: 'all 0.1s ease-in-out',
-        cursor: clickable ? 'pointer' : 'default',
-        bgcolor: 'background.paper',
-        '&:hover': clickable ? {
-          bgcolor: 'action.hover',
-        } : {},
-      }}
+      className={cn(
+        "h-full rounded-none border-2 border-black bg-card transition-all duration-100 dark:border-white/20",
+        clickable && "cursor-pointer hover:bg-accent/50"
+      )}
       onClick={handleClick}
     >
-      <CardContent sx={{ p: 3 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            mb: 2,
-          }}
-        >
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'text.secondary',
-            }}
-          >
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground font-display">
             {title}
-          </Typography>
-          <Box
-            sx={{
-              color: 'text.primary',
-              transform: 'scale(1.2)',
-            }}
-          >
+          </h4>
+          <div className="text-foreground scale-125">
             {icon}
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {loading ? (
-          <Skeleton
-            variant="text"
-            width="60%"
-            height={60}
-          />
+          <Skeleton className="h-14 w-3/5" />
         ) : error ? (
-          <Alert
-            severity="error"
-            sx={{
-              p: 0,
-              minHeight: 40,
-              borderRadius: 0,
-              alignItems: 'center',
-              '& .MuiAlert-message': { p: 0 },
-            }}
-          >
-            <Typography variant="body2" color="error">
-              Error
-            </Typography>
+          <Alert variant="destructive" className="p-2 min-h-[40px] flex items-center rounded-none border-none">
+            <AlertCircle className="h-4 w-4 mr-2" />
+            <AlertTitle className="mb-0 text-sm">Error</AlertTitle>
           </Alert>
         ) : (
-          <Typography
-            variant="h2"
-            component="div"
-            sx={{
-              fontWeight: 900,
-              color: 'text.primary',
-              mb: 0,
-              fontSize: isMobile ? '2.5rem' : '3.5rem',
-              lineHeight: 1,
-              letterSpacing: '-0.03em',
-            }}
-          >
+          <div className="text-4xl sm:text-5xl font-black text-foreground mb-0 leading-none tracking-tight font-display">
             {formatValue(value)}
-          </Typography>
+          </div>
         )}
 
         {clickable && !loading && !error && (
-          <Chip
-            label="Click to filter"
-            size="small"
-            variant="outlined"
-            color="primary"
-            sx={{
-              fontSize: '0.75rem',
-              height: 24,
-            }}
-          />
+          <Badge 
+            variant="outline" 
+            className="mt-4 text-xs h-6 rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            Click to filter
+          </Badge>
         )}
       </CardContent>
     </Card>
@@ -186,7 +123,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
       title: 'Total Listings',
       value: stats?.totalListings || 0,
       color: 'primary' as const,
-      icon: <InventoryIcon fontSize="large" />,
+      icon: <Package className="h-8 w-8" />,
       clickable: true,
     },
     {
@@ -194,7 +131,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
       title: 'Posted',
       value: stats?.postedListings || 0,
       color: 'success' as const,
-      icon: <VisibleIcon fontSize="large" />,
+      icon: <Eye className="h-8 w-8" />,
       clickable: true,
     },
     {
@@ -202,7 +139,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
       title: 'Drafts',
       value: stats?.draftListings || 0,
       color: 'warning' as const,
-      icon: <DraftIcon fontSize="large" />,
+      icon: <FileEdit className="h-8 w-8" />,
       clickable: true,
     },
     {
@@ -210,7 +147,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
       title: 'Sold',
       value: stats?.soldListings || 0,
       color: 'info' as const,
-      icon: <SoldIcon fontSize="large" />,
+      icon: <CheckCircle className="h-8 w-8" />,
       clickable: true,
     },
   ];
@@ -228,41 +165,25 @@ const StatsCards: React.FC<StatsCardsProps> = ({
   const isDataLoading = showLoading || isLoading;
 
   return (
-    <Box sx={{ mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h5" component="h2" sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+    <div className="mb-8">
+      <div className="flex items-center mb-8">
+        <h2 className="text-2xl font-extrabold uppercase tracking-tight font-display">
           OVERVIEW
-        </Typography>
+        </h2>
         {isLoading && (
-          <Chip
-            label="Refreshing..."
-            size="small"
-            sx={{
-              ml: 2,
-              borderRadius: 0,
-              border: '1px solid #000',
-              fontWeight: 600,
-              bgcolor: 'transparent'
-            }}
-          />
+          <Badge
+            variant="outline"
+            className="ml-4 rounded-none border-black font-semibold bg-transparent dark:border-white"
+          >
+            Refreshing...
+          </Badge>
         )}
-      </Box>
+      </div>
 
       {/* Stats Cards */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            lg: 'repeat(4, 1fr)',
-          },
-          gap: 3,
-          mb: 3,
-        }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         {cardConfigs.map((config) => (
-          <Box key={config.key}>
+          <div key={config.key}>
             <StatsCard
               title={config.title}
               value={config.value}
@@ -273,86 +194,57 @@ const StatsCards: React.FC<StatsCardsProps> = ({
               clickable={config.clickable}
               onClick={() => handleCardClick(config.key)}
             />
-          </Box>
+          </div>
         ))}
-      </Box>
+      </div>
 
       {/* Summary stats row for larger screens */}
       {stats && !isDataLoading && (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: '1fr',
-              lg: '2fr 1fr',
-            },
-            gap: 3,
-          }}
-        >
-          <Card
-            elevation={0}
-            sx={{
-              border: '2px solid #000',
-              borderRadius: 0,
-              height: '100%'
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 2 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+          <Card className="h-full rounded-none border-2 border-black bg-card dark:border-white/20">
+            <CardContent className="p-6">
+              <h6 className="text-lg font-bold uppercase mb-4 font-display">
                 Category Breakdown
-              </Typography>
+              </h6>
               {Object.keys(stats.categoryBreakdown || {}).length > 0 ? (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                <div className="flex flex-wrap gap-2">
                   {Object.entries(stats.categoryBreakdown).map(([category, count]) => (
-                    <Box
+                    <div
                       key={category}
-                      sx={{
-                        border: '1px solid #000',
-                        px: 1.5,
-                        py: 0.5,
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                      }}
+                      className="border border-black px-3 py-1 text-sm font-semibold dark:border-white/50"
                     >
                       {category}: {count}
-                    </Box>
+                    </div>
                   ))}
-                </Box>
+                </div>
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <p className="text-sm text-muted-foreground">
                   No category data available
-                </Typography>
+                </p>
               )}
             </CardContent>
           </Card>
-          <Card
-            elevation={0}
-            sx={{
-              border: '2px solid #000',
-              borderRadius: 0,
-              height: '100%'
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 1 }}>
+          <Card className="h-full rounded-none border-2 border-black bg-card dark:border-white/20">
+            <CardContent className="p-6">
+              <h6 className="text-lg font-bold uppercase mb-2 font-display">
                 Portfolio Value
-              </Typography>
-              <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em' }}>
+              </h6>
+              <div className="text-4xl font-black tracking-tight font-display mb-2">
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: 'USD',
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,
                 }).format(stats.totalValue || 0)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              </div>
+              <p className="text-sm text-muted-foreground">
                 Combined value of all listings
-              </Typography>
+              </p>
             </CardContent>
           </Card>
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

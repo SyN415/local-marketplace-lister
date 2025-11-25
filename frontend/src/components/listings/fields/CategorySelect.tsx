@@ -1,24 +1,28 @@
 import React from 'react';
-import { TextField, MenuItem, Box, Typography } from '@mui/material';
 import { useFormContext, Controller } from 'react-hook-form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import { Label } from '../../ui/label';
+import { cn } from '../../../lib/utils';
 import type { SelectFieldProps } from '../../../types/forms';
 import { LISTING_CATEGORIES } from '../../../schemas/listing.schema';
 
 /**
  * CategorySelect component for selecting listing categories
- * Provides pre-defined categories with validation
+ * Provides pre-defined categories with validation using shadcn/ui
  */
 const CategorySelect: React.FC<SelectFieldProps> = ({
   name = 'category',
   label = 'Category',
   required = true,
-  fullWidth = true,
-  margin = 'normal',
-  variant = 'outlined',
   helperText,
-  error: customError,
   options = LISTING_CATEGORIES.map(cat => ({ value: cat, label: cat })),
-  ...props
+  className,
 }) => {
   const {
     control,
@@ -29,7 +33,7 @@ const CategorySelect: React.FC<SelectFieldProps> = ({
   const isTouched = touchedFields[name];
 
   return (
-    <Box>
+    <div className={cn("space-y-2", className)}>
       <Controller
         name={name}
         control={control}
@@ -37,79 +41,58 @@ const CategorySelect: React.FC<SelectFieldProps> = ({
           required: required ? 'Category is required' : false,
         }}
         render={({ field, fieldState }) => (
-          <TextField
-            {...field}
-            fullWidth={fullWidth}
-            label={label}
-            required={required}
-            margin={margin}
-            variant={variant}
-            select
-            error={Boolean(fieldState.error)}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 0,
-                '& fieldset': {
-                  borderColor: 'divider',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'text.primary',
-                },
-                '&.Mui-focused fieldset': {
-                  borderWidth: 2,
-                },
-              },
-              '& .MuiInputLabel-root': {
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                fontSize: '0.75rem',
-              },
-            }}
-            helperText={
-              <Typography variant="caption" color={error && isTouched ? 'error' : 'text.secondary'}>
-                {error && isTouched
-                  ? error
-                  : helperText || 'Select the most appropriate category for your item'
-                }
-              </Typography>
-            }
-            SelectProps={{
-              multiple: false,
-              ...(props as any).SelectProps,
-            }}
-            {...props}
-          >
-            {options.map((option) => (
-              <MenuItem
-                key={option.value}
-                value={option.value}
-                disabled={(option as any).disabled}
+          <div className="space-y-1">
+            <Label 
+              htmlFor={name}
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
+            
+            <Select
+              onValueChange={field.onChange}
+              defaultValue={field.value}
+            >
+              <SelectTrigger
+                id={name}
+                className={cn(
+                  "w-full",
+                  fieldState.error && "border-destructive focus:ring-destructive"
+                )}
               >
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    disabled={(option as any).disabled}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <span className={cn(
+              "text-xs text-muted-foreground block",
+              error && isTouched && "text-destructive"
+            )}>
+              {error && isTouched
+                ? error
+                : helperText || 'Select the most appropriate category for your item'}
+            </span>
+          </div>
         )}
       />
       
       {/* Category guidance */}
-      <Box
-        sx={{
-          mt: 1,
-          p: 1,
-          bgcolor: 'info.light',
-          borderRadius: 0,
-          border: '1px solid',
-          borderColor: 'info.main',
-        }}
-      >
-        <Typography variant="caption" color="info.contrastText">
-          <strong>Tip:</strong> Choose the category that best describes your item. 
-          This helps buyers find your listing more easily.
-        </Typography>
-      </Box>
-    </Box>
+      <div className="mt-2 p-2 rounded-sm bg-blue-500/10 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-400">
+        <strong>Tip:</strong> Choose the category that best describes your item. 
+        This helps buyers find your listing more easily.
+      </div>
+    </div>
   );
 };
 

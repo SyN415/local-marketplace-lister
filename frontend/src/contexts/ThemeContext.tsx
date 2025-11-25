@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { getTheme } from '../theme';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -24,31 +22,40 @@ interface ThemeContextProviderProps {
 }
 
 export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({ children }) => {
-  // Initialize state from localStorage or default to 'light'
+  // Initialize state from localStorage or system preference
   const [mode, setMode] = useState<ThemeMode>(() => {
-    const savedMode = localStorage.getItem('themeMode');
-    return (savedMode === 'light' || savedMode === 'dark') ? savedMode : 'light';
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem('themeMode');
+      if (savedMode === 'light' || savedMode === 'dark') {
+        return savedMode;
+      }
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+    }
+    return 'light';
   });
 
-  // Update localStorage when mode changes
+  // Update HTML class and localStorage when mode changes
   useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(mode);
     localStorage.setItem('themeMode', mode);
+    
+    // Also update style-scheme property for standard form controls
+    root.style.colorScheme = mode;
   }, [mode]);
 
   const toggleTheme = () => {
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
   };
 
-  // Memoize the theme to prevent unnecessary re-renders
-  const theme = useMemo(() => getTheme(mode), [mode]);
-
   const value = useMemo(() => ({ mode, toggleTheme }), [mode]);
 
   return (
     <ThemeContext.Provider value={value}>
-      <MuiThemeProvider theme={theme}>
-        {children}
-      </MuiThemeProvider>
+      {children}
     </ThemeContext.Provider>
   );
 };

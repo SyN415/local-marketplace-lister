@@ -1,11 +1,13 @@
 import React from 'react';
-import { TextField, Box, Typography } from '@mui/material';
 import { useFormContext, Controller } from 'react-hook-form';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { cn } from '../../../lib/utils';
 import type { TextFieldProps } from '../../../types/forms';
 
 /**
  * TitleField component for listing titles with character counter
- * Provides validation and real-time character count feedback
+ * Uses shadcn/ui components and Tailwind CSS
  */
 const TitleField: React.FC<TextFieldProps> = ({
   name = 'title',
@@ -14,9 +16,7 @@ const TitleField: React.FC<TextFieldProps> = ({
   maxLength = 100,
   showCharacterCount = true,
   helperText,
-  fullWidth = true,
-  margin = 'normal',
-  variant = 'outlined',
+  className,
   ...props
 }) => {
   const {
@@ -36,29 +36,11 @@ const TitleField: React.FC<TextFieldProps> = ({
     if (error && isTouched) {
       return error;
     }
-    
-    if (showCharacterCount) {
-      if (isOverLimit) {
-        return `Title is too long (${characterCount}/${maxLength})`;
-      } else if (isNearLimit) {
-        return `${characterCount}/${maxLength} characters (approaching limit)`;
-      } else {
-        return `${characterCount}/${maxLength} characters`;
-      }
-    }
-    
     return helperText || 'Enter a descriptive title for your listing';
   };
 
-  const getHelperTextColor = () => {
-    if (error && isTouched) return 'error';
-    if (isOverLimit) return 'error';
-    if (isNearLimit) return 'warning';
-    return 'text.secondary';
-  };
-
   return (
-    <Box>
+    <div className={cn("space-y-2", className)}>
       <Controller
         name={name}
         control={control}
@@ -73,132 +55,63 @@ const TitleField: React.FC<TextFieldProps> = ({
             message: `Title must be no more than ${maxLength} characters`,
           },
         }}
-        render={({ field, fieldState }) => {
-          // Extract error from props to prevent type conflicts
-          const { error: _propsError, ...restProps } = props as any;
-          return (
-            <TextField
+        render={({ field, fieldState }) => (
+          <div className="space-y-1">
+            <Label 
+              htmlFor={name}
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
+            <Input
+              id={name}
               {...field}
-              fullWidth={fullWidth}
-              label={label}
-              required={required}
-              margin={margin}
-              variant={variant}
-              error={Boolean(fieldState.error)}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 0,
-                  '& fieldset': {
-                    borderColor: 'divider',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'text.primary',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderWidth: 2,
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontSize: '0.75rem',
-                },
-              }}
-              helperText={
-              <Box>
-                <Typography variant="caption" color={getHelperTextColor()}>
-                  {displayHelperText()}
-                </Typography>
-                {showCharacterCount && (
-                  <Box
-                    sx={{
-                      mt: 0.5,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: isOverLimit ? 'error.main' :
-                               isNearLimit ? 'warning.main' : 'text.secondary',
-                      }}
-                    >
-                      Minimum 3 characters required
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: isNearLimit || isOverLimit ? 'bold' : 'normal',
-                        color: isOverLimit ? 'error.main' :
-                               isNearLimit ? 'warning.main' : 'text.secondary',
-                      }}
-                    >
-                      {characterCount}/{maxLength}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            }
-              inputProps={{
-                maxLength,
-                ...restProps.inputProps,
-              }}
-              {...restProps}
+              {...props}
+              maxLength={maxLength}
+              className={cn(
+                "rounded-none border-input focus:ring-2",
+                fieldState.error && "border-destructive focus-visible:ring-destructive",
+                isOverLimit && "border-destructive",
+                isNearLimit && !isOverLimit && "border-warning"
+              )}
             />
-          );
-        }}
+            
+            <div className="flex justify-between items-start text-xs mt-1">
+              <span className={cn(
+                "text-muted-foreground",
+                fieldState.error && "text-destructive"
+              )}>
+                {displayHelperText()}
+              </span>
+              
+              {showCharacterCount && (
+                <span className={cn(
+                  "font-mono ml-2",
+                  isOverLimit ? "text-destructive font-bold" :
+                  isNearLimit ? "text-warning font-bold" : "text-muted-foreground"
+                )}>
+                  {characterCount}/{maxLength}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       />
-      
-      {/* Character limit warning */}
-      {showCharacterCount && (
-        <Box
-          sx={{
-            mt: 1,
-            p: 1,
-            bgcolor: isOverLimit ? 'error.light' : 
-                     isNearLimit ? 'warning.light' : 'transparent',
-            borderRadius: 1,
-            border: isNearLimit ? '1px solid' : 'none',
-            borderColor: isOverLimit ? 'error.main' : 
-                        isNearLimit ? 'warning.main' : 'transparent',
-          }}
-        >
-          <Typography variant="caption" color={isOverLimit ? 'error.dark' : 'text.secondary'}>
-            <strong>Tip:</strong> A good title should be clear and descriptive. 
-            {isNearLimit && !isOverLimit && ' You\'re getting close to the character limit.'}
-            {isOverLimit && ' Please reduce the title length.'}
-          </Typography>
-        </Box>
+
+      {/* Warning/Tip Box */}
+      {showCharacterCount && (isNearLimit || isOverLimit) && (
+        <div className={cn(
+          "p-2 rounded-sm text-xs border",
+          isOverLimit ? "bg-destructive/10 border-destructive/20 text-destructive" :
+          "bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400"
+        )}>
+          <strong>Tip:</strong> A good title should be clear and descriptive.
+          {isNearLimit && !isOverLimit && " You're getting close to the character limit."}
+          {isOverLimit && " Please reduce the title length."}
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 
 export default TitleField;
-
-/**
- * JSDoc for form integration
- * 
- * @example
- * ```tsx
- * <ListingForm>
- *   <TitleField
- *     name="title"
- *     label="Product Title"
- *     maxLength={100}
- *     showCharacterCount={true}
- *     helperText="Enter a clear, descriptive title"
- *   />
- * </ListingForm>
- * ```
- * 
- * @remarks
- * - Uses React Hook Form Controller for form integration
- * - Provides real-time character count feedback
- * - Shows validation errors with appropriate styling
- * - Includes helpful tips and warnings
- * - Fully responsive and accessible
- */

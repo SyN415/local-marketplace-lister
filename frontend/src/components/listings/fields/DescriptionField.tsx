@@ -1,24 +1,23 @@
 import React from 'react';
-import { TextField, Box, Typography } from '@mui/material';
 import { useFormContext, Controller } from 'react-hook-form';
+import { Textarea } from '../../ui/textarea';
+import { Label } from '../../ui/label';
+import { cn } from '../../../lib/utils';
 import type { TextFieldProps } from '../../../types/forms';
 
 /**
- * DescriptionField component for listing descriptions with rich text support
+ * DescriptionField component for listing descriptions
+ * Uses shadcn/ui components
  */
 const DescriptionField: React.FC<TextFieldProps> = ({
   name = 'description',
   label = 'Description',
   required = false,
-  multiline = true,
   rows = 4,
   maxLength = 2000,
   showCharacterCount = true,
-  fullWidth = true,
-  margin = 'normal',
-  variant = 'outlined',
   helperText,
-  error: customError,
+  className,
   ...props
 }) => {
   const {
@@ -38,29 +37,11 @@ const DescriptionField: React.FC<TextFieldProps> = ({
     if (error && isTouched) {
       return error;
     }
-    
-    if (showCharacterCount) {
-      if (isOverLimit) {
-        return `Description is too long (${characterCount}/${maxLength})`;
-      } else if (isNearLimit) {
-        return `${characterCount}/${maxLength} characters (approaching limit)`;
-      } else {
-        return `${characterCount}/${maxLength} characters`;
-      }
-    }
-    
     return helperText || 'Provide a detailed description of your item (optional but recommended)';
   };
 
-  const getHelperTextColor = () => {
-    if (error && isTouched) return 'error';
-    if (isOverLimit) return 'error';
-    if (isNearLimit) return 'warning';
-    return 'text.secondary';
-  };
-
   return (
-    <Box>
+    <div className={cn("space-y-2", className)}>
       <Controller
         name={name}
         control={control}
@@ -75,82 +56,60 @@ const DescriptionField: React.FC<TextFieldProps> = ({
           },
         }}
         render={({ field, fieldState }) => (
-          <TextField
-            {...field}
-            fullWidth={fullWidth}
-            label={label}
-            required={required}
-            margin={margin}
-            variant={variant}
-            multiline={multiline}
-            rows={rows}
-            error={!!fieldState.error}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 0,
-                '& fieldset': {
-                  borderColor: 'divider',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'text.primary',
-                },
-                '&.Mui-focused fieldset': {
-                  borderWidth: 2,
-                },
-              },
-              '& .MuiInputLabel-root': {
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                fontSize: '0.75rem',
-              },
-            }}
-            helperText={
-              <Box>
-                <Typography variant="caption" color={getHelperTextColor()}>
-                  {displayHelperText()}
-                </Typography>
-                {showCharacterCount && (
-                  <Box
-                    sx={{
-                      mt: 0.5,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: isOverLimit ? 'error.main' : 
-                               isNearLimit ? 'warning.main' : 'text.secondary',
-                      }}
-                    >
-                      {required ? 'Minimum 10 characters required' : 'Optional field'}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: isNearLimit || isOverLimit ? 'bold' : 'normal',
-                        color: isOverLimit ? 'error.main' : 
-                               isNearLimit ? 'warning.main' : 'text.secondary',
-                      }}
-                    >
-                      {characterCount}/{maxLength}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            }
-            inputProps={{
-              maxLength,
-              ...(props as any).inputProps,
-            }}
-            {...props}
-          />
+          <div className="space-y-1">
+            <Label 
+              htmlFor={name}
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
+            
+            <Textarea
+              id={name}
+              {...field}
+              {...props}
+              rows={rows}
+              maxLength={maxLength}
+              className={cn(
+                "resize-none",
+                fieldState.error && "border-destructive focus-visible:ring-destructive",
+                isOverLimit && "border-destructive",
+                isNearLimit && !isOverLimit && "border-warning"
+              )}
+            />
+
+            <div className="flex justify-between items-start text-xs mt-1">
+              <span className={cn(
+                "text-muted-foreground",
+                fieldState.error && "text-destructive"
+              )}>
+                {displayHelperText()}
+              </span>
+              
+              {showCharacterCount && (
+                <div className="flex items-center space-x-2">
+                  <span className={cn(
+                    "text-muted-foreground",
+                    isNearLimit || isOverLimit ? "font-bold" : "",
+                    isOverLimit ? "text-destructive" :
+                    isNearLimit ? "text-warning" : ""
+                  )}>
+                    {required ? 'Min 10 chars' : 'Optional'}
+                  </span>
+                  <span className={cn(
+                    "font-mono ml-2",
+                    isOverLimit ? "text-destructive font-bold" :
+                    isNearLimit ? "text-warning font-bold" : "text-muted-foreground"
+                  )}>
+                    {characterCount}/{maxLength}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       />
-    </Box>
+    </div>
   );
 };
 

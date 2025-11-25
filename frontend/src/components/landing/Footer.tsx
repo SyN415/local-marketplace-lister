@@ -1,97 +1,85 @@
 import React from 'react';
-import { Box, Container, Grid, Typography, Link, IconButton, useTheme } from '@mui/material';
-import TwitterIcon from '@mui/icons-material/Twitter';
-import InstagramIcon from '@mui/icons-material/Instagram';
-import LinkedInIcon from '@mui/icons-material/LinkedIn';
+import { Twitter, Instagram, Linkedin } from 'lucide-react';
+import { Button } from '../ui/button';
 
 const Footer: React.FC = () => {
-  const theme = useTheme();
-
   return (
-    <Box
-      component="footer"
-      sx={{
-        py: 8,
-        bgcolor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(248, 250, 252, 0.9)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-      }}
-    >
-      <Container maxWidth="lg">
-        <Grid container spacing={4}>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+    <footer className="py-12 bg-background border-t border-border">
+      <div className="container mx-auto px-4 max-w-7xl">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
+          <div className="col-span-1 md:col-span-5">
+            <h5 className="text-xl font-bold mb-4 font-display">
               Local Marketplace Lister
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            </h5>
+            <p className="text-muted-foreground mb-6 max-w-sm">
               The ultimate tool for local sellers. Cross-post, manage inventory, and scale your business with ease.
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <IconButton size="small" color="inherit">
-                <TwitterIcon />
-              </IconButton>
-              <IconButton size="small" color="inherit">
-                <InstagramIcon />
-              </IconButton>
-              <IconButton size="small" color="inherit">
-                <LinkedInIcon />
-              </IconButton>
-            </Box>
-          </Grid>
+            </p>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" className="hover:text-primary">
+                <Twitter className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="hover:text-primary">
+                <Instagram className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="hover:text-primary">
+                <Linkedin className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
 
-          <Grid size={{ xs: 6, md: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              Product
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Link href="#" color="text.secondary" underline="hover">Features</Link>
-              <Link href="#" color="text.secondary" underline="hover">Pricing</Link>
-              <Link href="#" color="text.secondary" underline="hover">Chrome Extension</Link>
-              <Link href="#" color="text.secondary" underline="hover">Changelog</Link>
-            </Box>
-          </Grid>
+          <div className="col-span-1 md:col-span-2">
+            <h6 className="font-bold mb-4 font-display text-sm uppercase tracking-wider">Product</h6>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              <li><a href="#" className="hover:text-primary transition-colors">Features</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Pricing</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Chrome Extension</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Changelog</a></li>
+            </ul>
+          </div>
 
-          <Grid size={{ xs: 6, md: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              Resources
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Link href="#" color="text.secondary" underline="hover">Blog</Link>
-              <Link href="#" color="text.secondary" underline="hover">Documentation</Link>
-              <Link href="#" color="text.secondary" underline="hover">Community</Link>
-              <Link href="#" color="text.secondary" underline="hover">Help Center</Link>
-            </Box>
-          </Grid>
+          <div className="col-span-1 md:col-span-2">
+            <h6 className="font-bold mb-4 font-display text-sm uppercase tracking-wider">Resources</h6>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Community</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Help Center</a></li>
+            </ul>
+          </div>
 
-          <Grid size={{ xs: 6, md: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              Company
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Link href="#" color="text.secondary" underline="hover">About</Link>
-              <Link href="#" color="text.secondary" underline="hover">Careers</Link>
-              <Link href="#" color="text.secondary" underline="hover">Legal</Link>
-              <Link href="#" color="text.secondary" underline="hover">Contact</Link>
-            </Box>
-          </Grid>
-          
-          <Grid size={{ xs: 6, md: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-              Legal
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Link href="#" color="text.secondary" underline="hover">Privacy</Link>
-              <Link href="#" color="text.secondary" underline="hover">Terms</Link>
-            </Box>
-          </Grid>
-        </Grid>
+          <div className="col-span-1 md:col-span-3">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-1">
+              <div>
+                <h6 className="font-bold mb-4 font-display text-sm uppercase tracking-wider">Company</h6>
+                <ul className="space-y-3 text-sm text-muted-foreground">
+                  <li><a href="#" className="hover:text-primary transition-colors">About</a></li>
+                  <li><a href="#" className="hover:text-primary transition-colors">Careers</a></li>
+                  <li><a href="#" className="hover:text-primary transition-colors">Legal</a></li>
+                  <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
+                </ul>
+              </div>
+              <div className="md:hidden">
+                <h6 className="font-bold mb-4 font-display text-sm uppercase tracking-wider">Legal</h6>
+                <ul className="space-y-3 text-sm text-muted-foreground">
+                  <li><a href="#" className="hover:text-primary transition-colors">Privacy</a></li>
+                  <li><a href="#" className="hover:text-primary transition-colors">Terms</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Box sx={{ mt: 8, pt: 4, borderTop: '1px solid rgba(255, 255, 255, 0.05)', textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
+          <p>
             © {new Date().getFullYear()} Local Marketplace Lister. All rights reserved.
-          </Typography>
-        </Box>
-      </Container>
-    </Box>
+          </p>
+          <div className="hidden md:flex gap-6">
+            <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 };
 

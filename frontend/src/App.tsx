@@ -1,6 +1,5 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Container } from '@mui/material';
 import { AuthProvider } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -34,7 +33,7 @@ const AppRouter: React.FC = () => {
   return (
     <AuthProvider>
       <Navbar />
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
         <Routes>
           {/* Public Routes (accessible without authentication) */}
           <Route path="/" element={<Home />} />
@@ -149,7 +148,7 @@ const AppRouter: React.FC = () => {
           {/* Catch all route - redirect to home */}
           <Route path="*" element={<Home />} />
         </Routes>
-      </Container>
+      </main>
     </AuthProvider>
   );
 };

@@ -1,176 +1,123 @@
 import React from 'react';
-import { Box, Container, Typography, Grid, Card, CardContent, Button, List, ListItem, ListItemIcon, ListItemText, useTheme } from '@mui/material';
 import { motion } from 'framer-motion';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { CheckCircle2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { cn } from '../../lib/utils';
 
 const PricingPreview: React.FC = () => {
-  const theme = useTheme();
   const navigate = useNavigate();
 
   return (
-    <Box sx={{ py: 12 }}>
-      <Container maxWidth="lg">
-        <Box sx={{ textAlign: 'center', mb: 8 }}>
+    <section className="py-24">
+      <div className="container mx-auto px-4 max-w-7xl">
+        <div className="text-center mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <Typography
-              variant="h2"
-              component="h2"
-              sx={{ fontWeight: 800, mb: 2 }}
-            >
+            <h2 className="text-4xl md:text-5xl font-extrabold mb-4 font-display tracking-tighter">
               Flexible Credit System
-            </Typography>
-            <Typography variant="h5" color="text.secondary">
+            </h2>
+            <p className="text-xl text-muted-foreground">
               No monthly subscriptions. Pay only when you sell.
-            </Typography>
+            </p>
           </motion.div>
-        </Box>
+        </div>
 
-        <Grid container spacing={4} justifyContent="center">
+        <div className="flex flex-wrap justify-center gap-8">
           {/* Starter Pack */}
-          <Grid size={{ xs: 12, md: 5 }}>
+          <div className="w-full md:w-[48%] max-w-md">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
+              className="h-full"
             >
-              <Card
-                sx={{
-                  height: '100%',
-                  background: theme.palette.mode === 'dark'
-                    ? 'rgba(30, 41, 59, 0.4)'
-                    : 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 4,
-                }}
-              >
-                <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Starter Pack
-                  </Typography>
-                  <Typography variant="h3" fontWeight="800" sx={{ mb: 1 }}>
-                    $10
-                    <Typography component="span" variant="h6" color="text.secondary">
-                      /10 credits
-                    </Typography>
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+              <Card className="h-full bg-glass-bg border-glass-border backdrop-blur-md rounded-3xl overflow-hidden hover:border-primary/20 transition-all duration-300">
+                <CardContent className="p-8 flex flex-col h-full">
+                  <h3 className="text-2xl font-bold mb-2 font-display">Starter Pack</h3>
+                  <div className="flex items-baseline mb-2">
+                    <span className="text-5xl font-black font-display tracking-tight">$10</span>
+                    <span className="text-lg text-muted-foreground ml-2">/10 credits</span>
+                  </div>
+                  <p className="text-muted-foreground mb-8">
                     Perfect for testing the waters.
-                  </Typography>
+                  </p>
 
-                  <List sx={{ mb: 4, flex: 1 }}>
+                  <ul className="space-y-4 mb-8 flex-1">
                     {['$1.00 per post', 'Credits never expire', 'Access to all features', 'Community Support'].map((item, index) => (
-                      <ListItem key={index} disableGutters>
-                        <ListItemIcon sx={{ minWidth: 36 }}>
-                          <CheckCircleIcon color="primary" fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText primary={item} />
-                      </ListItem>
+                      <li key={index} className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+                        <span className="text-foreground/90">{item}</span>
+                      </li>
                     ))}
-                  </List>
+                  </ul>
 
                   <Button
-                    variant="outlined"
-                    color="primary"
-                    size="large"
-                    fullWidth
+                    variant="outline"
+                    size="lg"
+                    className="w-full rounded-full text-lg h-12 border-2 hover:bg-primary hover:text-primary-foreground"
                     onClick={() => navigate('/signup')}
-                    sx={{ borderRadius: '50px', py: 1.5 }}
                   >
                     Get Started
                   </Button>
                 </CardContent>
               </Card>
             </motion.div>
-          </Grid>
+          </div>
 
           {/* Hustler Pack */}
-          <Grid size={{ xs: 12, md: 5 }}>
+          <div className="w-full md:w-[48%] max-w-md">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2 }}
+              className="h-full"
             >
-              <Card
-                sx={{
-                  height: '100%',
-                  background: `linear-gradient(135deg, ${theme.palette.primary.dark}20 0%, ${theme.palette.secondary.dark}20 100%)`,
-                  backdropFilter: 'blur(12px)',
-                  border: `1px solid ${theme.palette.primary.main}50`,
-                  borderRadius: 4,
-                  position: 'relative',
-                  overflow: 'visible',
-                }}
-              >
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: -12,
-                    right: 24,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                    color: '#fff',
-                    px: 2,
-                    py: 0.5,
-                    borderRadius: '20px',
-                    fontSize: '0.875rem',
-                    fontWeight: 'bold',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                  }}
-                >
-                  BEST VALUE
-                </Box>
-                <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Hustler Pack
-                  </Typography>
-                  <Typography variant="h3" fontWeight="800" sx={{ mb: 1 }}>
-                    $20
-                    <Typography component="span" variant="h6" color="text.secondary">
-                      /25 credits
-                    </Typography>
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+              <Card className="h-full bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/30 backdrop-blur-md rounded-3xl overflow-visible relative shadow-glass hover:shadow-lg transition-all duration-300">
+                <div className="absolute -top-3 right-6 bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 rounded-full text-sm font-bold shadow-md uppercase tracking-wide">
+                  Best Value
+                </div>
+                <CardContent className="p-8 flex flex-col h-full">
+                  <h3 className="text-2xl font-bold mb-2 font-display">Hustler Pack</h3>
+                  <div className="flex items-baseline mb-2">
+                    <span className="text-5xl font-black font-display tracking-tight">$20</span>
+                    <span className="text-lg text-muted-foreground ml-2">/25 credits</span>
+                  </div>
+                  <p className="text-muted-foreground mb-8">
                     Best value for regular sellers.
-                  </Typography>
+                  </p>
 
-                  <List sx={{ mb: 4, flex: 1 }}>
+                  <ul className="space-y-4 mb-8 flex-1">
                     {['$0.80 per post (20% off)', 'Credits never expire', 'Priority Listing', 'AI Description Generator', 'Premium Support'].map((item, index) => (
-                      <ListItem key={index} disableGutters>
-                        <ListItemIcon sx={{ minWidth: 36 }}>
-                          <CheckCircleIcon color="secondary" fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText primary={item} />
-                      </ListItem>
+                      <li key={index} className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-secondary flex-shrink-0" />
+                        <span className="text-foreground/90">{item}</span>
+                      </li>
                     ))}
-                  </List>
+                  </ul>
 
                   <Button
-                    variant="contained"
-                    color="primary"
-                    size="large"
-                    fullWidth
-                    endIcon={<ArrowForwardIcon />}
+                    variant="default"
+                    size="lg"
+                    className="w-full rounded-full text-lg h-12 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity shadow-lg"
                     onClick={() => navigate('/signup')}
-                    sx={{ borderRadius: '50px', py: 1.5 }}
                   >
-                    Buy Credits
+                    Buy Credits <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </CardContent>
               </Card>
             </motion.div>
-          </Grid>
-        </Grid>
-      </Container>
-    </Box>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 };
 

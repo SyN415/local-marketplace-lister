@@ -1,11 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { Box, TextField, Typography, Slider, Paper, InputAdornment, Grid } from '@mui/material';
 import { useFormContext, Controller } from 'react-hook-form';
 import { MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Circle, useMap } from 'react-leaflet';
 import type { LatLngExpression } from 'leaflet';
 import zipcodes from 'zipcodes';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { Card } from '../../ui/card';
+import { cn } from '../../../lib/utils';
 import type { LocationFieldProps } from '../../../types/forms';
+
+// Simple Shadcn Slider Wrapper if not available, otherwise standard range input
+// Assuming shadcn slider is available via @radix-ui/react-slider, but standard input range is fine for MVP refactor
+const DistanceSlider = ({ value, onChange, min, max, step, disabled }: any) => (
+  <input
+    type="range"
+    min={min}
+    max={max}
+    step={step}
+    value={value}
+    onChange={(e) => onChange(parseFloat(e.target.value))}
+    disabled={disabled}
+    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-primary"
+  />
+);
 
 const MIN_DISTANCE = 5;
 const MAX_DISTANCE = 100;
@@ -70,8 +88,7 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
     return () => clearTimeout(timeoutId);
   }, [zipCode, setValue]);
 
-  const handleDistanceChange = (_event: Event, newValue: number | number[]) => {
-    const val = newValue as number;
+  const handleDistanceChange = (val: number) => {
     setValue('location.distance', val, { shouldDirty: true, shouldValidate: true });
   };
 
@@ -82,163 +99,158 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
     }
   };
 
-  const inputStyles = {
-    '& .MuiOutlinedInput-root': {
-      borderRadius: 0,
-      '& fieldset': { borderColor: 'divider' },
-      '&:hover fieldset': { borderColor: 'text.primary' },
-      '&.Mui-focused fieldset': { borderWidth: 2 },
-    },
-    '& .MuiInputLabel-root': {
-      fontWeight: 700,
-      textTransform: 'uppercase',
-      letterSpacing: '0.05em',
-      fontSize: '0.75rem',
-    },
-  };
-
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        Location & Range
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Set your location and how far you're willing to travel or deliver.
-      </Typography>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-medium leading-6 text-foreground">Location & Range</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Set your location and how far you're willing to travel or deliver.
+        </p>
+      </div>
 
-      <Grid container spacing={4}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Left Column: Controls */}
-        <Grid size={{ xs: 12, md: 6 }}>
-           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div className="space-y-6">
+           <div className="space-y-4">
              {/* Zip Code - Primary */}
              <Controller
                 name="location.zipCode"
                 control={control}
                 render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="ZIP Code"
-                    required
-                    fullWidth
-                    disabled={disabled}
-                    onKeyDown={handleKeyDown}
-                    error={!!fieldState.error || !!errors?.zipCode}
-                    helperText={fieldState.error?.message || errors?.zipCode}
-                    sx={inputStyles}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <MapPin size={20} />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="zipCode" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      ZIP Code <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+                        <MapPin size={16} />
+                      </div>
+                      <Input
+                        id="zipCode"
+                        {...field}
+                        disabled={disabled}
+                        onKeyDown={handleKeyDown}
+                        className={cn(
+                          "pl-9",
+                          (fieldState.error || errors?.zipCode) && "border-destructive focus-visible:ring-destructive"
+                        )}
+                      />
+                    </div>
+                    {(fieldState.error || errors?.zipCode) && (
+                      <span className="text-xs text-destructive">
+                        {fieldState.error?.message || errors?.zipCode}
+                      </span>
+                    )}
+                  </div>
                 )}
              />
 
              {/* Distance Slider */}
-             <Box>
-               <Typography id="distance-slider" gutterBottom variant="subtitle2" color="text.secondary">
-                 Distance: {distance} miles
-               </Typography>
-               <Slider
+             <div className="space-y-3">
+               <div className="flex justify-between items-center">
+                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Distance</Label>
+                 <span className="text-sm font-medium text-foreground">{distance} miles</span>
+               </div>
+               <DistanceSlider
                  value={distance}
                  onChange={handleDistanceChange}
                  min={MIN_DISTANCE}
                  max={MAX_DISTANCE}
                  step={5}
-                 marks={[
-                   { value: 5, label: '5m' },
-                   { value: 25, label: '25m' },
-                   { value: 50, label: '50m' },
-                   { value: 100, label: '100m' },
-                 ]}
-                 valueLabelDisplay="auto"
-                 aria-labelledby="distance-slider"
                  disabled={disabled}
-                 sx={{
-                   color: 'primary.main',
-                   '& .MuiSlider-thumb': {
-                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                   }
-                 }}
                />
-             </Box>
+               <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{MIN_DISTANCE}m</span>
+                  <span>{MAX_DISTANCE}m</span>
+               </div>
+             </div>
 
              {/* Detailed Fields (Collapsible/Secondary) */}
-             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+             <div className="grid grid-cols-2 gap-4">
                 <Controller
                   name="location.city"
                   control={control}
                   render={({ field, fieldState }) => (
-                    <TextField
-                      {...field}
-                      label="City"
-                      required
-                      fullWidth
-                      size="small"
-                      disabled={disabled}
-                      onKeyDown={handleKeyDown}
-                      error={!!fieldState.error || !!errors?.city}
-                      helperText={fieldState.error?.message || errors?.city}
-                      sx={inputStyles}
-                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="city" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        City <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="city"
+                        {...field}
+                        disabled={disabled}
+                        onKeyDown={handleKeyDown}
+                        className={cn(
+                          (fieldState.error || errors?.city) && "border-destructive focus-visible:ring-destructive"
+                        )}
+                      />
+                      {(fieldState.error || errors?.city) && (
+                        <span className="text-xs text-destructive">
+                          {fieldState.error?.message || errors?.city}
+                        </span>
+                      )}
+                    </div>
                   )}
                 />
                 <Controller
                   name="location.state"
                   control={control}
                   render={({ field, fieldState }) => (
-                    <TextField
-                      {...field}
-                      label="State"
-                      required
-                      fullWidth
-                      size="small"
-                      disabled={disabled}
-                      onKeyDown={handleKeyDown}
-                      error={!!fieldState.error || !!errors?.state}
-                      helperText={fieldState.error?.message || errors?.state}
-                      sx={inputStyles}
-                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="state" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        State <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="state"
+                        {...field}
+                        disabled={disabled}
+                        onKeyDown={handleKeyDown}
+                        className={cn(
+                          (fieldState.error || errors?.state) && "border-destructive focus-visible:ring-destructive"
+                        )}
+                      />
+                      {(fieldState.error || errors?.state) && (
+                        <span className="text-xs text-destructive">
+                          {fieldState.error?.message || errors?.state}
+                        </span>
+                      )}
+                    </div>
                   )}
                 />
-             </Box>
+             </div>
+             
              <Controller
                 name="location.address"
                 control={control}
                 render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="Street Address (Optional)"
-                    fullWidth
-                    size="small"
-                    disabled={disabled}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Specific address is hidden on public listing"
-                    error={!!fieldState.error || !!errors?.address}
-                    helperText={fieldState.error?.message || errors?.address}
-                    sx={inputStyles}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="address" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Street Address (Optional)
+                    </Label>
+                    <Input
+                      id="address"
+                      {...field}
+                      disabled={disabled}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Specific address is hidden on public listing"
+                      className={cn(
+                        (fieldState.error || errors?.address) && "border-destructive focus-visible:ring-destructive"
+                      )}
+                    />
+                    {(fieldState.error || errors?.address) && (
+                      <span className="text-xs text-destructive">
+                        {fieldState.error?.message || errors?.address}
+                      </span>
+                    )}
+                  </div>
                 )}
              />
-           </Box>
-        </Grid>
+           </div>
+        </div>
 
         {/* Right Column: Interactive Map */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper
-            elevation={0}
-            sx={{
-              width: '100%',
-              height: 300,
-              borderRadius: 1,
-              overflow: 'hidden',
-              border: '1px solid #d1d5db',
-              position: 'relative',
-              zIndex: 0 // Ensure map stays below other overlays if any
-            }}
-          >
+        <div>
+          <Card className="overflow-hidden h-[300px] border border-border relative z-0">
              <MapContainer 
                 center={mapCenter} 
                 zoom={zoomLevel} 
@@ -261,18 +273,16 @@ const LocationFields: React.FC<Omit<LocationFieldProps, 'value' | 'onChange'>> =
                 <MapUpdater center={mapCenter} />
              </MapContainer>
 
-             <Box sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'rgba(255,255,255,0.9)', px: 1, py: 0.5, borderRadius: 1, zIndex: 400, pointerEvents: 'none' }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                    {zipCode ? `Centered on ${zipCode}` : 'Enter Zip Code to focus'}
-                </Typography>
-             </Box>
-          </Paper>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+             <div className="absolute bottom-2 right-2 bg-background/90 px-2 py-1 rounded text-xs font-medium text-muted-foreground z-[400] pointer-events-none shadow-sm">
+                {zipCode ? `Centered on ${zipCode}` : 'Enter Zip Code to focus'}
+             </div>
+          </Card>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
             The circle shows your approximate delivery/service range
-          </Typography>
-        </Grid>
-      </Grid>
-    </Box>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 

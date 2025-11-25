@@ -1,35 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Box,
-  Paper,
-  Stepper,
-  Step,
-  StepLabel,
-  Button,
-  Typography,
-  Container,
-  Alert,
-  CircularProgress,
-  Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
-  Card,
-  CardContent,
-} from '@mui/material';
 import { FormProvider, useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronLeft, ChevronRight, Save, CheckCircle, AutoAwesome, Share } from '@mui/icons-material';
+import { ChevronLeft, ChevronRight, Save, CheckCircle, Wand2, Share2, AlertCircle } from 'lucide-react';
 import type { ListingFormData, FormStep } from '../../schemas/listing.schema';
 import { ListingFormSchema, TARGET_PLATFORMS } from '../../schemas/listing.schema';
 import type { UseFormOptions, FormEvents } from '../../types/forms';
 import { DraftStorage, AnalyticsUtils } from '../../utils/form';
 import { uploadListingImages } from '../../services/upload';
+
+// Import UI components
+import { Button } from '../ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../ui/card';
+import { Separator } from '../ui/separator';
+import { Progress } from '../ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import { cn } from '../../lib/utils';
 
 // Import field components
 import TitleField from './fields/TitleField';
@@ -379,9 +374,13 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
     switch (currentStep) {
       case 1:
         return (
-          <Box sx={{ display: 'grid', gap: 3 }}>
-            <Alert severity="info" icon={<AutoAwesome />} sx={{ mb: 2 }}>
-              Start by uploading photos. Our AI will analyze them to help fill out the details!
+          <div className="space-y-6">
+            <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
+              <Wand2 className="h-4 w-4" />
+              <AlertTitle>AI-Powered</AlertTitle>
+              <AlertDescription>
+                Start by uploading photos. Our AI will analyze them to help fill out the details!
+              </AlertDescription>
             </Alert>
             <ImageUpload
               id="images"
@@ -392,144 +391,141 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
               onAnalysisComplete={handleAiAnalysis}
             />
             {aiAnalysisResult && (
-              <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'background.default' }}>
-                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AutoAwesome fontSize="small" /> AI Analysis Summary
-                </Typography>
-                <Typography variant="body2" gutterBottom>
-                  <strong>Suggested Title:</strong> {aiAnalysisResult.title}
-                </Typography>
-                <Typography variant="body2" gutterBottom>
-                   <strong>Price Estimate:</strong> ${aiAnalysisResult.price}
-                </Typography>
-                <Alert severity="success" sx={{ mt: 1, py: 0 }}>
-                  Details have been auto-filled! Click Next to review.
-                </Alert>
-              </Paper>
+              <Card className="bg-muted/50 border-dashed">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-primary">
+                    <Wand2 className="h-4 w-4" /> AI Analysis Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <p><strong>Suggested Title:</strong> {aiAnalysisResult.title}</p>
+                  <p><strong>Price Estimate:</strong> ${aiAnalysisResult.price}</p>
+                  <Alert className="bg-green-50 border-green-200 text-green-800 py-2">
+                     <AlertDescription>
+                       Details have been auto-filled! Click Next to review.
+                     </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
             )}
-          </Box>
+          </div>
         );
 
       case 2:
         return (
-          <Box sx={{ display: 'grid', gap: 3 }}>
+          <div className="space-y-6">
             <TitleField id="title" name="title" label="Title" />
             <PriceField id="price" name="price" label="Price" />
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <CategorySelect id="category" name="category" label="Category" />
               <ConditionSelect id="condition" name="condition" label="Condition" />
-            </Box>
+            </div>
             <DescriptionField id="description" name="description" label="Description" />
-          </Box>
+          </div>
         );
 
       case 3:
         return (
-          <Box sx={{ display: 'grid', gap: 2 }}>
+          <div className="space-y-6">
             <LocationFields
-              errors={validationErrors}
+              errors={validationErrors as any}
             />
-          </Box>
+          </div>
         );
 
       case 4:
         return (
-          <Box sx={{ display: 'grid', gap: 4 }}>
+          <div className="space-y-8">
             {/* Platform Selection Section */}
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Share color="primary" /> Select Platforms
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Choose where you want your listing to appear.
-              </Typography>
+            <div>
+              <div className="mb-4">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                  <Share2 className="h-5 w-5 text-primary" /> Select Platforms
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose where you want your listing to appear.
+                </p>
+              </div>
               
-              <Paper variant="outlined" sx={{ p: 3, bgcolor: 'background.default' }}>
-                <Controller
-                  name="platforms"
-                  control={control}
-                  render={({ field }) => (
-                    <FormGroup>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+              <Card>
+                <CardContent className="p-6">
+                  <Controller
+                    name="platforms"
+                    control={control}
+                    render={({ field }) => (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {TARGET_PLATFORMS.map((platform) => (
-                          <FormControlLabel
-                            key={platform}
-                            control={
-                              <Checkbox
-                                checked={field.value?.includes(platform)}
-                                onChange={(e) => {
-                                  const current = field.value || [];
-                                  const newValue = e.target.checked
-                                    ? [...current, platform]
-                                    : current.filter((p: string) => p !== platform);
-                                  field.onChange(newValue);
-                                }}
-                              />
-                            }
-                            label={platform.charAt(0).toUpperCase() + platform.slice(1)}
-                            sx={{ textTransform: 'capitalize' }}
-                          />
+                          <div key={platform} className="flex items-center space-x-2 border p-3 rounded-md hover:bg-muted/50 transition-colors">
+                            <Checkbox
+                              id={`platform-${platform}`}
+                              checked={field.value?.includes(platform)}
+                              onCheckedChange={(checked) => {
+                                const current = field.value || [];
+                                const newValue = checked
+                                  ? [...current, platform]
+                                  : current.filter((p: string) => p !== platform);
+                                field.onChange(newValue);
+                              }}
+                            />
+                            <Label 
+                              htmlFor={`platform-${platform}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer flex-1"
+                            >
+                              {platform}
+                            </Label>
+                          </div>
                         ))}
-                      </Box>
-                    </FormGroup>
+                      </div>
+                    )}
+                  />
+                  {errors.platforms && (
+                    <p className="text-sm font-medium text-destructive mt-2">
+                      {errors.platforms.message}
+                    </p>
                   )}
-                />
-                {errors.platforms && (
-                  <Typography color="error" variant="caption" sx={{ mt: 1, display: 'block' }}>
-                    {errors.platforms.message}
-                  </Typography>
-                )}
-              </Paper>
-
-              {/* Cost Estimate */}
-              <Card sx={{ mt: 3, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.100' }} elevation={0}>
-                <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, '&:last-child': { pb: 2 } }}>
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight="bold" color="primary.900">
-                      Estimated Cost
-                    </Typography>
-                    <Typography variant="caption" color="primary.700">
-                      Based on selected platforms
-                    </Typography>
-                  </Box>
-                  <Typography variant="h4" fontWeight="bold" color="primary.main">
-                    {estimatedCost} <Typography component="span" variant="body2" color="primary.700">Credits</Typography>
-                  </Typography>
                 </CardContent>
               </Card>
-            </Box>
 
-            <Divider />
+              {/* Cost Estimate */}
+              <Card className="mt-6 bg-primary/5 border-primary/20">
+                <CardContent className="flex justify-between items-center py-4">
+                  <div>
+                    <h4 className="font-bold text-primary">Estimated Cost</h4>
+                    <p className="text-xs text-primary/80">Based on selected platforms</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-primary">{estimatedCost}</span>
+                    <span className="text-sm text-primary/80 ml-1">Credits</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Separator />
 
             {/* Review Section */}
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Review Summary
-              </Typography>
+            <div>
+              <h3 className="text-lg font-medium mb-4">Review Summary</h3>
               
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Box sx={{ display: 'grid', gap: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Title & Price
-                    </Typography>
-                    <Typography variant="body1" fontWeight="500">
+              <Card>
+                <CardContent className="p-6 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Title & Price</h4>
+                    <p className="font-medium">
                       {watchedData.title} • ${watchedData.price?.toLocaleString()}
-                    </Typography>
-                  </Box>
+                    </p>
+                  </div>
                   
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Location
-                    </Typography>
-                    <Typography variant="body1">
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Location</h4>
+                    <p>
                       {[watchedData.location?.city, watchedData.location?.state].filter(Boolean).join(', ')} ({watchedData.location?.zipCode})
-                    </Typography>
-                  </Box>
-                </Box>
-              </Paper>
-            </Box>
-          </Box>
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         );
 
       default:
@@ -541,278 +537,176 @@ const ListingForm: React.FC<UseFormOptions & FormEvents> = ({
   const canGoNext = currentStep < 4;
   const canGoBack = currentStep > 1;
 
+  // Calculate progress percentage
+  const progress = (currentStep / steps.length) * 100;
+
   return (
     <>
       <FormProvider {...methods}>
-        <Container maxWidth="md" sx={{ py: 4 }}>
-        <Paper
-          elevation={0}
-          sx={{
-            p: { xs: 3, md: 5 },
-            borderRadius: 0,
-            background: 'background.paper',
-            border: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          {/* Header */}
-          <Box sx={{ mb: 5, textAlign: 'center' }}>
-            <Typography
-              variant="h3"
-              component="h1"
-              gutterBottom
-              sx={{
-                fontWeight: 800,
-                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                mb: 1
-              }}
-            >
-              {formConfig.title}
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
-              {formConfig.description}
-            </Typography>
-          </Box>
+        <div className="max-w-4xl mx-auto py-8 px-4">
+          <Card className="bg-glass-bg backdrop-blur-md border-glass-border shadow-lg">
+            {/* Header */}
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-3xl font-extrabold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent mb-2">
+                {formConfig.title}
+              </CardTitle>
+              <CardDescription className="text-lg">
+                {formConfig.description}
+              </CardDescription>
+            </CardHeader>
 
-          {/* Progress Indicator */}
-          {formConfig.showProgress && (
-            <Box sx={{ mb: 6 }}>
-              <Stepper activeStep={currentStep - 1} alternativeLabel>
-                {steps.map((step) => (
-                  <Step
-                    key={step.number}
-                    completed={step.number < currentStep}
-                    onClick={() => handleStepClick(step.number)}
-                    sx={{
-                      cursor: step.number <= currentStep ? 'pointer' : 'default',
-                      '& .MuiStepLabel-root': {
-                        cursor: step.number <= currentStep ? 'pointer' : 'default',
-                      },
-                      '& .MuiStepIcon-root': {
-                        width: 28,
-                        height: 28,
-                      },
-                      '& .MuiStepIcon-root.Mui-active': {
-                        color: 'primary.main',
-                      },
-                      '& .MuiStepIcon-root.Mui-completed': {
-                        color: 'success.main',
-                      },
-                    }}
-                  >
-                    <StepLabel>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{step.title}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {step.description}
-                      </Typography>
-                    </StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-            </Box>
-          )}
+            <CardContent className="space-y-6">
+              {/* Progress Indicator */}
+              {formConfig.showProgress && (
+                <div className="mb-8 space-y-2">
+                  <Progress value={progress} className="h-2" />
+                  <div className="flex justify-between text-xs text-muted-foreground px-1">
+                    {steps.map((step) => (
+                      <div 
+                        key={step.number}
+                        className={cn(
+                          "flex flex-col items-center cursor-pointer transition-colors",
+                          step.number <= currentStep ? "text-primary font-medium" : "text-muted-foreground"
+                        )}
+                        onClick={() => handleStepClick(step.number)}
+                      >
+                        <span>Step {step.number}</span>
+                        <span className="hidden sm:inline">{step.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Error Alert */}
-          {submitError && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {submitError}
-            </Alert>
-          )}
+              {/* Error Alert */}
+              {submitError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
+              )}
 
-          {/* Form Content */}
-          <Box component="form" onSubmit={handleSubmit(handleFormSubmit as any)}>
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" gutterBottom>
-                Step {currentStep}: {currentStepConfig?.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                {currentStepConfig?.description}
-              </Typography>
-              
-              {renderStepContent()}
-            </Box>
+              {/* Form Content */}
+              <form onSubmit={handleSubmit(handleFormSubmit as any)}>
+                <div className="mb-8">
+                  <div className="mb-6">
+                    <h2 className="text-xl font-semibold text-foreground">
+                      Step {currentStep}: {currentStepConfig?.title}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {currentStepConfig?.description}
+                    </p>
+                  </div>
+                  
+                  {renderStepContent()}
+                </div>
 
-            {/* Navigation */}
-            {formConfig.showNavigation && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  {canGoBack && (
-                    <Button
-                      type="button"
-                      variant="outlined"
-                      startIcon={<ChevronLeft />}
-                      onClick={handleBack}
-                      disabled={isSubmitting || isSaving}
-                      sx={{
-                        borderRadius: 0,
-                        borderWidth: 2,
-                        borderColor: 'text.primary',
-                        color: 'text.primary',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        '&:hover': {
-                          borderWidth: 2,
-                          borderColor: 'text.primary',
-                          bgcolor: 'text.primary',
-                          color: 'background.paper',
-                        },
-                      }}
-                    >
-                      Back
-                    </Button>
-                  )}
-                </Box>
+                {/* Navigation */}
+                {formConfig.showNavigation && (
+                  <div className="flex justify-between items-center pt-6 border-t">
+                    <div>
+                      {canGoBack && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleBack}
+                          disabled={isSubmitting || isSaving}
+                          className="font-bold uppercase tracking-wider"
+                        >
+                          <ChevronLeft className="mr-2 h-4 w-4" /> Back
+                        </Button>
+                      )}
+                    </div>
 
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  {/* Save Draft Button */}
-                  <Button
-                    type="button"
-                    variant="outlined"
-                    startIcon={isSaving ? <CircularProgress size={16} /> : <Save />}
-                    onClick={handleSaveDraft}
-                    disabled={isSubmitting || isSaving}
-                    sx={{
-                      borderRadius: 0,
-                      borderWidth: 2,
-                      borderColor: 'text.primary',
-                      color: 'text.primary',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      '&:hover': {
-                        borderWidth: 2,
-                        borderColor: 'text.primary',
-                        bgcolor: 'text.primary',
-                        color: 'background.paper',
-                      },
-                    }}
-                  >
-                    {isSaving ? 'Saving...' : formConfig.saveDraftButtonText}
-                  </Button>
-
-                  {/* Next/Submit Button */}
-                  {canGoNext ? (
-                    <Button
-                      type="button"
-                      variant="contained"
-                      endIcon={<ChevronRight />}
-                      onClick={handleNext}
-                      disabled={isSubmitting || isSaving || isNavigating}
-                      disableElevation
-                      sx={{
-                        px: 4,
-                        py: 1,
-                        borderRadius: 0,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        bgcolor: 'primary.main',
-                        '&:hover': {
-                          bgcolor: 'primary.dark',
-                        }
-                      }}
-                    >
-                      Next
-                    </Button>
-                  ) : (
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      disabled={!isValid || isSubmitting || isSaving || isNavigating}
-                      disableElevation
-                      startIcon={
-                        isSubmitting ? (
-                          <CircularProgress size={16} color="inherit" />
+                    <div className="flex gap-3">
+                      {/* Save Draft Button */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleSaveDraft}
+                        disabled={isSubmitting || isSaving}
+                        className="font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                      >
+                        {isSaving ? (
+                          <>Saving...</>
                         ) : (
-                          <CheckCircle />
-                        )
-                      }
-                      sx={{
-                        px: 4,
-                        py: 1,
-                        borderRadius: 0,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        bgcolor: 'primary.main',
-                        '&:hover': {
-                          bgcolor: 'primary.dark',
-                        }
-                      }}
-                    >
-                      {isSubmitting ? formConfig.savingButtonText : formConfig.submitButtonText}
-                    </Button>
-                  )}
-                </Box>
-              </Box>
-            )}
+                          <>
+                            <Save className="mr-2 h-4 w-4" />
+                            {formConfig.saveDraftButtonText}
+                          </>
+                        )}
+                      </Button>
 
-            {/* Keyboard Navigation Hint */}
-            {formConfig.enableKeyboardNavigation && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary">
-                  💡 Use Ctrl/Cmd + Arrow keys to navigate, Ctrl/Cmd + Enter to submit
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        </Paper>
-      </Container>
-    </FormProvider>
+                      {/* Next/Submit Button */}
+                      {canGoNext ? (
+                        <Button
+                          type="button"
+                          onClick={handleNext}
+                          disabled={isSubmitting || isSaving || isNavigating}
+                          className="font-bold uppercase tracking-wider min-w-[120px]"
+                        >
+                          Next <ChevronRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          type="submit"
+                          disabled={!isValid || isSubmitting || isSaving || isNavigating}
+                          className="font-bold uppercase tracking-wider min-w-[140px]"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              {formConfig.savingButtonText}
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              {formConfig.submitButtonText}
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-    {/* Confirmation Dialog */}
-    <Dialog
-      open={confirmOpen}
-      onClose={() => setConfirmOpen(false)}
-      aria-labelledby="confirm-dialog-title"
-      aria-describedby="confirm-dialog-description"
-    >
-      <DialogTitle id="confirm-dialog-title">
-        Ready to Post?
-      </DialogTitle>
-      <DialogContent>
-        <DialogContentText id="confirm-dialog-description">
-          You are about to create this listing on <strong>{selectedPlatforms.length} platform(s)</strong>.
-          <br /><br />
-          This action will deduct <strong>{estimatedCost} credits</strong> from your account.
-        </DialogContentText>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setConfirmOpen(false)} color="inherit">
-          Cancel
-        </Button>
-        <Button onClick={executeSubmission} variant="contained" autoFocus>
-          Confirm & Post
-        </Button>
-      </DialogActions>
-    </Dialog>
+                {/* Keyboard Navigation Hint */}
+                {formConfig.enableKeyboardNavigation && (
+                  <div className="mt-4 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      💡 Use Ctrl/Cmd + Arrow keys to navigate, Ctrl/Cmd + Enter to submit
+                    </p>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </FormProvider>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ready to Post?</DialogTitle>
+            <DialogDescription>
+              You are about to create this listing on <strong>{selectedPlatforms.length} platform(s)</strong>.
+              <br /><br />
+              This action will deduct <strong>{estimatedCost} credits</strong> from your account.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={executeSubmission}>
+              Confirm & Post
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
 
 export default ListingForm;
-
-/**
- * JSDoc usage example
- * 
- * @example
- * ```tsx
- * // Create new listing
- * <ListingForm
- *   onSubmit={handleSubmit}
- *   onStepChange={handleStepChange}
- *   onSuccess={handleSuccess}
- * />
- * 
- * // Edit existing listing
- * <ListingForm
- *   listingId="123"
- *   isEdit={true}
- *   initialData={listingData}
- *   onSubmit={handleUpdate}
- * />
- * ```
- */

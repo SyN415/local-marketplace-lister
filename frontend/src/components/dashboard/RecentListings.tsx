@@ -2,29 +2,22 @@ import React from 'react';
 import {
   Card,
   CardContent,
-  Typography,
-  Box,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  Chip,
-  Button,
-  Skeleton,
-  Alert,
-  useTheme,
-  useMediaQuery,
-} from '@mui/material';
+} from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Skeleton } from '../ui/skeleton';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 import {
-  Visibility as EyeIcon,
-  ShoppingCart as SoldIcon,
-  Inventory as ActiveIcon,
-  Add as AddIcon,
-} from '@mui/icons-material';
+  Eye,
+  ShoppingCart,
+  Package,
+  Plus
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRecentListings } from '../../hooks/useDashboard';
 import type { RecentListing } from '../../types/dashboard';
+import { cn } from '../../lib/utils';
 
 interface RecentListingsProps {
   limit?: number;
@@ -62,30 +55,26 @@ const getStatusConfig = (status: string) => {
     case 'active':
       return {
         label: 'Active',
-        color: 'success' as const,
-        icon: <ActiveIcon fontSize="small" />,
-        borderColor: 'success.main',
+        className: 'bg-success/10 text-success border-success/20 hover:bg-success/20',
+        icon: <Package className="h-4 w-4" />,
       };
     case 'sold':
       return {
         label: 'Sold',
-        color: 'info' as const,
-        icon: <SoldIcon fontSize="small" />,
-        borderColor: 'info.main',
+        className: 'bg-info/10 text-info border-info/20 hover:bg-info/20',
+        icon: <ShoppingCart className="h-4 w-4" />,
       };
     case 'expired':
       return {
         label: 'Expired',
-        color: 'warning' as const,
-        icon: <EyeIcon fontSize="small" />,
-        borderColor: 'warning.main',
+        className: 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/20',
+        icon: <Eye className="h-4 w-4" />,
       };
     default:
       return {
         label: status,
-        color: 'default' as const,
-        icon: <ActiveIcon fontSize="small" />,
-        borderColor: 'grey.500',
+        className: 'bg-muted text-muted-foreground hover:bg-muted/80',
+        icon: <Package className="h-4 w-4" />,
       };
   }
 };
@@ -106,57 +95,28 @@ const formatPrice = (price: number): string => {
  * Recent Listings Skeleton Component
  */
 const RecentListingsSkeleton: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
   return (
-    <CardContent sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+    <CardContent className="p-0">
+      <div className="p-6 border-b-2 border-black bg-muted/20 dark:border-white/20">
+        <h6 className="font-bold uppercase tracking-tight font-display">
           Recent Listings
-        </Typography>
-      </Box>
+        </h6>
+      </div>
       
-      <List sx={{ p: 0 }}>
+      <div className="divide-y divide-border">
         {[...Array(5)].map((_, index) => (
-          <ListItem key={index} sx={{ px: 0, py: 2, borderBottom: '1px solid #eee' }}>
-            <ListItemAvatar>
-              <Skeleton
-                variant="rectangular"
-                width={48}
-                height={48}
-                sx={{ bgcolor: 'grey.200' }}
-              />
-            </ListItemAvatar>
-            <ListItemText
-              primary={
-                <Skeleton
-                  variant="text"
-                  width={isMobile ? '70%' : '60%'}
-                  height={24}
-                  sx={{ bgcolor: 'grey.200' }}
-                />
-              }
-              secondary={
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                  <Skeleton
-                    variant="text"
-                    width={80}
-                    height={20}
-                    sx={{ bgcolor: 'grey.200', mr: 1 }}
-                  />
-                  <Skeleton
-                    variant="text"
-                    width={100}
-                    height={20}
-                    sx={{ bgcolor: 'grey.200' }}
-                  />
-                </Box>
-              }
-            />
-          </ListItem>
+          <div key={index} className="p-4 flex items-center gap-4">
+            <Skeleton className="h-12 w-12 rounded-none" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-3/4" />
+              <div className="flex gap-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+          </div>
         ))}
-      </List>
+      </div>
     </CardContent>
   );
 };
@@ -168,115 +128,43 @@ const RecentListingItem: React.FC<{
   listing: RecentListing;
   onClick?: () => void;
 }> = ({ listing, onClick }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
   const statusConfig = getStatusConfig(listing.status);
   
-  // Get avatar background color based on status
-  const getAvatarBg = () => {
-    switch (listing.status) {
-      case 'active':
-        return theme.palette.success.light;
-      case 'sold':
-        return theme.palette.info.light;
-      case 'expired':
-        return theme.palette.warning.light;
-      default:
-        return theme.palette.grey[300];
-    }
-  };
-
   return (
-    <ListItem
-      sx={{
-        px: 2,
-        py: 2,
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'all 0.1s ease',
-        borderBottom: '1px solid #eee',
-        '&:hover': onClick ? {
-          backgroundColor: 'action.hover',
-        } : {},
-        borderRadius: 0,
-      }}
+    <div
+      className={cn(
+        "group flex items-center p-4 gap-4 border-b border-border last:border-0 transition-colors hover:bg-accent/50 cursor-pointer",
+        !onClick && "cursor-default"
+      )}
       onClick={onClick}
     >
-      <ListItemAvatar>
-        <Avatar
-          variant="square"
-          sx={{
-            width: 48,
-            height: 48,
-            bgcolor: getAvatarBg(),
-            color: theme.palette.getContrastText(getAvatarBg()),
-            borderRadius: 0,
-          }}
-        >
+      <Avatar className="h-12 w-12 rounded-none border border-border">
+        <AvatarFallback className={cn("bg-background", statusConfig.className)}>
           {statusConfig.icon}
-        </Avatar>
-      </ListItemAvatar>
+        </AvatarFallback>
+      </Avatar>
       
-      <ListItemText
-        primary={
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              fontSize: isMobile ? '0.9rem' : '1rem',
-              mb: 0.5,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 1,
-              WebkitBoxOrient: 'vertical',
-            }}
+      <div className="flex-1 min-w-0">
+        <h4 className="font-bold text-sm truncate mb-1 group-hover:text-primary transition-colors font-display">
+          {listing.title}
+        </h4>
+        <div className="flex items-center gap-3">
+          <span className="font-bold text-foreground">
+            {formatPrice(listing.price)}
+          </span>
+          <Badge 
+            variant="outline" 
+            className={cn("text-[10px] h-5 rounded-none px-1.5 font-bold uppercase", statusConfig.className)}
           >
-            {listing.title}
-          </Typography>
-        }
-        secondary={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-            <Typography
-              variant="body1"
-              color="text.primary"
-              sx={{ fontWeight: 700 }}
-            >
-              {formatPrice(listing.price)}
-            </Typography>
-            <Chip
-              label={statusConfig.label}
-              size="small"
-              variant="outlined"
-              sx={{
-                height: 24,
-                borderRadius: 0,
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                borderColor: (statusConfig as any).borderColor || 'grey.300',
-                color: (statusConfig as any).borderColor || 'text.secondary',
-                '& .MuiChip-label': {
-                   px: 1
-                }
-              }}
-            />
-          </Box>
-        }
-      />
+            {statusConfig.label}
+          </Badge>
+        </div>
+      </div>
       
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{
-          textAlign: 'right',
-          minWidth: 80,
-          fontSize: '0.75rem',
-        }}
-      >
+      <div className="text-right text-xs text-muted-foreground whitespace-nowrap font-medium">
         {formatRelativeTime(listing.createdAt)}
-      </Typography>
-    </ListItem>
+      </div>
+    </div>
   );
 };
 
@@ -285,35 +173,23 @@ const RecentListingItem: React.FC<{
  */
 const EmptyRecentListings: React.FC<{ onCreate: () => void }> = ({ onCreate }) => {
   return (
-    <CardContent sx={{ p: 4 }}>
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <ActiveIcon sx={{ fontSize: 48, color: 'text.primary', mb: 2 }} />
-        <Typography variant="h6" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 1 }}>
+    <CardContent className="p-8">
+      <div className="text-center py-8">
+        <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+        <h6 className="text-lg font-bold uppercase mb-2 font-display">
           No recent listings
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph sx={{ mb: 3 }}>
+        </h6>
+        <p className="text-muted-foreground mb-6">
           Start creating listings to see them here
-        </Typography>
+        </p>
         <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
           onClick={onCreate}
-          sx={{
-            borderRadius: 0,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            boxShadow: 'none',
-            border: '2px solid transparent',
-            '&:hover': {
-              boxShadow: 'none',
-              bgcolor: 'primary.dark',
-            }
-          }}
+          className="font-bold uppercase tracking-wide rounded-none"
         >
+          <Plus className="mr-2 h-4 w-4" />
           Create First Listing
         </Button>
-      </Box>
+      </div>
     </CardContent>
   );
 };
@@ -339,7 +215,7 @@ const RecentListings: React.FC<RecentListingsProps> = ({
   // Show skeleton while loading
   if (isLoading) {
     return (
-      <Card sx={{ mb: 3 }}>
+      <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20">
         <RecentListingsSkeleton />
       </Card>
     );
@@ -348,21 +224,19 @@ const RecentListings: React.FC<RecentListingsProps> = ({
   // Show error state
   if (error) {
     return (
-      <Card sx={{ mb: 3 }}>
-        <Alert
-          severity="error"
-          sx={{ m: 2 }}
-          action={
+      <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20">
+        <Alert variant="destructive" className="m-4 border-none rounded-none">
+          <AlertDescription className="flex items-center justify-between">
+            <span>Failed to load recent listings. Please try again.</span>
             <Button
-              color="inherit"
-              size="small"
+              variant="outline"
+              size="sm"
               onClick={() => window.location.reload()}
+              className="ml-4 h-8"
             >
               Retry
             </Button>
-          }
-        >
-          Failed to load recent listings. Please try again.
+          </AlertDescription>
         </Alert>
       </Card>
     );
@@ -371,38 +245,32 @@ const RecentListings: React.FC<RecentListingsProps> = ({
   // Show empty state
   if (recentListings.length === 0) {
     return (
-      <Card elevation={0} sx={{ mb: 3, border: '2px solid #000', borderRadius: 0 }}>
+      <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20">
         <EmptyRecentListings onCreate={handleCreateListing} />
       </Card>
     );
   }
 
   return (
-    <Card elevation={0} sx={{ mb: 3, border: '2px solid #000', borderRadius: 0 }}>
-      <CardContent sx={{ p: 0 }}>
+    <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20 overflow-hidden">
+      <CardContent className="p-0">
         {/* Header */}
-        <Box sx={{
-          p: 3,
-          borderBottom: '2px solid #000',
-          bgcolor: 'background.default'
-        }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+        <div className="p-6 border-b-2 border-black bg-muted/30 dark:border-white/20">
+          <h6 className="font-extrabold uppercase tracking-tight text-lg font-display">
             Recent Listings
-          </Typography>
-        </Box>
+          </h6>
+        </div>
 
         {/* Listings */}
-        <List sx={{ p: 0 }}>
+        <div className="bg-card">
           {recentListings.map((listing) => (
-            <React.Fragment key={listing.id}>
-              <RecentListingItem
-                listing={listing}
-                onClick={() => handleListingClick(listing.id)}
-              />
-            </React.Fragment>
+            <RecentListingItem
+              key={listing.id}
+              listing={listing}
+              onClick={() => handleListingClick(listing.id)}
+            />
           ))}
-        </List>
-
+        </div>
       </CardContent>
     </Card>
   );

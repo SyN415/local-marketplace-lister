@@ -1,39 +1,40 @@
 import React, { useState } from 'react';
 import {
-  Box,
+  Eye,
+  Edit,
+  Trash2,
+  Heart,
+  Plus,
+  Send,
+  MoreVertical,
+} from 'lucide-react';
+import {
   Card,
-  CardMedia,
   CardContent,
-  CardActions,
-  Typography,
-  Chip,
-  Button,
-  Skeleton,
-  Alert,
-  Pagination,
-  Stack,
-  IconButton,
-  Checkbox,
-  useMediaQuery,
-  useTheme,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Checkbox } from '../ui/checkbox';
+import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
+  TableHeader,
   TableRow,
-  Paper,
-  TablePagination,
-  LinearProgress,
-} from '@mui/material';
+} from '../ui/table';
 import {
-  Visibility as ViewIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  FavoriteBorder as FavoriteBorderIcon,
-  Add as AddIcon,
-  Send as SendIcon,
-} from '@mui/icons-material';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Skeleton } from '../ui/skeleton';
+import { cn } from '../../lib/utils';
 import type {
   ListingsListProps,
   ListingsListItem,
@@ -55,21 +56,19 @@ const ListingCard: React.FC<{
 }> = ({ listing, loading = false, actions, selected = false, onSelect, showActions = true }) => {
   if (loading) {
     return (
-      <Card>
-        <Skeleton variant="rectangular" height={200} />
-        <CardContent>
-          <Skeleton variant="text" height={32} />
-          <Skeleton variant="text" height={24} />
-          <Skeleton variant="text" height={24} />
-          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-            <Skeleton variant="rectangular" width={60} height={24} />
-            <Skeleton variant="rectangular" width={80} height={24} />
-          </Box>
+      <Card className="h-full overflow-hidden">
+        <Skeleton className="h-48 w-full" />
+        <CardContent className="p-4 space-y-2">
+          <Skeleton className="h-6 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+          <div className="flex gap-2 pt-2">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-5 w-16" />
+          </div>
         </CardContent>
-        <CardActions>
-          <Skeleton variant="rectangular" width={80} height={32} />
-          <Skeleton variant="rectangular" width={80} height={32} />
-        </CardActions>
+        <CardFooter className="p-4 pt-0">
+          <Skeleton className="h-9 w-full" />
+        </CardFooter>
       </Card>
     );
   }
@@ -77,226 +76,143 @@ const ListingCard: React.FC<{
   const getStatusConfig = (status: ListingsListItem['status']) => {
     switch (status) {
       case 'active':
-        return { label: 'Active', color: 'success' as const, bgColor: 'success.light', textColor: 'success.contrastText' };
+        return { label: 'Active', variant: 'default' as const, className: 'bg-green-500 hover:bg-green-600' };
       case 'sold':
-        return { label: 'Sold', color: 'error' as const, bgColor: 'error.light', textColor: 'error.contrastText' };
+        return { label: 'Sold', variant: 'destructive' as const, className: '' };
       case 'expired':
-        return { label: 'Expired', color: 'warning' as const, bgColor: 'warning.light', textColor: 'warning.contrastText' };
+        return { label: 'Expired', variant: 'secondary' as const, className: 'bg-orange-500 hover:bg-orange-600 text-white' };
       default:
-        return { label: status, color: 'default' as const, bgColor: 'grey.100', textColor: 'grey.800' };
+        return { label: status, variant: 'secondary' as const, className: '' };
     }
   };
 
   const statusConfig = getStatusConfig(listing.status);
 
-  const handleView = () => {
-    actions?.onView?.(listing);
-  };
-
-  const handleEdit = () => {
-    actions?.onEdit?.(listing);
-  };
-
-  const handleDelete = () => {
-    actions?.onDelete?.(listing);
-  };
-
-  const handleToggleFavorite = () => {
-    actions?.onToggleFavorite?.(listing);
-  };
-
-  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onSelect?.(event.target.checked);
-  };
-
   return (
-    <Card
-      className="glass-card"
-      sx={{
-        cursor: 'pointer',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        '&:hover': {
-          transform: 'translateY(-8px)',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
-        },
-        position: 'relative',
-        overflow: 'hidden',
-        borderRadius: 3,
-      }}
-      onClick={handleView}
+    <Card 
+      className={cn(
+        "group relative h-full overflow-hidden bg-glass-bg border-glass-border transition-all duration-300 hover:shadow-glass hover:-translate-y-1",
+        selected && "ring-2 ring-primary"
+      )}
     >
       {/* Selection checkbox */}
       {onSelect && (
-        <Checkbox
-          checked={selected}
-          onChange={handleCheckboxChange}
-          onClick={(e) => e.stopPropagation()}
-          sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
-        />
+        <div className="absolute top-2 right-2 z-10">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={(checked) => onSelect(checked === true)}
+            className="bg-white/80 backdrop-blur-sm data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          />
+        </div>
       )}
 
       {/* Status badge */}
-      <Chip
-        label={statusConfig.label}
-        color={statusConfig.color}
-        size="small"
-        sx={{
-          position: 'absolute',
-          top: 8,
-          left: 8,
-          zIndex: 1,
-          backgroundColor: statusConfig.bgColor,
-          color: statusConfig.textColor,
-        }}
-      />
-
-      {/* Favorite button */}
-      {actions?.onToggleFavorite && (
-        <IconButton
-          onClick={(e) => {
-            e.stopPropagation();
-            handleToggleFavorite();
-          }}
-          sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
-        >
-          <FavoriteBorderIcon />
-        </IconButton>
-      )}
+      <div className="absolute top-2 left-2 z-10">
+        <Badge variant={statusConfig.variant} className={cn("shadow-sm", statusConfig.className)}>
+          {statusConfig.label}
+        </Badge>
+      </div>
 
       {/* Image */}
-      <CardMedia
-        component="img"
-        height="220"
-        image={listing.imageUrl || '/api/placeholder/300/200'}
-        alt={listing.title}
-        sx={{
-          backgroundColor: 'grey.100',
-          transition: 'transform 0.3s ease',
-          '&:hover': {
-            transform: 'scale(1.05)',
-          },
-        }}
-        onError={(e) => {
-          const target = e.target as HTMLImageElement;
-          target.src = '/api/placeholder/300/200';
-        }}
-      />
-
-      <CardContent sx={{ p: 2.5 }}>
-        <Typography variant="h6" component="h2" noWrap sx={{ fontWeight: 700, mb: 0.5 }}>
-          {listing.title}
-        </Typography>
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <img
+          src={listing.imageUrl || '/api/placeholder/300/200'}
+          alt={listing.title}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = '/api/placeholder/300/200';
+          }}
+        />
         
-        <Typography
-          variant="h5"
-          sx={{
-            mt: 1,
-            fontWeight: 800,
-            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}
-        >
-          ${listing.price.toLocaleString()}
-        </Typography>
+        {/* Favorite button overlay */}
+        {actions?.onToggleFavorite && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.onToggleFavorite?.(listing);
+            }}
+          >
+            <Heart className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
 
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{
-            mt: 1.5,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            minHeight: '2.5em',
-            lineHeight: 1.5
-          }}
-        >
+      <CardContent className="p-4 space-y-3">
+        <div>
+          <h3 className="font-display font-semibold text-lg leading-tight truncate" title={listing.title}>
+            {listing.title}
+          </h3>
+          <p className="mt-1 text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+            ${listing.price.toLocaleString()}
+          </p>
+        </div>
+
+        <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5em]">
           {listing.description || 'No description available'}
-        </Typography>
+        </p>
 
-        <Box sx={{ display: 'flex', gap: 0.5, mt: 2, flexWrap: 'wrap' }}>
-          <Chip
-            label={listing.category}
-            size="small"
-            sx={{
-              borderRadius: '6px',
-              fontWeight: 500,
-              background: 'rgba(99, 102, 241, 0.1)',
-              color: 'primary.main',
-              border: 'none'
-            }}
-          />
-          <Chip
-            label={listing.condition.replace('_', ' ')}
-            size="small"
-            sx={{
-              borderRadius: '6px',
-              fontWeight: 500,
-              background: 'rgba(236, 72, 153, 0.1)',
-              color: 'secondary.main',
-              border: 'none',
-              textTransform: 'capitalize'
-            }}
-          />
-        </Box>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800">
+            {listing.category}
+          </Badge>
+          <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-100 dark:bg-pink-900/20 dark:text-pink-300 dark:border-pink-800 capitalize">
+            {listing.condition.replace('_', ' ')}
+          </Badge>
+        </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+        <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
           {listing.location && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+            <span className="flex items-center gap-1">
               📍 {listing.location}
-            </Typography>
+            </span>
           )}
-          <Typography variant="caption" color="text.secondary">
-            {new Date(listing.createdAt).toLocaleDateString()}
-          </Typography>
-        </Box>
+          <span>{new Date(listing.createdAt).toLocaleDateString()}</span>
+        </div>
       </CardContent>
 
       {showActions && (
-        <CardActions>
-          <Button size="small" startIcon={<ViewIcon />} onClick={handleView}>
-            View
+        <CardFooter className="p-4 pt-0 gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1"
+            onClick={() => actions?.onView?.(listing)}
+          >
+            <Eye className="mr-2 h-3 w-3" /> View
           </Button>
-          {actions?.onEdit && (
-            <Button
-              size="small"
-              startIcon={<EditIcon />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit();
-              }}
-            >
-              Edit
-            </Button>
-          )}
-          {actions?.onCrossPost && (
-            <Button
-              size="small"
-              startIcon={<SendIcon />}
-              onClick={(e) => {
-                e.stopPropagation();
-                actions.onCrossPost?.(listing);
-              }}
-              sx={{ color: 'secondary.main' }}
-            >
-              Post
-            </Button>
-          )}
-          {actions?.onDelete && (
-            <IconButton
-              size="small"
-              color="error"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete();
-              }}
-            >
-              <DeleteIcon />
-            </IconButton>
-          )}
-        </CardActions>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {actions?.onEdit && (
+                <DropdownMenuItem onClick={() => actions.onEdit?.(listing)}>
+                  <Edit className="mr-2 h-4 w-4" /> Edit
+                </DropdownMenuItem>
+              )}
+              {actions?.onCrossPost && (
+                <DropdownMenuItem onClick={() => actions.onCrossPost?.(listing)}>
+                  <Send className="mr-2 h-4 w-4" /> Post
+                </DropdownMenuItem>
+              )}
+              {actions?.onDelete && (
+                <DropdownMenuItem 
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => actions.onDelete?.(listing)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </CardFooter>
       )}
     </Card>
   );
@@ -315,87 +231,94 @@ const ListingTableRow: React.FC<{
   if (loading) {
     return (
       <TableRow>
-        <TableCell>
-          <Skeleton variant="circular" width={20} height={20} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width={200} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width={80} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width={100} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width={60} />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width={80} />
-        </TableCell>
+        <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+        <TableCell><div className="flex items-center gap-2"><Skeleton className="h-10 w-10 rounded" /><div className="space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-16" /></div></div></TableCell>
+        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+        <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+        <TableCell><Skeleton className="h-8 w-8" /></TableCell>
       </TableRow>
     );
   }
 
-  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onSelect?.(event.target.checked);
-  };
-
   return (
-    <TableRow
-      hover
-      sx={{ cursor: 'pointer' }}
+    <TableRow 
+      className="cursor-pointer hover:bg-muted/50"
       onClick={() => actions?.onView?.(listing)}
     >
-      <TableCell padding="checkbox">
+      <TableCell className="w-[40px]" onClick={(e) => e.stopPropagation()}>
         <Checkbox
           checked={selected}
-          onChange={handleCheckboxChange}
-          onClick={(e) => e.stopPropagation()}
+          onCheckedChange={(checked) => onSelect?.(checked === true)}
         />
       </TableCell>
       
       <TableCell>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <CardMedia
-            component="img"
-            sx={{ width: 60, height: 60, borderRadius: 1 }}
-            image={listing.imageUrl || '/api/placeholder/60/60'}
+        <div className="flex items-center gap-3">
+          <img
+            src={listing.imageUrl || '/api/placeholder/60/60'}
             alt={listing.title}
+            className="h-10 w-10 rounded object-cover bg-muted"
           />
-          <Box>
-            <Typography variant="subtitle2" noWrap>
-              {listing.title}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
+          <div>
+            <div className="font-medium">{listing.title}</div>
+            <div className="text-xs text-muted-foreground truncate max-w-[200px]">
               {listing.description || 'No description'}
-            </Typography>
-          </Box>
-        </Box>
+            </div>
+          </div>
+        </div>
       </TableCell>
       
-      <TableCell align="right">
-        <Typography variant="subtitle1" fontWeight="bold" color="primary">
-          ${listing.price.toLocaleString()}
-        </Typography>
-      </TableCell>
-      
-      <TableCell>
-        <Chip label={listing.category} size="small" variant="outlined" />
+      <TableCell className="text-right font-medium">
+        ${listing.price.toLocaleString()}
       </TableCell>
       
       <TableCell>
-        <Chip 
-          label={listing.status} 
-          size="small" 
-          color={listing.status === 'active' ? 'success' : listing.status === 'sold' ? 'error' : 'default'}
-        />
+        <Badge variant="outline">{listing.category}</Badge>
       </TableCell>
       
       <TableCell>
-        <Typography variant="caption">
-          {new Date(listing.createdAt).toLocaleDateString()}
-        </Typography>
+        <Badge 
+          variant={listing.status === 'active' ? 'default' : listing.status === 'sold' ? 'destructive' : 'secondary'}
+          className={listing.status === 'active' ? 'bg-green-500 hover:bg-green-600' : ''}
+        >
+          {listing.status}
+        </Badge>
+      </TableCell>
+      
+      <TableCell className="text-muted-foreground text-sm">
+        {new Date(listing.createdAt).toLocaleDateString()}
+      </TableCell>
+
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {actions?.onEdit && (
+              <DropdownMenuItem onClick={() => actions.onEdit?.(listing)}>
+                <Edit className="mr-2 h-4 w-4" /> Edit
+              </DropdownMenuItem>
+            )}
+            {actions?.onCrossPost && (
+              <DropdownMenuItem onClick={() => actions.onCrossPost?.(listing)}>
+                <Send className="mr-2 h-4 w-4" /> Post
+              </DropdownMenuItem>
+            )}
+            {actions?.onDelete && (
+              <DropdownMenuItem 
+                className="text-destructive focus:text-destructive"
+                onClick={() => actions.onDelete?.(listing)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </TableCell>
     </TableRow>
   );
@@ -412,41 +335,30 @@ const EmptyState: React.FC<{
     title: 'No listings found',
     description: 'Create your first listing to get started.',
     actionLabel: 'Create Listing',
-    actionIcon: <AddIcon />,
+    actionIcon: <Plus className="mr-2 h-4 w-4" />,
     onAction: onCreateListing,
   };
 
   const finalConfig = { ...defaultConfig, ...config };
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 400,
-        textAlign: 'center',
-        p: 4,
-      }}
-    >
-      <Typography variant="h5" color="text.secondary" gutterBottom>
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 border-2 border-dashed rounded-lg bg-muted/20">
+      <div className="p-4 rounded-full bg-muted mb-4">
+        <Plus className="h-8 w-8 text-muted-foreground" />
+      </div>
+      <h3 className="text-lg font-semibold text-foreground mb-2">
         {finalConfig.title}
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+      </h3>
+      <p className="text-muted-foreground mb-6 max-w-sm">
         {finalConfig.description}
-      </Typography>
+      </p>
       {finalConfig.onAction && (
-        <Button
-          variant="contained"
-          startIcon={finalConfig.actionIcon}
-          onClick={finalConfig.onAction}
-          size="large"
-        >
+        <Button onClick={finalConfig.onAction} size="lg">
+          {finalConfig.actionIcon}
           {finalConfig.actionLabel}
         </Button>
       )}
-    </Box>
+    </div>
   );
 };
 
@@ -466,13 +378,11 @@ export const ListingsList: React.FC<ListingsListProps> = ({
   onSelectionChange,
   emptyState,
 }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [currentViewMode] = useState<ViewMode>(viewMode);
 
-  // Handle page change
-  const handlePageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
-    onPageChange(page);
+  // Handle page change (simple wrapper for now)
+  const handlePageChange = (newPage: number) => {
+    onPageChange(newPage);
   };
 
   // Handle listing selection
@@ -486,9 +396,9 @@ export const ListingsList: React.FC<ListingsListProps> = ({
   };
 
   // Handle select all
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelectAll = (checked: boolean) => {
     if (onSelectionChange) {
-      const newSelectedIds = event.target.checked
+      const newSelectedIds = checked
         ? listings.map(listing => listing.id)
         : [];
       onSelectionChange(newSelectedIds);
@@ -498,8 +408,11 @@ export const ListingsList: React.FC<ListingsListProps> = ({
   // Error state
   if (error) {
     return (
-      <Alert severity="error" sx={{ mb: 2 }}>
-        Failed to load listings: {error.message}
+      <Alert variant="destructive" className="mb-4">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Failed to load listings: {error.message}
+        </AlertDescription>
       </Alert>
     );
   }
@@ -507,25 +420,12 @@ export const ListingsList: React.FC<ListingsListProps> = ({
   // Grid view
   if (currentViewMode === 'grid') {
     return (
-      <Box>
-        {/* Loading progress */}
-        {loading && (
-          <LinearProgress sx={{ mb: 2 }} />
-        )}
+      <div className="space-y-6">
+        {/* Loading progress overlay if needed */}
+        {/* {loading && <div className="absolute inset-0 bg-background/50 z-50 flex items-center justify-center">Loading...</div>} */}
 
         {/* Grid of listing cards */}
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-              lg: 'repeat(4, 1fr)',
-            },
-            gap: 3,
-          }}
-        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {listings.map((listing) => (
             <ListingCard
               key={listing.id}
@@ -545,7 +445,7 @@ export const ListingsList: React.FC<ListingsListProps> = ({
               loading
             />
           ))}
-        </Box>
+        </div>
 
         {/* Empty state */}
         {!loading && listings.length === 0 && (
@@ -555,54 +455,55 @@ export const ListingsList: React.FC<ListingsListProps> = ({
           />
         )}
 
-        {/* Pagination */}
+        {/* Pagination - Simple implementation for MVP */}
         {pagination.totalPages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-            <Stack spacing={2}>
-              <Pagination
-                count={pagination.totalPages}
-                page={pagination.page}
-                onChange={handlePageChange}
-                color="primary"
-                size={isMobile ? 'small' : 'medium'}
-                showFirstButton
-                showLastButton
-              />
-              <Typography variant="body2" color="text.secondary" textAlign="center">
-                Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
-              </Typography>
-            </Stack>
-          </Box>
+          <div className="flex justify-center mt-8 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+            >
+              Previous
+            </Button>
+            <span className="flex items-center text-sm text-muted-foreground px-4">
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+            >
+              Next
+            </Button>
+          </div>
         )}
-      </Box>
+      </div>
     );
   }
 
   // Table view
   return (
-    <Box>
-      {/* Loading progress */}
-      {loading && <LinearProgress sx={{ mb: 1 }} />}
-
-      <TableContainer component={Paper}>
+    <div className="space-y-4">
+      <div className="rounded-md border">
         <Table>
-          <TableHead>
+          <TableHeader>
             <TableRow>
-              <TableCell padding="checkbox">
+              <TableHead className="w-[40px]">
                 <Checkbox
-                  indeterminate={selectedIds.length > 0 && selectedIds.length < listings.length}
                   checked={listings.length > 0 && selectedIds.length === listings.length}
-                  onChange={handleSelectAll}
-                  inputProps={{ 'aria-label': 'select all listings' }}
+                  onCheckedChange={(checked) => handleSelectAll(checked === true)}
                 />
-              </TableCell>
-              <TableCell>Listing</TableCell>
-              <TableCell align="right">Price</TableCell>
-              <TableCell>Category</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created</TableCell>
+              </TableHead>
+              <TableHead>Listing</TableHead>
+              <TableHead className="text-right">Price</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
-          </TableHead>
+          </TableHeader>
           <TableBody>
             {listings.map((listing) => (
               <ListingTableRow
@@ -615,7 +516,6 @@ export const ListingsList: React.FC<ListingsListProps> = ({
               />
             ))}
             
-            {/* Loading skeleton rows */}
             {loading && Array.from({ length: 5 }).map((_, index) => (
               <ListingTableRow
                 key={`skeleton-${index}`}
@@ -623,38 +523,48 @@ export const ListingsList: React.FC<ListingsListProps> = ({
                 loading
               />
             ))}
+
+            {!loading && listings.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24 text-center">
+                  <EmptyState
+                    config={emptyState}
+                    onCreateListing={() => actions?.onEdit?.({} as ListingsListItem)}
+                  />
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
-
-        {/* Empty state in table */}
-        {!loading && listings.length === 0 && (
-          <TableBody>
-            <TableRow>
-              <TableCell colSpan={6} sx={{ textAlign: 'center' }}>
-                <EmptyState
-                  config={emptyState}
-                  onCreateListing={() => actions?.onEdit?.({} as ListingsListItem)}
-                />
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        )}
-      </TableContainer>
+      </div>
 
       {/* Pagination for table */}
       {pagination.totalPages > 1 && (
-        <TablePagination
-          component="div"
-          count={pagination.total}
-          page={pagination.page - 1}
-          onPageChange={(_event, newPage) => onPageChange(newPage + 1)}
-          rowsPerPage={pagination.limit}
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          labelRowsPerPage="Rows per page:"
-          labelDisplayedRows={({ from, to, count }) => `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`}
-        />
+        <div className="flex items-center justify-end space-x-2 py-4">
+          <div className="text-xs text-muted-foreground">
+            Page {pagination.page} of {pagination.totalPages}
+          </div>
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

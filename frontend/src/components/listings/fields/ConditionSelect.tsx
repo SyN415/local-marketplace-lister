@@ -1,22 +1,27 @@
 import React from 'react';
-import { TextField, MenuItem, Box, Typography } from '@mui/material';
 import { useFormContext, Controller } from 'react-hook-form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import { Label } from '../../ui/label';
+import { cn } from '../../../lib/utils';
 import { LISTING_CONDITIONS } from '../../../schemas/listing.schema';
 import type { SelectFieldProps } from '../../../types/forms';
 
 /**
  * ConditionSelect component for selecting item condition
+ * Uses shadcn/ui components
  */
 const ConditionSelect: React.FC<SelectFieldProps> = ({
   name = 'condition',
   label = 'Condition',
   required = true,
-  fullWidth = true,
-  margin = 'normal',
-  variant = 'outlined',
   helperText,
-  error: customError,
-  ...props
+  className,
 }) => {
   const {
     control,
@@ -36,7 +41,7 @@ const ConditionSelect: React.FC<SelectFieldProps> = ({
   });
 
   return (
-    <Box>
+    <div className={cn("space-y-2", className)}>
       <Controller
         name={name}
         control={control}
@@ -44,58 +49,48 @@ const ConditionSelect: React.FC<SelectFieldProps> = ({
           required: required ? 'Condition is required' : false,
         }}
         render={({ field, fieldState }) => (
-          <TextField
-            {...field}
-            fullWidth={fullWidth}
-            label={label}
-            required={required}
-            margin={margin}
-            variant={variant}
-            select
-            error={!!fieldState.error}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 0,
-                '& fieldset': {
-                  borderColor: 'divider',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'text.primary',
-                },
-                '&.Mui-focused fieldset': {
-                  borderWidth: 2,
-                },
-              },
-              '& .MuiInputLabel-root': {
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                fontSize: '0.75rem',
-              },
-            }}
-            helperText={
-              <Typography variant="caption" color={error && isTouched ? 'error' : 'text.secondary'}>
-                {error && isTouched
-                  ? error
-                  : helperText || 'Select the condition of your item'
-                }
-              </Typography>
-            }
-            SelectProps={{
-              multiple: false,
-              ...(props as any).SelectProps,
-            }}
-            {...props}
-          >
-            {options.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
+          <div className="space-y-1">
+            <Label 
+              htmlFor={name}
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
+            
+            <Select
+              onValueChange={field.onChange}
+              defaultValue={field.value}
+            >
+              <SelectTrigger
+                id={name}
+                className={cn(
+                  "w-full",
+                  fieldState.error && "border-destructive focus:ring-destructive"
+                )}
+              >
+                <SelectValue placeholder="Select item condition" />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <span className={cn(
+              "text-xs text-muted-foreground block",
+              error && isTouched && "text-destructive"
+            )}>
+              {error && isTouched
+                ? error
+                : helperText || 'Select the condition of your item'}
+            </span>
+          </div>
         )}
       />
-    </Box>
+    </div>
   );
 };
 

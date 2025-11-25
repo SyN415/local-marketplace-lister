@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { SuccessCharacter } from '../../components/ui/SuccessCharacter';
 
 const Success = () => {
   const navigate = useNavigate();
@@ -25,29 +28,37 @@ const Success = () => {
   }, [sessionId, navigate, refetchUser]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 text-center">
-          <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md bg-white shadow-lg">
+        <CardHeader className="text-center pb-2">
+          <div className="flex justify-center mb-4">
+             <SuccessCharacter />
+          </div>
+          <div className="flex justify-center mb-4">
+            <CheckCircle className="h-12 w-12 text-green-500" />
+          </div>
+          <CardTitle className="text-3xl font-extrabold text-gray-900">
             Payment Successful!
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="mt-2 text-sm text-gray-600 mb-6">
             Thank you for upgrading to Pro. Your account has been updated.
           </p>
+          
           <div className="mt-6">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 mb-4">
               Redirecting to dashboard in 5 seconds...
             </p>
-            <button
+            <Button
               onClick={() => navigate('/dashboard')}
-              className="mt-4 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="w-full"
             >
               Go to Dashboard
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
