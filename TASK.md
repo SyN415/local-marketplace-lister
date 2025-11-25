@@ -435,13 +435,220 @@ Completed the dedicated Frontend UI for managing external platform connections a
 - [x] Updated **Backend API** for connection management and added endpoints to retrieve posting status data efficiently.
 - [x] Enabled **Realtime Status Updates** for job posts via polling/subscription hook, reflecting current platform state.
  
+### November 25, 2025 - Complete UI/UX Overhaul with Wispr Flow Design System 🎨
+**Session Summary:**
+Implemented a comprehensive UI/UX overhaul of the entire frontend, aligning with the Wispr Flow design system. This includes a complete theming infrastructure, logo-extracted color palettes, mascot integration, and overhauled landing page components following the "Voice in Motion" philosophy.
+
+**Design System Implementation:**
+
+1. **CSS Custom Properties & Theming Infrastructure**
+   - Created `/frontend/src/styles/wispr-design-system.css` (479 lines) with complete CSS Custom Properties
+   - Color palette: Lumen (#F5F5F5), Void (#191521), Pulse (#9F88C8), Drift (#D9C2C0), Dawn (#524F58), Calm (#4CAF50)
+   - Typography: Figtree (headings), Merriweather (body), System fonts (UI)
+   - 8px base spacing unit system, soft corners (12-24px radius)
+   - Animation keyframes with `prefers-reduced-motion` support
+   - Updated `/frontend/src/index.css` with theme integration and CSS variable overrides
+
+2. **Color Extraction Utility**
+   - Created `/frontend/src/utils/logoColors.ts` (405 lines) - Canvas-based color extraction from logo
+   - Created `/frontend/src/hooks/useLogoColors.ts` (176 lines) - React hook for logo color integration
+   - Extracts dominant, vibrant, muted, light, and dark colors from jp1.jpg logo
+   - Generates gradients, borders, and accent colors dynamically
+
+3. **Dark/Light Mode Toggle**
+   - Integrated with existing ThemeContext
+   - localStorage persistence for user preference
+   - CSS variable switching for seamless transitions
+   - Header toggle button with sun/moon icons
+
+4. **Mascot Component System**
+   - Created `/frontend/src/components/ui/Mascot.tsx` (228 lines)
+   - 6 variations: happy, sad, crying, vampire, sleepy, superhero
+   - Animated states: bounce, pulse, shake, float with CSS keyframes
+   - Responsive sizing (48-128px) with soft shadows
+   - Integration with logo-extracted colors for outlines/backgrounds
+
+**Landing Page Components Overhauled:**
+
+1. **Hero Section** (`/frontend/src/components/landing/Hero.tsx` - 324 lines)
+   - Full-viewport layout with logo-extracted gradient background (0.1 opacity)
+   - Centered Jiggly mascot (happy variation) with entrance animation
+   - Primary typography with Figtree headings
+   - CTA buttons with Pulse (#9F88C8) accents and hover animations
+   - Framer Motion animations for entrance and micro-interactions
+
+2. **Header Component** (`/frontend/src/components/layout/Header.tsx` - 545 lines)
+   - Sticky navigation with backdrop blur
+   - Logo-sync colors and theme-aware styling
+   - Mobile hamburger menu with slide-in animation
+   - Mascot tooltip on logo hover
+   - Dark/light mode toggle button
+   - Auth state-aware navigation (Login/Signup vs Dashboard)
+
+3. **Features Grid** (`/frontend/src/components/landing/Features.tsx` - 257 lines)
+   - Card-based layout with soft corners (16px radius)
+   - Logo-muted borders and Pulse accent highlights
+   - Icon integration with Lucide React
+   - Scroll-reveal animations with Framer Motion
+   - Responsive grid (1/2/3 columns based on breakpoint)
+
+4. **Trust Section** (`/frontend/src/components/landing/Trust.tsx` - 256 lines)
+   - Stats row with animated counters
+   - Testimonial cards with avatar, quote, and platform badges
+   - Alternating layout with Drift (#D9C2C0) accents
+   - Subtle scroll reveals for engagement
+
+5. **Pricing Preview** (`/frontend/src/components/landing/PricingPreview.tsx` - 289 lines)
+   - Credit-based pricing display aligned with business model
+   - Feature comparison cards with check/x icons
+   - Popular plan highlight with gradient border
+   - CTA buttons with consistent Pulse styling
+
+6. **Footer** (`/frontend/src/components/landing/Footer.tsx` - 304 lines)
+   - Patterned background from logo colors (subtle radial gradient)
+   - Sleepy Jiggly mascot integration
+   - Newsletter signup form with validation
+   - Link sections with hover underline animations
+   - Social media icons with hover color transitions
+
+**State Components:**
+
+1. **Empty State** (`/frontend/src/components/ui/EmptyState.tsx` - 179 lines)
+   - Crying Jiggly mascot with gentle animation
+   - Contextual messaging and recovery CTAs
+   - Supports custom actions and secondary text
+
+2. **Error State** (`/frontend/src/components/ui/ErrorState.tsx` - 307 lines)
+   - 404, 500, and generic error variants
+   - Frustrated/vampire Jiggly with shake animation
+   - Retry and navigation CTAs
+   - Stack trace display for development mode
+
+**App Integration:**
+- Updated `/frontend/src/App.tsx` to use new Header component
+- Replaced old Navbar with Header in main layout
+- Added proper main content area with id for accessibility
+- Integrated theme context for dark/light mode
+
+**Completed Tasks:**
+- [x] Setup CSS Custom Properties from Wispr Flow Style Guide
+- [x] Implement dark/light mode toggle with localStorage persistence
+- [x] Create color extraction utility (`/utils/logoColors.ts`)
+- [x] Create useLogoColors hook for React integration
+- [x] Create Mascot component with 6 variations and animations
+- [x] Overhaul Hero section with gradients and mascot
+- [x] Create sticky Header with mobile menu
+- [x] Build Features grid with styled cards
+- [x] Create Trust section with testimonials
+- [x] Build Pricing Preview component
+- [x] Create Footer with patterned background
+- [x] Create EmptyState component
+- [x] Create ErrorState component
+- [x] Update App.tsx with new Header
+- [x] Ensure responsive design (mobile-first)
+- [x] Add accessibility attributes (ARIA labels, keyboard nav)
+- [x] Implement `prefers-reduced-motion` support
+
+**Files Created:**
+- `frontend/src/styles/wispr-design-system.css`
+- `frontend/src/utils/logoColors.ts`
+- `frontend/src/hooks/useLogoColors.ts`
+- `frontend/src/components/ui/Mascot.tsx`
+- `frontend/src/components/layout/Header.tsx`
+- `frontend/src/components/ui/EmptyState.tsx`
+- `frontend/src/components/ui/ErrorState.tsx`
+
+**Files Modified:**
+- `frontend/src/index.css`
+- `frontend/src/components/landing/Hero.tsx`
+- `frontend/src/components/landing/Features.tsx`
+- `frontend/src/components/landing/Footer.tsx`
+- `frontend/src/components/landing/Trust.tsx`
+- `frontend/src/components/landing/PricingPreview.tsx`
+- `frontend/src/pages/Home.tsx`
+- `frontend/src/App.tsx`
+
+**Design Philosophy Applied:**
+- "Voice in Motion": Fluid, intuitive, joyful UI flows
+- Micro-interactions on hover, focus, and state changes
+- Consistent 8px spacing unit throughout
+- Color harmony with extracted logo palette
+- Accessible contrast ratios (>4.5:1)
+- Progressive enhancement for animations
+
+---
+
+### November 25, 2025 - Dashboard Page Redesign with Wispr Flow 📊
+**Session Summary:**
+Completed a comprehensive redesign of the Dashboard page following the Wispr Flow design system. The overhaul includes a new welcome section with mascot, quick actions grid, animated stat cards, and improved recent listings display.
+
+**Design System Implementation:**
+
+1. **Dashboard.tsx Redesign** (270 lines)
+   - Welcome section with personalized greeting based on time of day
+   - Mascot integration with state-based variations (happy/sad/sleepy based on credits)
+   - Low credits warning banner with CTA
+   - Quick actions grid with gradient icons and hover animations
+   - Refresh button for manual data refresh
+   - Subtle radial gradient background using logo palette
+
+2. **StatsCards.tsx Overhaul** (290 lines)
+   - Animated stat cards with Framer Motion stagger effect
+   - Gradient icon backgrounds (Pulse/Drift, Calm/Emerald, Amber/Orange, Blue/Cyan)
+   - Soft corners (rounded-2xl) and subtle shadows
+   - Category breakdown with badge pills
+   - Portfolio value card with trend icon
+   - Click-to-filter functionality preserved
+
+3. **RecentListings.tsx Overhaul** (320 lines)
+   - Animated list items with stagger effect
+   - Image thumbnails with fallback icons
+   - Status badges with colored dots (Active=green, Sold=blue, Draft=gray, Expired=amber)
+   - Compact relative time format (2h ago, 3d ago)
+   - Empty state with sleepy Jiggly mascot and CTA button
+   - Error state with retry functionality
+   - View All button in header
+
+**Animation & Motion:**
+- Container stagger animations for sections
+- Card entrance animations with delay
+- Hover scale and lift effects on interactive elements
+- Smooth transitions on state changes
+
+**Completed Tasks:**
+- [x] Redesign Dashboard.tsx with welcome section, quick actions, and Wispr Flow styling
+- [x] Update StatsCards.tsx with gradient cards, animations, and soft corners
+- [x] Update RecentListings.tsx with images, mascot empty state, and animations
+- [x] Add Framer Motion animations throughout
+- [x] Integrate EmptyState component with mascot for no listings
+- [x] Add personalized user greeting with time-based message
+- [x] Create quick actions grid for common tasks
+- [x] Verify build passes successfully
+
+**Files Modified:**
+- `frontend/src/pages/Dashboard.tsx`
+- `frontend/src/components/dashboard/StatsCards.tsx`
+- `frontend/src/components/dashboard/RecentListings.tsx`
+
+**Build Status: ✅ Successful**
+```
+✓ 14237 modules transformed
+✓ built in 13.43s
+```
+
+---
+
 ### Next Steps
-- [ ] Deploy to Production
-- [ ] Verify Hosted Instance
-- [ ] Create migration for posting_jobs table.
-- [ ] Implement JobQueueService and the basic Adapter pattern structure.
+- [ ] Test all components on various devices/browsers
+- [ ] Run Lighthouse audit for performance score >90
+- [x] Update Dashboard page with new design system
+- [ ] Update Listing pages with new design system
+- [ ] Update Forms with logo-colored inputs/borders
+- [ ] Deploy to Render.com preview branch
+- [ ] Create migration for posting_jobs table
+- [ ] Implement JobQueueService and the basic Adapter pattern structure
 - [ ] Performance optimization
 - [ ] Security audit and rate limiting implementation
 - [ ] Local development setup with ngrok for testing
- 
+
 *This development log will be updated regularly throughout the project lifecycle to track progress, document decisions, and maintain development momentum.*

@@ -1,17 +1,30 @@
+/**
+ * StatsCards Component
+ *
+ * Wispr Flow Design System implementation
+ * Features:
+ * - Animated stat cards with gradients
+ * - Soft corners and shadows
+ * - Icon-based visual hierarchy
+ * - Responsive grid layout
+ */
+
 import React from 'react';
+import { motion } from 'framer-motion';
 import {
   Card,
   CardContent,
 } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { Badge } from '../ui/badge';
-import { Alert, AlertTitle } from '../ui/alert';
 import {
   Package,
   Eye,
   FileEdit,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  TrendingUp,
+  Layers,
 } from 'lucide-react';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { cn } from '../../lib/utils';
@@ -20,21 +33,38 @@ interface StatsCardProps {
   title: string;
   value: number | null;
   icon: React.ReactNode;
-  color: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
+  gradient: string;
   loading?: boolean;
   error?: Error | null;
   onClick?: () => void;
   clickable?: boolean;
+  index?: number;
 }
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      delay: i * 0.1,
+      duration: 0.4,
+      ease: [0.4, 0, 0.2, 1] as const,
+    },
+  }),
+};
 
 const StatsCard: React.FC<StatsCardProps> = ({
   title,
   value,
   icon,
+  gradient,
   loading = false,
   error = null,
   onClick,
   clickable = false,
+  index = 0,
 }) => {
   const handleClick = () => {
     if (clickable && onClick) {
@@ -58,46 +88,71 @@ const StatsCard: React.FC<StatsCardProps> = ({
   };
 
   return (
-    <Card
-      className={cn(
-        "h-full rounded-none border-2 border-black bg-card transition-all duration-100 dark:border-white/20",
-        clickable && "cursor-pointer hover:bg-accent/50"
-      )}
-      onClick={handleClick}
+    <motion.div
+      custom={index}
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
+      whileHover={clickable ? { scale: 1.02, y: -4 } : undefined}
+      whileTap={clickable ? { scale: 0.98 } : undefined}
     >
-      <CardContent className="p-4">
-        <div className="flex flex-row items-center justify-between gap-2 mb-2">
-          <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground font-display truncate" title={title}>
-            {title}
-          </h4>
-          <div className="text-foreground flex-shrink-0">
+      <Card
+        className={cn(
+          "h-full relative overflow-hidden rounded-2xl border-border/50 bg-card transition-all duration-300",
+          "hover:shadow-lg hover:shadow-primary/5",
+          clickable && "cursor-pointer"
+        )}
+        onClick={handleClick}
+      >
+        {/* Gradient background */}
+        <div
+          className={cn(
+            "absolute inset-0 opacity-10",
+            `bg-gradient-to-br ${gradient}`
+          )}
+        />
+        
+        <CardContent className="relative z-10 p-5">
+          {/* Icon */}
+          <div className={cn(
+            "w-12 h-12 rounded-xl flex items-center justify-center mb-4",
+            `bg-gradient-to-br ${gradient}`,
+            "text-white shadow-md"
+          )}>
             {icon}
           </div>
-        </div>
 
-        {loading ? (
-          <Skeleton className="h-10 w-3/5" />
-        ) : error ? (
-          <Alert variant="destructive" className="p-2 min-h-[30px] flex items-center rounded-none border-none">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            <AlertTitle className="mb-0 text-sm">Error</AlertTitle>
-          </Alert>
-        ) : (
-          <div className="text-3xl sm:text-4xl font-black text-foreground mb-0 leading-none tracking-tight font-display">
-            {formatValue(value)}
-          </div>
-        )}
+          {/* Title */}
+          <h4 className="text-sm font-medium text-foreground-muted mb-1">
+            {title}
+          </h4>
 
-        {clickable && !loading && !error && (
-          <Badge 
-            variant="outline"
-            className="mt-3 text-xs h-5 rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-          >
-            Click to filter
-          </Badge>
-        )}
-      </CardContent>
-    </Card>
+          {/* Value */}
+          {loading ? (
+            <Skeleton className="h-9 w-2/3 rounded-lg" />
+          ) : error ? (
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">Error</span>
+            </div>
+          ) : (
+            <div className="text-3xl font-display font-bold text-foreground tracking-tight">
+              {formatValue(value)}
+            </div>
+          )}
+
+          {/* Click hint */}
+          {clickable && !loading && !error && (
+            <Badge
+              variant="secondary"
+              className="mt-3 text-xs h-5 rounded-full bg-muted/50 text-foreground-muted"
+            >
+              Click to filter
+            </Badge>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 };
 
@@ -116,38 +171,38 @@ const StatsCards: React.FC<StatsCardsProps> = ({
     error,
   } = useDashboardStats();
 
-  // Define card configurations
+  // Define card configurations with gradients
   const cardConfigs = [
     {
       key: 'totalListings',
       title: 'Total Listings',
       value: stats?.totalListings || 0,
-      color: 'primary' as const,
-      icon: <Package className="h-8 w-8" />,
+      gradient: 'from-[var(--color-pulse)] to-[var(--color-drift)]',
+      icon: <Package className="h-6 w-6" />,
       clickable: true,
     },
     {
       key: 'postedListings',
-      title: 'Posted',
+      title: 'Active',
       value: stats?.postedListings || 0,
-      color: 'success' as const,
-      icon: <Eye className="h-8 w-8" />,
+      gradient: 'from-[var(--color-calm)] to-emerald-500',
+      icon: <Eye className="h-6 w-6" />,
       clickable: true,
     },
     {
       key: 'draftListings',
       title: 'Drafts',
       value: stats?.draftListings || 0,
-      color: 'warning' as const,
-      icon: <FileEdit className="h-8 w-8" />,
+      gradient: 'from-amber-500 to-orange-500',
+      icon: <FileEdit className="h-6 w-6" />,
       clickable: true,
     },
     {
       key: 'soldListings',
       title: 'Sold',
       value: stats?.soldListings || 0,
-      color: 'info' as const,
-      icon: <CheckCircle className="h-8 w-8" />,
+      gradient: 'from-blue-500 to-cyan-500',
+      icon: <CheckCircle className="h-6 w-6" />,
       clickable: true,
     },
   ];
@@ -165,71 +220,93 @@ const StatsCards: React.FC<StatsCardsProps> = ({
   const isDataLoading = showLoading || isLoading;
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center mb-8">
-        <h2 className="text-2xl font-extrabold uppercase tracking-tight font-display">
-          OVERVIEW
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-display font-semibold text-foreground">
+          Overview
         </h2>
         {isLoading && (
           <Badge
             variant="outline"
-            className="ml-4 rounded-none border-black font-semibold bg-transparent dark:border-white"
+            className="rounded-full border-primary/30 text-primary bg-primary/5"
           >
-            Refreshing...
+            <span className="animate-pulse">Refreshing...</span>
           </Badge>
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        {cardConfigs.map((config) => (
-          <div key={config.key}>
-            <StatsCard
-              title={config.title}
-              value={config.value}
-              icon={config.icon}
-              color={config.color}
-              loading={isDataLoading}
-              error={getCardError(config.key)}
-              clickable={config.clickable}
-              onClick={() => handleCardClick(config.key)}
-            />
-          </div>
+      {/* Stats Cards Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {cardConfigs.map((config, index) => (
+          <StatsCard
+            key={config.key}
+            title={config.title}
+            value={config.value}
+            icon={config.icon}
+            gradient={config.gradient}
+            loading={isDataLoading}
+            error={getCardError(config.key)}
+            clickable={config.clickable}
+            onClick={() => handleCardClick(config.key)}
+            index={index}
+          />
         ))}
       </div>
 
-      {/* Summary stats row for larger screens */}
+      {/* Summary Row */}
       {stats && !isDataLoading && (
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
-          <Card className="h-full rounded-none border-2 border-black bg-card dark:border-white/20">
-            <CardContent className="p-6">
-              <h6 className="text-lg font-bold uppercase mb-4 font-display">
-                Category Breakdown
-              </h6>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+        >
+          {/* Category Breakdown */}
+          <Card className="rounded-2xl border-border/50 bg-card overflow-hidden">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <h3 className="font-display font-semibold text-foreground">
+                  Category Breakdown
+                </h3>
+              </div>
+              
               {Object.keys(stats.categoryBreakdown || {}).length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(stats.categoryBreakdown).map(([category, count]) => (
-                    <div
+                    <Badge
                       key={category}
-                      className="border border-black px-3 py-1 text-sm font-semibold dark:border-white/50"
+                      variant="secondary"
+                      className="rounded-full px-3 py-1 font-medium bg-muted/50"
                     >
                       {category}: {count}
-                    </div>
+                    </Badge>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  No category data available
+                <p className="text-sm text-foreground-muted">
+                  No category data available yet. Create your first listing!
                 </p>
               )}
             </CardContent>
           </Card>
-          <Card className="h-full rounded-none border-2 border-black bg-card dark:border-white/20">
-            <CardContent className="p-6">
-              <h6 className="text-lg font-bold uppercase mb-2 font-display">
-                Portfolio Value
-              </h6>
-              <div className="text-4xl font-black tracking-tight font-display mb-2">
+
+          {/* Portfolio Value */}
+          <Card className="rounded-2xl border-border/50 bg-card overflow-hidden">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <h3 className="font-display font-semibold text-foreground">
+                  Portfolio Value
+                </h3>
+              </div>
+              
+              <div className="text-3xl font-display font-bold text-foreground tracking-tight mb-1">
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: 'USD',
@@ -237,12 +314,12 @@ const StatsCards: React.FC<StatsCardsProps> = ({
                   maximumFractionDigits: 0,
                 }).format(stats.totalValue || 0)}
               </div>
-              <p className="text-sm text-muted-foreground">
-                Combined value of all listings
+              <p className="text-sm text-foreground-muted">
+                Combined value of all your listings
               </p>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       )}
     </div>
   );

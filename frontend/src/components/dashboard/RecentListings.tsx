@@ -1,4 +1,17 @@
+/**
+ * RecentListings Component
+ *
+ * Wispr Flow Design System implementation
+ * Features:
+ * - Animated listing items
+ * - Image thumbnails with fallback
+ * - Status badges with colors
+ * - Empty state with mascot
+ * - Soft corners and shadows
+ */
+
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Card,
   CardContent,
@@ -6,22 +19,48 @@ import {
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-import { Alert, AlertDescription } from '../ui/alert';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
-  Eye,
-  ShoppingCart,
   Package,
-  Plus
+  Plus,
+  ChevronRight,
+  Clock,
+  AlertCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRecentListings } from '../../hooks/useDashboard';
 import type { RecentListing } from '../../types/dashboard';
+import { Mascot } from '../ui/Mascot';
 import { cn } from '../../lib/utils';
 
 interface RecentListingsProps {
   limit?: number;
 }
+
+// Animation variants
+const listVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.3,
+      ease: [0.4, 0, 0.2, 1] as const,
+    },
+  },
+};
 
 /**
  * Format relative time (e.g., "2 hours ago", "3 days ago")
@@ -37,13 +76,13 @@ const formatRelativeTime = (dateString: string): string => {
   if (diffInMinutes < 1) {
     return 'Just now';
   } else if (diffInMinutes < 60) {
-    return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+    return `${diffInMinutes}m ago`;
   } else if (diffInHours < 24) {
-    return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+    return `${diffInHours}h ago`;
   } else if (diffInDays < 7) {
-    return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+    return `${diffInDays}d ago`;
   } else {
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 };
 
@@ -55,26 +94,32 @@ const getStatusConfig = (status: string) => {
     case 'active':
       return {
         label: 'Active',
-        className: 'bg-success/10 text-success border-success/20 hover:bg-success/20',
-        icon: <Package className="h-4 w-4" />,
+        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        dotColor: 'bg-emerald-500',
       };
     case 'sold':
       return {
         label: 'Sold',
-        className: 'bg-info/10 text-info border-info/20 hover:bg-info/20',
-        icon: <ShoppingCart className="h-4 w-4" />,
+        className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+        dotColor: 'bg-blue-500',
       };
     case 'expired':
       return {
         label: 'Expired',
-        className: 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/20',
-        icon: <Eye className="h-4 w-4" />,
+        className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+        dotColor: 'bg-amber-500',
+      };
+    case 'draft':
+      return {
+        label: 'Draft',
+        className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+        dotColor: 'bg-gray-400',
       };
     default:
       return {
         label: status,
-        className: 'bg-muted text-muted-foreground hover:bg-muted/80',
-        icon: <Package className="h-4 w-4" />,
+        className: 'bg-muted text-muted-foreground',
+        dotColor: 'bg-muted-foreground',
       };
   }
 };
@@ -96,28 +141,24 @@ const formatPrice = (price: number): string => {
  */
 const RecentListingsSkeleton: React.FC = () => {
   return (
-    <CardContent className="p-0">
-      <div className="p-6 border-b-2 border-black bg-muted/20 dark:border-white/20">
-        <h6 className="font-bold uppercase tracking-tight font-display">
-          Recent Listings
-        </h6>
-      </div>
-      
-      <div className="divide-y divide-border">
-        {[...Array(5)].map((_, index) => (
-          <div key={index} className="p-4 flex items-center gap-4">
-            <Skeleton className="h-12 w-12 rounded-none" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-4 w-3/4" />
-              <div className="flex gap-2">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-24" />
-              </div>
+    <div className="space-y-3">
+      {[...Array(5)].map((_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-4 p-4 rounded-xl bg-muted/30"
+        >
+          <Skeleton className="h-14 w-14 rounded-xl" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-3/4 rounded-lg" />
+            <div className="flex gap-2">
+              <Skeleton className="h-4 w-16 rounded-lg" />
+              <Skeleton className="h-4 w-14 rounded-full" />
             </div>
           </div>
-        ))}
-      </div>
-    </CardContent>
+          <Skeleton className="h-4 w-12 rounded-lg" />
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -129,68 +170,130 @@ const RecentListingItem: React.FC<{
   onClick?: () => void;
 }> = ({ listing, onClick }) => {
   const statusConfig = getStatusConfig(listing.status);
+  const hasImage = listing.images && listing.images.length > 0;
   
   return (
-    <div
+    <motion.div
+      variants={itemVariants}
+      whileHover={{ x: 4 }}
       className={cn(
-        "group flex items-center p-4 gap-4 border-b border-border last:border-0 transition-colors hover:bg-accent/50 cursor-pointer",
-        !onClick && "cursor-default"
+        "group flex items-center gap-4 p-4 rounded-xl transition-colors",
+        "hover:bg-muted/50 cursor-pointer"
       )}
       onClick={onClick}
     >
-      <Avatar className="h-12 w-12 rounded-none border border-border">
-        <AvatarFallback className={cn("bg-background", statusConfig.className)}>
-          {statusConfig.icon}
+      {/* Thumbnail */}
+      <Avatar className="h-14 w-14 rounded-xl border border-border/50 shadow-sm">
+        {hasImage ? (
+          <AvatarImage
+            src={listing.images![0]}
+            alt={listing.title}
+            className="object-cover"
+          />
+        ) : null}
+        <AvatarFallback className="rounded-xl bg-gradient-to-br from-muted to-muted/50">
+          <ImageIcon className="h-5 w-5 text-muted-foreground" />
         </AvatarFallback>
       </Avatar>
       
+      {/* Content */}
       <div className="flex-1 min-w-0">
-        <h4 className="font-bold text-sm truncate mb-1 group-hover:text-primary transition-colors font-display">
+        <h4 className="font-display font-semibold text-foreground truncate mb-1 group-hover:text-primary transition-colors">
           {listing.title}
         </h4>
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-foreground">
+        <div className="flex items-center gap-2">
+          <span className="font-display font-bold text-foreground">
             {formatPrice(listing.price)}
           </span>
-          <Badge 
-            variant="outline" 
-            className={cn("text-[10px] h-5 rounded-none px-1.5 font-bold uppercase", statusConfig.className)}
+          <Badge
+            variant="secondary"
+            className={cn(
+              "text-[10px] h-5 rounded-full px-2 font-medium",
+              statusConfig.className
+            )}
           >
+            <span className={cn("w-1.5 h-1.5 rounded-full mr-1.5", statusConfig.dotColor)} />
             {statusConfig.label}
           </Badge>
         </div>
       </div>
       
-      <div className="text-right text-xs text-muted-foreground whitespace-nowrap font-medium">
-        {formatRelativeTime(listing.createdAt)}
+      {/* Time and arrow */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 text-xs text-foreground-muted">
+          <Clock className="h-3 w-3" />
+          {formatRelativeTime(listing.createdAt)}
+        </div>
+        <ChevronRight className="h-4 w-4 text-foreground-muted opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
-    </div>
+    </motion.div>
   );
 };
 
 /**
- * Empty State Component
+ * Empty State Component with Mascot
  */
 const EmptyRecentListings: React.FC<{ onCreate: () => void }> = ({ onCreate }) => {
   return (
-    <CardContent className="p-8">
-      <div className="text-center py-8">
-        <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h6 className="text-lg font-bold uppercase mb-2 font-display">
-          No recent listings
-        </h6>
-        <p className="text-muted-foreground mb-6">
-          Start creating listings to see them here
-        </p>
-        <Button
-          onClick={onCreate}
-          className="font-bold uppercase tracking-wide rounded-none"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create First Listing
-        </Button>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-12 px-6 text-center"
+    >
+      <Mascot
+        variation="sleepy"
+        size="lg"
+        animated
+        animation="float"
+        className="mb-6"
+      />
+      
+      <h3 className="font-display font-bold text-xl text-foreground mb-2">
+        No listings yet
+      </h3>
+      <p className="text-foreground-muted max-w-sm mb-6">
+        Create your first listing and start selling across multiple marketplaces instantly.
+      </p>
+      
+      <Button
+        onClick={onCreate}
+        className="bg-gradient-to-r from-[var(--color-pulse)] to-[var(--color-drift)] hover:opacity-90 text-white font-display font-semibold rounded-xl"
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        Create Your First Listing
+      </Button>
+    </motion.div>
+  );
+};
+
+/**
+ * Error State Component
+ */
+const ErrorRecentListings: React.FC<{ onRetry: () => void }> = ({ onRetry }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex flex-col items-center justify-center py-10 px-6 text-center"
+    >
+      <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+        <AlertCircle className="h-6 w-6 text-destructive" />
       </div>
-    </CardContent>
+      <h3 className="font-display font-semibold text-foreground mb-1">
+        Failed to load listings
+      </h3>
+      <p className="text-sm text-foreground-muted mb-4">
+        Something went wrong. Please try again.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onRetry}
+        className="rounded-xl"
+      >
+        Try Again
+      </Button>
+    </motion.div>
   );
 };
 
@@ -202,6 +305,7 @@ const RecentListings: React.FC<RecentListingsProps> = ({
     data: recentListings = [],
     isLoading,
     error,
+    refetch,
   } = useRecentListings(limit);
 
   const handleListingClick = (listingId: string) => {
@@ -212,64 +316,62 @@ const RecentListings: React.FC<RecentListingsProps> = ({
     navigate('/create-listing');
   };
 
-  // Show skeleton while loading
-  if (isLoading) {
-    return (
-      <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20">
-        <RecentListingsSkeleton />
-      </Card>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20">
-        <Alert variant="destructive" className="m-4 border-none rounded-none">
-          <AlertDescription className="flex items-center justify-between">
-            <span>Failed to load recent listings. Please try again.</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.location.reload()}
-              className="ml-4 h-8"
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </Card>
-    );
-  }
-
-  // Show empty state
-  if (recentListings.length === 0) {
-    return (
-      <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20">
-        <EmptyRecentListings onCreate={handleCreateListing} />
-      </Card>
-    );
-  }
+  const handleViewAll = () => {
+    navigate('/listings');
+  };
 
   return (
-    <Card className="mb-6 rounded-none border-2 border-black dark:border-white/20 overflow-hidden">
+    <Card className="rounded-2xl border-border/50 bg-card overflow-hidden">
       <CardContent className="p-0">
         {/* Header */}
-        <div className="p-6 border-b-2 border-black bg-muted/30 dark:border-white/20">
-          <h6 className="font-extrabold uppercase tracking-tight text-lg font-display">
-            Recent Listings
-          </h6>
+        <div className="flex items-center justify-between p-5 border-b border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-pulse)] to-[var(--color-drift)] flex items-center justify-center text-white">
+              <Package className="h-5 w-5" />
+            </div>
+            <h3 className="font-display font-semibold text-foreground">
+              Recent Listings
+            </h3>
+          </div>
+          
+          {recentListings.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleViewAll}
+              className="text-primary hover:text-primary hover:bg-primary/5 rounded-lg"
+            >
+              View All
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          )}
         </div>
 
-        {/* Listings */}
-        <div className="bg-card">
-          {recentListings.map((listing) => (
-            <RecentListingItem
-              key={listing.id}
-              listing={listing}
-              onClick={() => handleListingClick(listing.id)}
-            />
-          ))}
+        {/* Content */}
+        <div className="p-2">
+          {isLoading ? (
+            <RecentListingsSkeleton />
+          ) : error ? (
+            <ErrorRecentListings onRetry={refetch} />
+          ) : recentListings.length === 0 ? (
+            <EmptyRecentListings onCreate={handleCreateListing} />
+          ) : (
+            <motion.div
+              variants={listVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              <AnimatePresence>
+                {recentListings.map((listing) => (
+                  <RecentListingItem
+                    key={listing.id}
+                    listing={listing}
+                    onClick={() => handleListingClick(listing.id)}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          )}
         </div>
       </CardContent>
     </Card>

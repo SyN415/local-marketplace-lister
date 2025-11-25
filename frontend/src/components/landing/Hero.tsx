@@ -1,124 +1,327 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+/**
+ * Hero Section Component
+ * 
+ * Wispr Flow Design System implementation
+ * Features:
+ * - Full-viewport gradient background
+ * - Mascot with entrance animation
+ * - Typography aligned with design system
+ * - CTA buttons with Pulse accents
+ * - Responsive layout
+ */
+
+import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, PlayCircle } from 'lucide-react';
+import { ArrowRight, Play, Sparkles } from 'lucide-react';
 import { Button } from '../ui/button';
-import jp1 from '../../assets/jp1.jpg';
+import { Mascot } from '../ui/Mascot';
+import { useDefaultPalette } from '../../hooks/useLogoColors';
+
+// Animation variants - using type assertion to avoid Framer Motion type issues
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15,
+      delayChildren: 0.2,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut" as const,
+    },
+  },
+};
+
+const heroImageVariants = {
+  hidden: { opacity: 0, scale: 0.9, x: 50 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    x: 0,
+    transition: {
+      duration: 0.8,
+      ease: "easeOut" as const,
+      delay: 0.4,
+    },
+  },
+};
+
+const floatingBadgeVariants = {
+  hidden: { opacity: 0, scale: 0.8 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      duration: 0.5,
+      delay: 0.8,
+    },
+  },
+  float: {
+    y: [0, -8, 0],
+    transition: {
+      duration: 4,
+      repeat: Infinity,
+      ease: "easeInOut" as const,
+    },
+  },
+};
 
 const Hero: React.FC = () => {
   const navigate = useNavigate();
+  const palette = useDefaultPalette();
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    setIsVisible(true);
+  }, []);
 
   return (
-    <div className="relative min-h-[90vh] flex items-center overflow-hidden bg-bg pt-12 md:pt-0 border-b border-border">
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          {/* Text Content */}
-          <div>
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
+    <section 
+      className="relative min-h-[92vh] flex items-center overflow-hidden"
+      style={{
+        background: `
+          linear-gradient(
+            180deg,
+            ${palette.vibrant.rgba(0.08)} 0%,
+            ${palette.muted.rgba(0.05)} 40%,
+            transparent 80%
+          ),
+          var(--color-bg)
+        `,
+      }}
+    >
+      {/* Background Pattern */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30z' fill='none' stroke='%239F88C8' stroke-width='0.5'/%3E%3C/svg%3E")`,
+          backgroundSize: '60px 60px',
+        }}
+      />
+
+      {/* Floating gradient orbs */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-gradient-to-br from-primary/10 to-secondary/5 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-gradient-to-tr from-secondary/10 to-primary/5 blur-3xl pointer-events-none" />
+
+      <div className="container-wispr relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left Column - Content */}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate={isVisible ? "visible" : "hidden"}
+            className="text-center lg:text-left"
+          >
+            {/* Badge */}
+            <motion.div variants={itemVariants} className="mb-6">
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-medium text-sm border border-primary/20">
+                <Sparkles className="w-4 h-4" />
+                <span>AI-Powered Cross-Posting</span>
+              </span>
+            </motion.div>
+
+            {/* Headline */}
+            <motion.h1 
+              variants={itemVariants}
+              className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[0.95] tracking-tight mb-6"
             >
-              <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-black leading-[0.9] mb-4 text-fg uppercase tracking-tighter">
-                Dominate <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary flex items-center gap-4">
-                  Local Markets.
-                  <img src={jp1} alt="Jigglepost" className="h-16 w-16 md:h-24 md:w-24 rounded-full border-4 border-bg shadow-xl animate-bounce" />
+              <span className="block text-foreground">Sell Smarter,</span>
+              <span className="block mt-2">
+                <span className="bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">
+                  Reach Further.
                 </span>
-              </h1>
+              </span>
+            </motion.h1>
+
+            {/* Subheadline */}
+            <motion.p 
+              variants={itemVariants}
+              className="font-body text-lg md:text-xl text-foreground-muted leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0"
+            >
+              Cross-post to Facebook, Craigslist, and OfferUp in one click. 
+              AI writes your descriptions. You focus on what matters — selling.
+            </motion.p>
+
+            {/* CTA Buttons */}
+            <motion.div 
+              variants={itemVariants}
+              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
+            >
+              <Button
+                size="lg"
+                onClick={() => navigate('/signup')}
+                className="relative overflow-hidden bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white font-display font-semibold px-8 py-6 h-auto text-base rounded-xl shadow-lg shadow-primary/25 transition-all duration-300 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 group"
+              >
+                <span className="relative z-10 flex items-center">
+                  Start Free Today
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-2 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 font-display font-semibold px-8 py-6 h-auto text-base rounded-xl transition-all duration-300 hover:-translate-y-0.5"
+              >
+                <Play className="mr-2 w-5 h-5" />
+                Watch Demo
+              </Button>
             </motion.div>
 
+            {/* Social Proof */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              variants={itemVariants}
+              className="flex items-center gap-4 mt-10 justify-center lg:justify-start"
             >
-              <p className="font-ui text-xl text-muted-fg mb-6 max-w-[600px] font-medium leading-relaxed">
-                Cross-post to Facebook, Craigslist, and OfferUp instantly. Manage inventory, track sales, and scale your hustle with AI-powered tools.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-            >
-              <div className="flex flex-wrap gap-4">
-                <Button
-                  size="lg"
-                  onClick={() => navigate('/signup')}
-                  className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity text-white rounded-none border-2 border-transparent uppercase font-bold px-8 py-6 h-auto text-lg"
-                >
-                  Start for Free
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="rounded-none border-2 border-fg text-fg hover:bg-fg hover:text-bg uppercase font-bold px-8 py-6 h-auto text-lg"
-                >
-                  <PlayCircle className="mr-2 h-5 w-5" />
-                  View Demo
-                </Button>
+              <div className="flex -space-x-3">
+                {['S', 'M', 'J', 'K'].map((initial, idx) => (
+                  <div
+                    key={idx}
+                    className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-800 bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center text-xs font-bold text-primary"
+                  >
+                    {initial}
+                  </div>
+                ))}
+              </div>
+              <div className="text-sm">
+                <span className="font-semibold text-foreground">2,500+</span>
+                <span className="text-foreground-muted"> sellers growing daily</span>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
 
-          {/* Visual/Dashboard Mockup */}
-          <div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.4, ease: "circOut" }}
-            >
-              <div className="relative">
-                <div className="relative w-full aspect-[16/10] bg-card rounded-none border-2 border-fg shadow-[12px_12px_0px_currentColor] text-fg overflow-hidden flex flex-col">
-                  {/* Mockup Header */}
-                  <div className="p-3 border-b-2 border-inherit flex gap-2 bg-muted/50">
-                    <div className="w-3 h-3 rounded-none border border-inherit bg-bg" />
-                    <div className="w-3 h-3 rounded-none border border-inherit bg-bg" />
-                    <div className="w-3 h-3 rounded-none border border-inherit bg-bg" />
+          {/* Right Column - Visual */}
+          <motion.div
+            variants={heroImageVariants}
+            initial="hidden"
+            animate={isVisible ? "visible" : "hidden"}
+            className="relative"
+          >
+            {/* Main Dashboard Card */}
+            <div className="relative bg-card rounded-2xl shadow-2xl shadow-primary/10 border border-border/50 overflow-hidden">
+              {/* Browser Chrome */}
+              <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b border-border/50">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                </div>
+                <div className="flex-1 flex justify-center">
+                  <div className="px-12 py-1 bg-background rounded-md text-xs text-foreground-muted font-mono">
+                    jigglepost.com
                   </div>
-                  
-                  {/* Mockup Content */}
-                  <div className="p-6 flex-1 flex gap-4 bg-bg">
-                    {/* Sidebar */}
-                    <div className="w-1/4 border-r-2 border-border pr-4">
-                      <div className="h-5 w-4/5 bg-fg mb-4" />
-                      <div className="h-2.5 w-full bg-muted mb-2" />
-                      <div className="h-2.5 w-full bg-muted mb-2" />
-                      <div className="h-2.5 w-full bg-muted mb-2" />
+                </div>
+              </div>
+
+              {/* Dashboard Preview */}
+              <div className="p-6 bg-background/50">
+                <div className="flex gap-4">
+                  {/* Sidebar */}
+                  <div className="w-48 hidden md:block space-y-3">
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-primary/10">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary" />
+                      <span className="text-sm font-medium text-primary">Dashboard</span>
                     </div>
-                    
-                    {/* Main Area */}
-                    <div className="flex-1 flex flex-col gap-4">
-                      <div className="h-[20%] bg-muted border border-border" />
-                      <div className="flex gap-4 h-[40%]">
-                        <div className="flex-1 bg-primary border border-border opacity-20" />
-                        <div className="flex-1 bg-bg border border-border" />
+                    {['Listings', 'Analytics', 'Connections'].map((item) => (
+                      <div key={item} className="flex items-center gap-3 p-2 text-sm text-foreground-muted">
+                        <div className="w-8 h-8 rounded-lg bg-muted" />
+                        <span>{item}</span>
                       </div>
+                    ))}
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-4">
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: 'Active Listings', value: '42', color: 'from-primary/20 to-primary/5' },
+                        { label: 'Total Views', value: '12.4k', color: 'from-secondary/20 to-secondary/5' },
+                        { label: 'Revenue', value: '$8,420', color: 'from-green-500/20 to-green-500/5' },
+                      ].map((stat) => (
+                        <div key={stat.label} className={`p-4 rounded-xl bg-gradient-to-br ${stat.color} border border-border/30`}>
+                          <div className="text-xs text-foreground-muted mb-1">{stat.label}</div>
+                          <div className="text-xl font-bold font-display text-foreground">{stat.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Listing Cards */}
+                    <div className="space-y-2">
+                      {['iPhone 14 Pro Max', 'Vintage Leather Sofa', 'Mountain Bike'].map((item) => (
+                        <div key={item} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/30">
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-foreground">{item}</div>
+                            <div className="text-xs text-foreground-muted">3 platforms</div>
+                          </div>
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                            <div className="w-2 h-2 rounded-full bg-blue-500" />
+                            <div className="w-2 h-2 rounded-full bg-orange-500" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Floating Badge */}
+            {/* Floating Mascot Badge */}
+            <AnimatePresence>
+              {isVisible && (
                 <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute -bottom-5 -left-5 bg-white p-4 border-2 border-black shadow-[8px_8px_0px_#000] z-20 flex items-center gap-3"
+                  variants={floatingBadgeVariants}
+                  initial="hidden"
+                  animate={["visible", "float"]}
+                  className="absolute -bottom-4 -left-4 md:-bottom-6 md:-left-8 z-20"
                 >
-                  <img src={jp1} alt="Growth" className="h-10 w-10 rounded-full" />
-                  <h6 className="text-black font-black uppercase text-lg">
-                    +127% Growth
-                  </h6>
+                  <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-border">
+                    <Mascot 
+                      variation="happy" 
+                      size="sm" 
+                      animated 
+                      animation="bounce"
+                    />
+                    <div>
+                      <div className="text-xs text-foreground-muted">This month</div>
+                      <div className="text-lg font-bold font-display text-primary">+127% Sales</div>
+                    </div>
+                  </div>
                 </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* AI Badge */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1, duration: 0.5 }}
+              className="absolute -top-4 -right-2 md:-right-4 z-20"
+            >
+              <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-primary to-secondary text-white rounded-lg shadow-lg text-sm font-medium">
+                <Sparkles className="w-4 h-4" />
+                <span>AI Writes For You</span>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         </div>
       </div>
-    </div>
+
+      {/* Bottom gradient fade */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+    </section>
   );
 };
 

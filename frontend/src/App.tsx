@@ -1,7 +1,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import Navbar from './components/Navbar';
+import Header from './components/layout/Header';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Page components
@@ -32,8 +32,8 @@ import Cancel from './pages/payment/Cancel';
 const AppRouter: React.FC = () => {
   return (
     <AuthProvider>
-      <Navbar />
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
+      <Header />
+      <main id="main-content" className="min-h-screen">
         <Routes>
           {/* Public Routes (accessible without authentication) */}
           <Route path="/" element={<Home />} />
