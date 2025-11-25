@@ -4,7 +4,6 @@ import { CheckCircle2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { cn } from '../../lib/utils';
 
 const PricingPreview: React.FC = () => {
   const navigate = useNavigate();

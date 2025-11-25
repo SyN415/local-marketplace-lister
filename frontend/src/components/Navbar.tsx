@@ -7,8 +7,7 @@ import {
   Moon, 
   Sun, 
   Link as LinkIcon, 
-  History,
-  CreditCard
+  History
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useThemeContext } from '../contexts/ThemeContext';
