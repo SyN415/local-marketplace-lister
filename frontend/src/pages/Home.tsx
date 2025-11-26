@@ -1,7 +1,7 @@
 /**
  * Home Page (Landing Page)
- * 
- * Wispr Flow Design System implementation
+ *
+ * Design System implementation
  * Main landing page for unauthenticated users
  */
 

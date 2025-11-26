@@ -1,4 +1,4 @@
-# Wispr Flow: Frontend Development Guide
+# Frontend Development Guide
 ## TypeScript/JavaScript Implementation
 
 ## Table of Contents
@@ -487,7 +487,7 @@ export const Logo: React.FC<LogoProps> = ({
   return (
     <Image
       src={logoSrc}
-      alt="Wispr Flow"
+      alt="Design System"
       width={size}
       height={size}
       priority

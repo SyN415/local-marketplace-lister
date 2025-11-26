@@ -1,10 +1,10 @@
 /**
  * Local Marketplace Lister - Main Stylesheet
- * Using Wispr Flow Design System
+ * Design System
  */
 
-/* Import Wispr Flow Design System */
-@import "./styles/wispr-design-system.css";
+/* Import Design System */
+@import "./styles/design-system.css";
 
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap');
@@ -17,12 +17,12 @@
    ======================================== */
 
 @theme {
-  /* Fonts - Using Wispr Flow typography */
+  /* Fonts */
   --font-display: 'Figtree', system-ui, -apple-system, sans-serif;
   --font-ui: 'Figtree', system-ui, sans-serif;
   --font-body: 'Merriweather', Georgia, serif;
 
-  /* Colors - Wispr Flow Palette */
+  /* Colors */
   --color-primary: #9F88C8;           /* Pulse - Warm Purple */
   --color-primary-50: #FAF8FC;
   --color-primary-100: #F3EEF8;
@@ -175,30 +175,6 @@ h1, h2, h3, h4, h5, h6 {
    COMPONENT UTILITIES
    ======================================== */
 
-/* ---- Cards ---- */
-
-.card-wispr {
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  transition: transform 200ms ease, box-shadow 200ms ease;
-}
-
-.card-wispr:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(25, 21, 33, 0.15);
-}
-
-/* ---- Glass Effect ---- */
-
-.glass-wispr {
-  background: var(--color-glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--color-glass-border);
-}
-
 /* ---- Gradient Backgrounds ---- */
 
 .bg-hero-gradient {
@@ -207,85 +183,6 @@ h1, h2, h3, h4, h5, h6 {
 
 .bg-brand-gradient {
   background: var(--gradient-primary);
-}
-
-/* ---- Buttons ---- */
-
-.btn-wispr-primary {
-  background: var(--gradient-primary);
-  color: white;
-  font-family: var(--font-display);
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  cursor: pointer;
-  transition: all 200ms ease;
-}
-
-.btn-wispr-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(159, 136, 200, 0.4);
-}
-
-.btn-wispr-primary:active {
-  transform: scale(0.98);
-}
-
-.btn-wispr-secondary {
-  background: transparent;
-  color: var(--color-primary);
-  font-family: var(--font-display);
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-sm);
-  border: 2px solid var(--color-primary);
-  cursor: pointer;
-  transition: all 200ms ease;
-}
-
-.btn-wispr-secondary:hover {
-  background: rgba(159, 136, 200, 0.1);
-  transform: translateY(-2px);
-}
-
-/* ---- Section Spacing ---- */
-
-.section-wispr {
-  padding-top: 4rem;
-  padding-bottom: 4rem;
-}
-
-@media (min-width: 768px) {
-  .section-wispr {
-    padding-top: 6rem;
-    padding-bottom: 6rem;
-  }
-}
-
-/* ---- Container ---- */
-
-.container-wispr {
-  width: 100%;
-  max-width: 1280px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
-@media (min-width: 640px) {
-  .container-wispr {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .container-wispr {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
 }
 
 /* ========================================

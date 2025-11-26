@@ -1,4 +1,4 @@
-# Wispr Flow: Comprehensive Style Guide
+# Design System: Comprehensive Style Guide
 
 ## Table of Contents
 1. [Design Philosophy](#design-philosophy)
@@ -16,7 +16,7 @@
 ## Design Philosophy
 
 ### Voice in Motion
-Wispr Flow's design philosophy centers on **Voice in Motion**—capturing the essence of fluid, intuitive expression. The visual language should reflect:
+The design philosophy centers on **Voice in Motion**—capturing the essence of fluid, intuitive expression. The visual language should reflect:
 
 - **Purposeful clarity** over minimalism for its own sake
 - **Editorial warmth** combined with technological sophistication
@@ -304,7 +304,7 @@ easing: ease-in
 
 ### Illustration Style
 
-Based on Wispr Flow's "Voice in Motion" concept:
+Based on the "Voice in Motion" concept:
 
 - **Organic forms**: Fluid, curved lines reflecting speech and flow
 - **Character positioning**: Mid-thought, mid-gesture moments
@@ -397,7 +397,7 @@ Print materials    Logo at 20-50mm width
 ```html
 <!-- Use light logo on dark backgrounds -->
 <header style="background: #191521;">
-  <img src="logo-light.svg" alt="Wispr Flow" style="height: 40px;">
+  <img src="logo-light.svg" alt="Design System" style="height: 40px;">
 </header>
 ```
 
@@ -405,7 +405,7 @@ Print materials    Logo at 20-50mm width
 ```html
 <!-- Use dark logo on light backgrounds -->
 <header style="background: linear-gradient(135deg, #F5F5F5 0%, #D9C2C0 100%);">
-  <img src="logo-dark.svg" alt="Wispr Flow" style="height: 40px;">
+  <img src="logo-dark.svg" alt="Design System" style="height: 40px;">
 </header>
 ```
 

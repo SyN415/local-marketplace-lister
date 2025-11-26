@@ -1,7 +1,7 @@
 /**
  * StatsCards Component
  *
- * Wispr Flow Design System implementation
+ * Design System implementation
  * Features:
  * - Animated stat cards with gradients
  * - Soft corners and shadows

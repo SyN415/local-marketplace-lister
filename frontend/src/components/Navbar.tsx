@@ -78,7 +78,7 @@ const Navbar: React.FC = () => {
           <RouterLink to="/" className="mr-6 flex items-center space-x-2">
             <img
               src={logo}
-              alt="Jigglepost"
+              alt="Jiggly"
               className="h-16 w-auto rounded-sm mix-blend-multiply dark:invert dark:mix-blend-screen"
             />
           </RouterLink>

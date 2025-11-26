@@ -147,7 +147,7 @@ const CraigslistForm: React.FC<CraigslistFormProps> = ({ onSubmit, isLoading, er
             <Info className="h-4 w-4" />
             <AlertTitle>Proxy Email</AlertTitle>
             <AlertDescription>
-              A secure @wispr-flow.com email will be assigned to you after connection.
+              A secure proxy email will be assigned to you after connection.
             </AlertDescription>
           </Alert>
           

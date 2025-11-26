@@ -2,8 +2,7 @@
  * Logo Color Extraction Utility
  * 
  * Extracts dominant colors from logo images to create
- * dynamic, cohesive backgrounds and accents aligned with
- * the Wispr Flow design system.
+ * dynamic, cohesive backgrounds and accents for the design system.
  */
 
 export interface ColorRGB {

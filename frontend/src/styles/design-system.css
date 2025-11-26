@@ -1,8 +1,6 @@
 /**
- * Wispr Flow Design System
+ * Design System
  * Complete CSS Custom Properties & Base Styles
- * 
- * Philosophy: "Voice in Motion" - Fluid, intuitive, joyful UI
  */
 
 /* ========================================
@@ -482,9 +480,9 @@ a:focus-visible {
 .shadow-card { box-shadow: var(--shadow-card); }
 
 /* ---- Border Radius ---- */
-.rounded-wispr { border-radius: var(--radius-sm); }
-.rounded-wispr-md { border-radius: var(--radius-md); }
-.rounded-wispr-lg { border-radius: var(--radius-lg); }
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
 
 /* ---- Glassmorphism ---- */
 .glass {
@@ -500,7 +498,7 @@ a:focus-visible {
 }
 
 /* ---- Container ---- */
-.container-wispr {
+.container {
   width: 100%;
   max-width: var(--container-xl);
   margin-left: auto;
@@ -510,14 +508,14 @@ a:focus-visible {
 }
 
 @media (min-width: 640px) {
-  .container-wispr {
+  .container {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
   }
 }
 
 @media (min-width: 1024px) {
-  .container-wispr {
+  .container {
     padding-left: var(--space-5);
     padding-right: var(--space-5);
   }

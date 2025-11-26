@@ -1,4 +1,4 @@
-# Wispr Flow: Quick Reference & Cheatsheet
+# Design System: Quick Reference & Cheatsheet
 
 ## Brand Colors Quick Access
 
@@ -270,7 +270,7 @@ npm run test:watch      # Watch mode
 
 ## Links & Resources
 
-- **Design System**: Built on "Voice in Motion" concept
+- **Design System**
 - **Fonts**: Figtree (display), Merriweather (body)
 - **Tools**: Next.js, TypeScript, Tailwind CSS
 - **Accessibility**: WCAG 2.1 AAA compliance
@@ -297,4 +297,4 @@ A: Use strategically for section transitions. Avoid overuse—preserve white spa
 
 **Version**: 1.0
 **Last Updated**: November 2025
-**Maintainer**: Wispr Flow Design System Team
+**Maintainer**: Design System Team

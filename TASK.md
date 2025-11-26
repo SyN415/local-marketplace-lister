@@ -435,14 +435,14 @@ Completed the dedicated Frontend UI for managing external platform connections a
 - [x] Updated **Backend API** for connection management and added endpoints to retrieve posting status data efficiently.
 - [x] Enabled **Realtime Status Updates** for job posts via polling/subscription hook, reflecting current platform state.
  
-### November 25, 2025 - Complete UI/UX Overhaul with Wispr Flow Design System 🎨
+### November 25, 2025 - Complete UI/UX Overhaul with Design System 🎨
 **Session Summary:**
-Implemented a comprehensive UI/UX overhaul of the entire frontend, aligning with the Wispr Flow design system. This includes a complete theming infrastructure, logo-extracted color palettes, mascot integration, and overhauled landing page components following the "Voice in Motion" philosophy.
+Implemented a comprehensive UI/UX overhaul of the entire frontend, aligning with the Design System. This includes a complete theming infrastructure, logo-extracted color palettes, mascot integration, and overhauled landing page components following the "Voice in Motion" philosophy.
 
 **Design System Implementation:**
 
 1. **CSS Custom Properties & Theming Infrastructure**
-   - Created `/frontend/src/styles/wispr-design-system.css` (479 lines) with complete CSS Custom Properties
+   - Created `/frontend/src/styles/design-system.css` (479 lines) with complete CSS Custom Properties
    - Color palette: Lumen (#F5F5F5), Void (#191521), Pulse (#9F88C8), Drift (#D9C2C0), Dawn (#524F58), Calm (#4CAF50)
    - Typography: Figtree (headings), Merriweather (body), System fonts (UI)
    - 8px base spacing unit system, soft corners (12-24px radius)
@@ -531,7 +531,7 @@ Implemented a comprehensive UI/UX overhaul of the entire frontend, aligning with
 - Integrated theme context for dark/light mode
 
 **Completed Tasks:**
-- [x] Setup CSS Custom Properties from Wispr Flow Style Guide
+- [x] Setup CSS Custom Properties from Design System Style Guide
 - [x] Implement dark/light mode toggle with localStorage persistence
 - [x] Create color extraction utility (`/utils/logoColors.ts`)
 - [x] Create useLogoColors hook for React integration
@@ -550,7 +550,7 @@ Implemented a comprehensive UI/UX overhaul of the entire frontend, aligning with
 - [x] Implement `prefers-reduced-motion` support
 
 **Files Created:**
-- `frontend/src/styles/wispr-design-system.css`
+- `frontend/src/styles/design-system.css`
 - `frontend/src/utils/logoColors.ts`
 - `frontend/src/hooks/useLogoColors.ts`
 - `frontend/src/components/ui/Mascot.tsx`
@@ -578,9 +578,9 @@ Implemented a comprehensive UI/UX overhaul of the entire frontend, aligning with
 
 ---
 
-### November 25, 2025 - Dashboard Page Redesign with Wispr Flow 📊
+### November 25, 2025 - Dashboard Page Redesign with Design System 📊
 **Session Summary:**
-Completed a comprehensive redesign of the Dashboard page following the Wispr Flow design system. The overhaul includes a new welcome section with mascot, quick actions grid, animated stat cards, and improved recent listings display.
+Completed a comprehensive redesign of the Dashboard page following the Design System. The overhaul includes a new welcome section with mascot, quick actions grid, animated stat cards, and improved recent listings display.
 
 **Design System Implementation:**
 
@@ -616,7 +616,7 @@ Completed a comprehensive redesign of the Dashboard page following the Wispr Flo
 - Smooth transitions on state changes
 
 **Completed Tasks:**
-- [x] Redesign Dashboard.tsx with welcome section, quick actions, and Wispr Flow styling
+- [x] Redesign Dashboard.tsx with welcome section, quick actions, and Design System styling
 - [x] Update StatsCards.tsx with gradient cards, animations, and soft corners
 - [x] Update RecentListings.tsx with images, mascot empty state, and animations
 - [x] Add Framer Motion animations throughout

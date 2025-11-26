@@ -1,7 +1,5 @@
 /**
  * Header Component
- * 
- * Wispr Flow Design System implementation
  * Features:
  * - Sticky navigation with glass effect
  * - Mobile hamburger menu
@@ -159,7 +157,7 @@ const Header: React.FC = () => {
             : 'bg-transparent'
         )}
       >
-        <div className="container-wispr">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
             <RouterLink
@@ -171,7 +169,7 @@ const Header: React.FC = () => {
               <div className="relative">
                 <img
                   src={logo}
-                  alt="Jigglepost"
+                  alt="Jiggly"
                   className={cn(
                     'h-10 w-10 md:h-12 md:w-12 rounded-xl object-cover',
                     'border-2 border-primary/20 group-hover:border-primary/40',
@@ -190,14 +188,14 @@ const Header: React.FC = () => {
                     >
                       <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-border whitespace-nowrap">
                         <Mascot variation="happy" size="xs" animated={false} />
-                        <span className="text-sm font-medium text-foreground">Jigglepost</span>
+                        <span className="text-sm font-medium text-foreground">Jiggly</span>
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
               <span className="hidden sm:block font-display font-bold text-lg text-foreground">
-                Jigglepost
+                Jiggly
               </span>
             </RouterLink>
 

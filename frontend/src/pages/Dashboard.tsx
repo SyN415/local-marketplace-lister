@@ -1,7 +1,7 @@
 /**
  * Dashboard Page
  *
- * Wispr Flow Design System implementation
+ * Design System implementation
  * Features:
  * - Welcome section with user greeting and mascot
  * - Quick actions for common tasks
@@ -128,7 +128,7 @@ const Dashboard: React.FC = () => {
         }}
       />
 
-      <div className="container-wispr py-6 md:py-10">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
         <motion.div
           variants={containerVariants}
           initial="hidden"

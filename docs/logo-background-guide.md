@@ -1,5 +1,5 @@
 # Logo-to-Background Integration Guide
-## Advanced Techniques for Wispr Flow
+## Advanced Techniques
 
 ## Overview
 
@@ -577,7 +577,7 @@ export const HeaderWithLogoAccent: React.FC = () => {
       >
         <Image
           src="/logo-dark.svg"
-          alt="Wispr Flow"
+          alt="Design System"
           width={48}
           height={48}
         />
@@ -667,13 +667,13 @@ export const FullBleedHeader: React.FC = () => {
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         <Image
           src="/logo-light.svg"
-          alt="Wispr Flow"
+          alt="Design System"
           width={48}
           height={48}
           style={{ filter: 'brightness(1.2)' }}
         />
         <h1 style={{ color: '#F5F5F5', marginTop: '1rem' }}>
-          Welcome to Wispr Flow
+          Welcome to Design System
         </h1>
       </div>
     </header>

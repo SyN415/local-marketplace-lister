@@ -1,7 +1,7 @@
 /**
  * Pricing Preview Section Component
- * 
- * Wispr Flow Design System implementation
+ *
+ * Design System implementation
  * Features:
  * - Credit-based pricing display
  * - Gradient cards with hover effects
@@ -206,8 +206,8 @@ const PricingPreview: React.FC = () => {
   const palette = useDefaultPalette();
 
   return (
-    <section 
-      className="section-wispr relative overflow-hidden"
+    <section
+      className="py-16 md:py-24 relative overflow-hidden"
       style={{
         background: `
           linear-gradient(
@@ -228,7 +228,7 @@ const PricingPreview: React.FC = () => {
         }}
       />
 
-      <div className="container-wispr relative">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

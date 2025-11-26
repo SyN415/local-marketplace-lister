@@ -1,7 +1,7 @@
 /**
  * Trust/Testimonials Section Component
- * 
- * Wispr Flow Design System implementation
+ *
+ * Design System implementation
  * Features:
  * - Testimonial cards with glass effect
  * - Star ratings
@@ -32,7 +32,7 @@ const testimonials: Testimonial[] = [
   {
     name: 'Sarah Johnson',
     role: 'Power Seller • $50k+ Sales',
-    content: "I used to spend hours posting to different sites. Now it takes me 5 minutes. My sales have literally doubled since I started using Jigglepost. It's a game-changer.",
+    content: "I used to spend hours posting to different sites. Now it takes me 5 minutes. My sales have literally doubled since I started using Jiggly. It's a game-changer.",
     avatar: 'SJ',
     rating: 5,
     gradient: 'from-violet-500 to-purple-600',
@@ -152,8 +152,8 @@ const Trust: React.FC = () => {
   const palette = useDefaultPalette();
 
   return (
-    <section 
-      className="section-wispr relative overflow-hidden"
+    <section
+      className="py-16 md:py-24 relative overflow-hidden"
       style={{
         background: `
           linear-gradient(
@@ -169,7 +169,7 @@ const Trust: React.FC = () => {
       <div className="absolute top-1/4 right-0 w-96 h-96 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 left-0 w-80 h-80 rounded-full bg-gradient-to-tr from-secondary/5 to-primary/5 blur-3xl pointer-events-none" />
 
-      <div className="container-wispr relative">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -194,7 +194,7 @@ const Trust: React.FC = () => {
           </h2>
 
           <p className="font-body text-lg md:text-xl text-foreground-muted max-w-2xl mx-auto">
-            Join thousands of sellers who are scaling their local marketplace business with Jigglepost.
+            Join thousands of sellers who are scaling their local marketplace business with Jiggly.
           </p>
         </motion.div>
 

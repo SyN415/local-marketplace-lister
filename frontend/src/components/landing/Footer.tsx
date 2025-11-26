@@ -1,7 +1,7 @@
 /**
  * Footer Component
- * 
- * Wispr Flow Design System implementation
+ *
+ * Design System implementation
  * Features:
  * - Patterned background from logo colors
  * - Sleepy mascot variation
@@ -129,7 +129,7 @@ const Footer: React.FC = () => {
 
       {/* Newsletter Section */}
       <div className="border-b border-border/50">
-        <div className="container-wispr py-12 md:py-16">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="flex items-center gap-4 text-center md:text-left">
               <Mascot variation="sleepy" size="md" animated animation="float" />
@@ -183,21 +183,21 @@ const Footer: React.FC = () => {
       </div>
 
       {/* Main Footer Content */}
-      <div className="container-wispr py-12 md:py-16">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="grid grid-cols-2 md:grid-cols-6 gap-8 lg:gap-12">
           {/* Brand Column */}
           <div className="col-span-2">
             <Link to="/" className="inline-flex items-center gap-3 mb-6">
               <img
                 src={logo}
-                alt="Jigglepost"
+                alt="Jiggly"
                 className="h-12 w-12 rounded-xl object-cover border-2 border-primary/20"
               />
-              <span className="font-display text-xl font-bold text-foreground">Jigglepost</span>
+              <span className="font-display text-xl font-bold text-foreground">Jiggly</span>
             </Link>
             
             <p className="font-body text-foreground-muted mb-6 max-w-xs leading-relaxed">
-              The ultimate cross-posting tool for local marketplace sellers. 
+              The ultimate cross-posting tool for local marketplace sellers.
               Sell smarter, reach further.
             </p>
 
@@ -274,10 +274,10 @@ const Footer: React.FC = () => {
 
       {/* Bottom Bar */}
       <div className="border-t border-border/50">
-        <div className="container-wispr py-6">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-foreground-muted">
             <div className="flex items-center gap-1">
-              <span>© {new Date().getFullYear()} Jigglepost. Made with</span>
+              <span>© {new Date().getFullYear()} Jiggly. Made with</span>
               <Heart className="w-4 h-4 text-red-500 fill-red-500" />
               <span>for sellers</span>
             </div>

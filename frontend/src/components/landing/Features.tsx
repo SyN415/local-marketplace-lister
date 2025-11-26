@@ -1,7 +1,7 @@
 /**
  * Features Section Component
- * 
- * Wispr Flow Design System implementation
+ *
+ * Design System implementation
  * Features:
  * - Grid layout with logo-styled cards
  * - Mascot icons per feature
@@ -167,8 +167,8 @@ const Features: React.FC = () => {
   const palette = useDefaultPalette();
 
   return (
-    <section 
-      className="section-wispr relative overflow-hidden"
+    <section
+      className="py-16 md:py-24 relative overflow-hidden"
       style={{
         background: `
           linear-gradient(
@@ -189,7 +189,7 @@ const Features: React.FC = () => {
         }}
       />
 
-      <div className="container-wispr relative">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -241,7 +241,7 @@ const Features: React.FC = () => {
             <Mascot variation="excited" size="sm" animated animation="bounce" />
             <div className="text-left">
               <div className="font-display font-bold text-foreground">Ready to get started?</div>
-              <div className="text-sm text-foreground-muted">Join 2,500+ sellers already using Jigglepost</div>
+              <div className="text-sm text-foreground-muted">Join 2,500+ sellers already using Jiggly</div>
             </div>
             <motion.button
               whileHover={{ scale: 1.05 }}

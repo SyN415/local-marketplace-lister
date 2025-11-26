@@ -30,7 +30,7 @@ interface UseLogoColorsReturn {
   refresh: () => void;
 }
 
-const CACHE_KEY = 'wispr-logo-palette';
+const CACHE_KEY = 'logo-palette';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 /**

@@ -1,7 +1,7 @@
 /**
  * Hero Section Component
- * 
- * Wispr Flow Design System implementation
+ *
+ * Design System implementation
  * Features:
  * - Full-viewport gradient background
  * - Mascot with entrance animation
@@ -113,7 +113,7 @@ const Hero: React.FC = () => {
       <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-gradient-to-br from-primary/10 to-secondary/5 blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-gradient-to-tr from-secondary/10 to-primary/5 blur-3xl pointer-events-none" />
 
-      <div className="container-wispr relative z-10">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left Column - Content */}
           <motion.div
@@ -218,7 +218,7 @@ const Hero: React.FC = () => {
                 </div>
                 <div className="flex-1 flex justify-center">
                   <div className="px-12 py-1 bg-background rounded-md text-xs text-foreground-muted font-mono">
-                    jigglepost.com
+                    jiggly.com
                   </div>
                 </div>
               </div>

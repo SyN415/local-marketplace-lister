@@ -1,7 +1,7 @@
 /**
  * RecentListings Component
  *
- * Wispr Flow Design System implementation
+ * Design System implementation
  * Features:
  * - Animated listing items
  * - Image thumbnails with fallback
