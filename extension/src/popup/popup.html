@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Marketplace Lister</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h2>Cross-Lister</h2>
+    <div id="connectionStatus" class="connection-status">Disconnected</div>
+  </header>
+
+  <main>
+    <!-- Listing Queue Section -->
+    <div class="section">
+      <span class="section-title">Current Listing</span>
+      <div id="queueContainer">
+        <!-- Will be populated by JS -->
+        <div class="empty-state">No listing loaded</div>
+      </div>
+    </div>
+
+    <!-- Platform Selection -->
+    <div class="section">
+      <span class="section-title">Target Platforms</span>
+      <div class="platform-options">
+        <label class="checkbox-label">
+          <input type="checkbox" id="fbCheckbox" value="facebook" checked>
+          Facebook Marketplace
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="clCheckbox" value="craigslist" checked>
+          Craigslist
+        </label>
+      </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div id="progressSection" class="progress-container">
+      <div class="progress-bar-bg">
+        <div id="progressBar" class="progress-bar-fill"></div>
+      </div>
+      <div id="statusText" class="status-text">Ready to post</div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button id="postBtn" class="btn-primary" disabled>Start Posting</button>
+      <button id="stopBtn" class="btn-danger">Stop</button>
+    </div>
+
+    <div class="footer-links">
+      <a id="openDashboard" class="footer-link">Open Dashboard</a>
+      <a id="openSettings" class="footer-link">Settings</a>
+    </div>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+body {
+  width: 350px;
+  padding: 0;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f9fafb;
+  color: #1f2937;
+}
+
+header {
+  background-color: #ffffff;
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.connection-status {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  background-color: #fee2e2;
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.connection-status.connected {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+main {
+  padding: 16px;
+}
+
+.section {
+  margin-bottom: 20px;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 10px;
+  display: block;
+}
+
+/* Queue Section */
+.queue-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.queue-item:last-child {
+  margin-bottom: 0;
+}
+
+.queue-info {
+  flex: 1;
+}
+
+.queue-title {
+  font-size: 13px;
+  font-weight: 500;
+  display: block;
+}
+
+.queue-price {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Platform Selection */
+.platform-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  margin-right: 8px;
+}
+
+/* Progress Section */
+.progress-container {
+  display: none; /* Hidden by default */
+  margin-top: 10px;
+}
+
+.progress-container.active {
+  display: block;
+}
+
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.status-text {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  background-color: #4f46e5;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #4338ca;
+}
+
+.btn-primary:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e7eb;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  display: none; /* Hidden by default */
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+/* Footer links */
+.footer-links {
+  margin-top: 15px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.footer-link {
+  color: #6b7280;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.footer-link:hover {
+  color: #111827;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 13px;
+  color: #9ca3af;
+}

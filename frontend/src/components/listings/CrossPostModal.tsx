@@ -22,11 +22,13 @@ import {
 } from '@mui/icons-material';
 import { connectionsAPI, postingsAPI } from '../../services/api';
 import type { MarketplaceConnection, MarketplacePlatform } from '../../types';
+import { useExtension } from '../../hooks/useExtension';
+import type { ListingsListItem } from '../../types/listings';
 
 interface CrossPostModalProps {
   open: boolean;
   onClose: () => void;
-  listingId: string;
+  listing: ListingsListItem; // Changed from listingId to full object to avoid extra fetch
   onSuccess?: () => void;
 }
 
@@ -48,12 +50,15 @@ const PLATFORM_ICONS: Record<MarketplacePlatform, React.ReactNode> = {
   craigslist: <PublicIcon color="secondary" />,
 };
 
-const CrossPostModal: React.FC<CrossPostModalProps> = ({ open, onClose, listingId, onSuccess }) => {
+const CrossPostModal: React.FC<CrossPostModalProps> = ({ open, onClose, listing, onSuccess }) => {
   const [connections, setConnections] = useState<MarketplaceConnection[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Extension hook
+  const { isInstalled, postListing } = useExtension();
 
   useEffect(() => {
     if (open) {
@@ -90,11 +95,31 @@ const CrossPostModal: React.FC<CrossPostModalProps> = ({ open, onClose, listingI
     try {
       setPublishing(true);
       setError(null);
+
+      // Use extension if installed and using supported platforms
+      // Currently, extension supports Facebook and Craigslist automation
+      // We can mix extension vs backend later, but for this phase we'll try extension first
+      if (isInstalled) {
+        // Send to extension
+        // Note: Currently handling one platform at a time in extension UI flow,
+        // but we'll loop here to queue them up or just take the first one.
+        // For Phase 4, let's assume one-at-a-time or just the first selected.
+        
+        for (const platform of selectedPlatforms) {
+           await postListing(listing, platform);
+        }
+        
+        // We consider it "initiated" successfully
+        if (onSuccess) onSuccess();
+        onClose();
+      } else {
+        // Fallback to old backend method (or show error if backend support is removed)
+        await postingsAPI.publishListing(listing.id, selectedPlatforms);
+        
+        if (onSuccess) onSuccess();
+        onClose();
+      }
       
-      await postingsAPI.publishListing(listingId, selectedPlatforms);
-      
-      if (onSuccess) onSuccess();
-      onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to publish listing');
     } finally {
@@ -127,6 +152,12 @@ const CrossPostModal: React.FC<CrossPostModalProps> = ({ open, onClose, listingI
           </Box>
         ) : (
           <>
+            {!isInstalled && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Install the Chrome Extension for automated posting!
+              </Alert>
+            )}
+            
             <Typography variant="subtitle2" gutterBottom color="text.secondary">
               Select platforms to post to:
             </Typography>
