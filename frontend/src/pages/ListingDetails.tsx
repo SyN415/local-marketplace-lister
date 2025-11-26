@@ -115,7 +115,7 @@ const ListingDetails: React.FC = () => {
       <CrossPostModal
         open={crossPostModalOpen}
         onClose={() => setCrossPostModalOpen(false)}
-        listingId={id || ''}
+        listing={listing}
         onSuccess={fetchJobStatus}
       />
 

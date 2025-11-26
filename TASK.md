@@ -133,3 +133,8 @@ The Client-Side Extension Upgrade is now fully complete. All phases from core re
 **Changes Implemented:**
 *   Fixed syntax error in `extension/src/popup/popup.js` where a string literal was unterminated (`.replace(/"/g, """)`).
 *   Updated `escapeHtml` function to correctly escape special characters using HTML entities.
+
+### 2025-11-26: Bug Fix - Build Error in ListingDetails
+
+**Changes Implemented:**
+*   Fixed TypeScript error in `frontend/src/pages/ListingDetails.tsx` where `CrossPostModal` was receiving `listingId` instead of the full `listing` object.
