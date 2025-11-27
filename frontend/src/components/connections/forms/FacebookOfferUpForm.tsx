@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Button,
   Stack,
@@ -6,7 +6,6 @@ import {
   Typography,
   Box,
 } from '@mui/material';
-import { CloudUpload, Description } from '@mui/icons-material';
 import type { CreateConnectionData, MarketplacePlatform } from '../../../types/index';
 
 import { Extension } from '@mui/icons-material';
