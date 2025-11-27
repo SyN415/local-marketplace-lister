@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from './button';
 import { Mascot } from './Mascot';
 import { cn } from '../../lib/utils';
-import { Home, RefreshCw, ArrowLeft, AlertTriangle, XCircle } from 'lucide-react';
+import { Home, RefreshCw, ArrowLeft, XCircle } from 'lucide-react';
 
 export interface ErrorStateProps {
   /** Error title */

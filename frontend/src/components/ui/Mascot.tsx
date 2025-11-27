@@ -1,18 +1,21 @@
 import React from 'react';
 import type { CSSProperties } from 'react';
-import { motion, type HTMLMotionProps, type TargetAndTransition, type VariantLabels } from 'framer-motion';
+import { motion, type HTMLMotionProps } from 'framer-motion';
 
-export type MascotVariant = 'happy' | 'superhero' | 'cries' | 'sleepy' | 'vampire' | 'santa';
-export type MascotSize = 'sm' | 'md' | 'lg' | 'xl' | number;
+export type MascotVariant = 'happy' | 'superhero' | 'cries' | 'sleepy' | 'vampire' | 'santa' | 'sad' | 'excited';
+export type MascotVariation = MascotVariant;
+export type MascotSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
 export type MascotAnimation = 'bounce' | 'pulse' | 'float' | 'shake' | 'none';
 
 interface MascotProps extends Omit<HTMLMotionProps<"img">, 'size' | 'style'> {
   variant?: MascotVariant;
+  variation?: string | MascotVariant;
   size?: MascotSize;
   animated?: boolean;
   animation?: MascotAnimation;
   frame?: number; // Custom frame override
   style?: CSSProperties;
+  responsive?: boolean;
 }
 
 // Map variants to specific frames (using approximate indices from the sprite sheet)
@@ -24,6 +27,8 @@ const VARIANT_FRAMES: Record<MascotVariant, number[]> = {
   sleepy: [12, 13, 14, 15], // Idle/loading frames
   vampire: [16, 17, 18, 19], // Warning/rate-limit frames
   santa: [20, 21, 22, 23], // Seasonal frames
+  sad: [8, 9, 10, 11], // Alias for cries
+  excited: [0, 1, 2, 3], // Alias for happy
 };
 
 const ANIMATIONS = {
@@ -66,6 +71,7 @@ const ANIMATIONS = {
 const getSize = (size: MascotSize): number => {
   if (typeof size === 'number') return size;
   switch (size) {
+    case 'xs': return 24;
     case 'sm': return 32;
     case 'md': return 64;
     case 'lg': return 128;
@@ -76,31 +82,35 @@ const getSize = (size: MascotSize): number => {
 
 export const Mascot: React.FC<MascotProps> = ({
   variant = 'happy',
+  variation,
   size = 'md',
   animated = false,
   animation = 'none',
   frame,
   className,
   style,
+  responsive,
   ...props
 }) => {
   // Determine frame index
   let frameIndex = 0;
   
+  const actualVariant = (variation as MascotVariant) || variant;
+
   // Use Christmas variant if available and not overridden
   // Note: This relies on the parent component or context to trigger re-renders if needed
   const isChristmas = typeof window !== 'undefined' &&
     document.documentElement.classList.contains('theme-christmas') &&
-    variant === 'happy'; // Only override happy mascots for now
+    actualVariant === 'happy'; // Only override happy mascots for now
 
-  const effectiveVariant = isChristmas ? 'santa' : variant;
+  const effectiveVariant = isChristmas ? 'santa' : actualVariant;
 
   if (typeof frame === 'number') {
     frameIndex = frame;
   } else {
     // Pick a random frame from the variant set or cycle through them
     // For now, just picking the first one
-    const frames = VARIANT_FRAMES[effectiveVariant] || VARIANT_FRAMES['happy'];
+    const frames = VARIANT_FRAMES[effectiveVariant as MascotVariant] || VARIANT_FRAMES['happy'];
     frameIndex = frames[0];
   }
 
@@ -115,10 +125,12 @@ export const Mascot: React.FC<MascotProps> = ({
   // @ts-ignore - Framer motion types are complex
   const animateProp = animated ? ANIMATIONS[animationKey] : undefined;
 
+  const containerStyle = responsive ? style : { width: pixelSize, height: pixelSize, ...style };
+
   return (
     <div
       className={`relative inline-block ${className || ''}`}
-      style={{ width: pixelSize, height: pixelSize, ...style }}
+      style={containerStyle}
     >
       <picture>
         <source srcSet={webpSrc} type="image/webp" />
