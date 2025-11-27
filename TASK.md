@@ -149,4 +149,30 @@ The Client-Side Extension Upgrade is now fully complete. All phases from core re
 *   **Manifest Update (`extension/manifest.json`):**
     *   Added `*://*.onrender.com/*` to `host_permissions` and `content_scripts` matches.
 *   **Popup Update (`extension/src/popup/popup.js`):**
+### 2025-11-26: Phase 7 - Database Migration Fixes
+
+**Issues Identified:**
+1.  **Backend SQL Errors:** Application was failing with `relation "email_proxy_pool" does not exist` and `relation "email_proxy_assignments" does not exist`.
+2.  **Missing Migrations:** The migrations created on 2025-11-25 had not been applied to the Supabase database.
+
+**Changes Implemented:**
+*   **Applied Migrations:** Manually executed the following migrations in order via Supabase MCP:
+    1.  `20251125000001_email_proxy_pool.sql` (Proxy Pool Table)
+    2.  `20251125000002_email_proxy_assignments.sql` (Assignments Table)
+    3.  `20251125000003_email_logs.sql` (Email Logs Table)
+    4.  `20251125000004_enhance_marketplace_connections.sql` (Schema Enhancements)
+    5.  `20251125000005_enhance_posting_jobs.sql` (Job Enhancements)
+    6.  `20251125000006_proxy_count_functions.sql` (Utility Functions)
+*   **Verification:** Confirmed tables exist using SQL query.
+
+**Current State:**
+*   **Database:** Schema is now fully up-to-date and consistent with the codebase.
+*   **Backend:** SQL errors related to missing tables should now be resolved.
     *   Updated "Open Dashboard" link to point to production URL (`https://local-marketplace-backend-wr5e.onrender.com/dashboard`).
+### 2025-11-27: Phase 8 - Legacy Cleanup & User Credits
+
+**Changes Implemented:**
+*   **Frontend (Legacy Removal):** Removed the manual `cookies.json` file upload from `FacebookOfferUpForm.tsx`. Replaced it with instructions to use the Chrome Extension and a more user-friendly interface.
+*   **Extension Logic:** Updated `frontend/src/pages/ListingDetails.tsx` to automatically send listing data to the extension when the page loads (using `useEffect` and `postListing`), ensuring the extension context is always populated ("Ready" status).
+*   **Database:** Created migration `supabase/migrations/20251127000001_update_test_credits.sql` to give all existing users 100 credits for testing.
+*   **Migration Applied:** Successfully applied `20251127000001_update_test_credits.sql` to production database. Verified that user profiles now have 100 credits.

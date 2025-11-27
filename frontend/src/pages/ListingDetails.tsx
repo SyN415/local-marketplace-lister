@@ -31,6 +31,7 @@ import {
   Share as ShareIcon
 } from '@mui/icons-material';
 import { useGetListing, useDeleteListing } from '../hooks/useListings';
+import { useExtension } from '../hooks/useExtension';
 import CrossPostModal from '../components/listings/CrossPostModal';
 import { postingsAPI } from '../services/api';
 import type { PostingJob, MarketplacePlatform } from '../types';
@@ -50,6 +51,19 @@ const ListingDetails: React.FC = () => {
 
   const { data: listing, isLoading, error } = useGetListing(id || '');
   const deleteMutation = useDeleteListing(id || '');
+  const { isInstalled, postListing } = useExtension();
+
+  // Send listing data to extension when listing is loaded and extension is ready
+  useEffect(() => {
+    if (listing && isInstalled) {
+      // Send listing data to extension context
+      // We use 'preview' as a pseudo-platform to just load the data into the extension's state
+      // without actually triggering a post action immediately
+      postListing(listing, 'preview').catch(err => {
+        console.log('Failed to send listing to extension:', err);
+      });
+    }
+  }, [listing, isInstalled, postListing]);
 
   useEffect(() => {
     if (id) {
