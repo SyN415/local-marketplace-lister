@@ -21,14 +21,14 @@ interface MascotProps extends Omit<HTMLMotionProps<"img">, 'size' | 'style'> {
 // Map variants to specific frames (using approximate indices from the sprite sheet)
 // These would need to be fine-tuned based on the actual sprite sheet layout
 const VARIANT_FRAMES: Record<MascotVariant, number[]> = {
-  happy: [0, 1, 2, 3], // Default happy frames
-  superhero: [4, 5, 6, 7], // Action/success frames
-  cries: [8, 9, 10, 11], // Error/sad frames
-  sleepy: [12, 13, 14, 15], // Idle/loading frames
-  vampire: [16, 17, 18, 19], // Warning/rate-limit frames
-  santa: [20, 21, 22, 23], // Seasonal frames
-  sad: [8, 9, 10, 11], // Alias for cries
-  excited: [0, 1, 2, 3], // Alias for happy
+  happy: [45, 201], // Default happy frames (remapped to available common assets)
+  superhero: [242, 329], // Action/success frames
+  cries: [362, 448], // Error/sad frames
+  sleepy: [475, 550], // Idle/loading frames
+  vampire: [677, 764], // Warning/rate-limit frames
+  santa: [81], // Seasonal frames
+  sad: [362, 448], // Alias for cries
+  excited: [45, 201], // Alias for happy
 };
 
 const ANIMATIONS = {
