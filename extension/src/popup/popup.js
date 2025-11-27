@@ -29,7 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
     postBtn.addEventListener('click', startPosting);
     stopBtn.addEventListener('click', stopPosting);
     openDashboard.addEventListener('click', () => {
-        chrome.tabs.create({ url: 'http://localhost:5173/dashboard' });
+        // Use production URL if not running locally, or make configurable
+        // For now, default to the production URL as requested for the fix
+        chrome.tabs.create({ url: 'https://local-marketplace-backend-wr5e.onrender.com/dashboard' });
     });
   }
 

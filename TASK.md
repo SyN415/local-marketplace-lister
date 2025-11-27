@@ -138,3 +138,15 @@ The Client-Side Extension Upgrade is now fully complete. All phases from core re
 
 **Changes Implemented:**
 *   Fixed TypeScript error in `frontend/src/pages/ListingDetails.tsx` where `CrossPostModal` was receiving `listingId` instead of the full `listing` object.
+### 2025-11-26: Phase 6 - Production Debugging (Render Deployment)
+
+**Issues Identified:**
+1.  **Backend SQL Errors:** Missing columns (`contact_email`) and tables (`email_proxy_assignments`) in production database. Migrations `20251125000004` and `20251125000002` need to be applied.
+2.  **Extension Configuration:** `manifest.json` restricted bridge script to `localhost`, preventing communication with production Render app.
+3.  **Extension Logic:** "No listing loaded" due to bridge script not running on production domain.
+
+**Changes Implemented:**
+*   **Manifest Update (`extension/manifest.json`):**
+    *   Added `*://*.onrender.com/*` to `host_permissions` and `content_scripts` matches.
+*   **Popup Update (`extension/src/popup/popup.js`):**
+    *   Updated "Open Dashboard" link to point to production URL (`https://local-marketplace-backend-wr5e.onrender.com/dashboard`).

@@ -13,7 +13,8 @@
     "*://*.facebook.com/*",
     "*://*.craigslist.org/*",
     "*://*.offerup.com/*",
-    "*://*.supabase.co/*"
+    "*://*.supabase.co/*",
+    "*://*.onrender.com/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html"
@@ -41,7 +42,8 @@
     {
       "matches": [
         "http://localhost/*",
-        "http://127.0.0.1/*"
+        "http://127.0.0.1/*",
+        "https://*.onrender.com/*"
       ],
       "js": [
         "src/content/bridge.js"
