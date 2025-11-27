@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Alert, Container } from '@mui/material';
 import { connectionsAPI } from '../../services/api';
+import { Mascot } from '../ui/Mascot';
 
 const FacebookCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -52,6 +53,7 @@ const FacebookCallback: React.FC = () => {
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
         {status === 'loading' && (
           <>
+            <Mascot variant="sleepy" size="xl" animated animation="pulse" />
             <CircularProgress size={60} />
             <Typography variant="h6">Completing Facebook connection...</Typography>
           </>
@@ -59,6 +61,7 @@ const FacebookCallback: React.FC = () => {
 
         {status === 'success' && (
           <>
+            <Mascot variant="superhero" size="xl" animated animation="bounce" />
             <Alert severity="success" sx={{ width: '100%' }}>
               Facebook connected successfully! Redirecting...
             </Alert>
@@ -68,6 +71,7 @@ const FacebookCallback: React.FC = () => {
 
         {status === 'error' && (
           <>
+            <Mascot variant="cries" size="xl" animated animation="shake" />
             <Alert severity="error" sx={{ width: '100%' }}>
               {error || 'An error occurred during connection'}
             </Alert>

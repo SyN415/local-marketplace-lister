@@ -24,6 +24,12 @@
   --color-accent-primary: var(--color-pulse);
   --color-accent-secondary: var(--color-drift);
   --color-accent-action: var(--color-calm);
+
+  /* ---- Christmas Theme Overrides ---- */
+  --color-christmas-red: #D42426;
+  --color-christmas-green: #165B33;
+  --color-christmas-gold: #F8B229;
+  --color-christmas-snow: #F8F9FA;
   
   /* ---- Color Palette - States ---- */
   --color-success: #22C55E;
@@ -173,6 +179,35 @@
   
   --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
   --shadow-card-hover: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   2.1. CHRISTMAS THEME
+   ======================================== */
+
+.theme-christmas {
+  --color-accent-primary: var(--color-christmas-red);
+  --color-accent-secondary: var(--color-christmas-green);
+  --color-accent-action: var(--color-christmas-gold);
+  --color-pulse: var(--color-christmas-red);
+  --color-drift: var(--color-christmas-green);
+  
+  /* Update gradients for festive look */
+  --gradient-brand: linear-gradient(135deg, var(--color-christmas-red) 0%, var(--color-christmas-green) 100%);
+  --gradient-brand-subtle: linear-gradient(135deg, rgba(212, 36, 38, 0.1) 0%, rgba(22, 91, 51, 0.1) 100%);
+}
+
+.theme-christmas .btn-primary,
+.theme-christmas button[class*="bg-primary"],
+.theme-christmas button[class*="bg-gradient-to-r"] {
+  background-image: linear-gradient(135deg, var(--color-christmas-red) 0%, var(--color-christmas-green) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.theme-christmas.dark {
+  --color-accent-primary: #FF4D4D; /* Brighter red for dark mode */
+  --color-accent-secondary: #2E8B57; /* Sea green for better contrast */
 }
 
 /* ========================================

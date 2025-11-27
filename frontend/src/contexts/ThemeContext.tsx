@@ -5,6 +5,8 @@ type ThemeMode = 'light' | 'dark';
 interface ThemeContextType {
   mode: ThemeMode;
   toggleTheme: () => void;
+  isChristmasMode: boolean;
+  toggleChristmasMode: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -36,6 +38,20 @@ export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({ chil
     return 'light';
   });
 
+  // Christmas mode state
+  const [isChristmasMode, setIsChristmasMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedChristmasMode = localStorage.getItem('christmasMode');
+      // Default to true in December if not set
+      if (savedChristmasMode === null) {
+        const month = new Date().getMonth();
+        return month === 11; // December is 11
+      }
+      return savedChristmasMode === 'true';
+    }
+    return false;
+  });
+
   // Update HTML class and localStorage when mode changes
   useEffect(() => {
     const root = window.document.documentElement;
@@ -47,11 +63,31 @@ export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({ chil
     root.style.colorScheme = mode;
   }, [mode]);
 
+  // Handle Christmas mode effects
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (isChristmasMode) {
+      root.classList.add('theme-christmas');
+    } else {
+      root.classList.remove('theme-christmas');
+    }
+    localStorage.setItem('christmasMode', String(isChristmasMode));
+  }, [isChristmasMode]);
+
   const toggleTheme = () => {
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
   };
 
-  const value = useMemo(() => ({ mode, toggleTheme }), [mode]);
+  const toggleChristmasMode = () => {
+    setIsChristmasMode(prev => !prev);
+  };
+
+  const value = useMemo(() => ({
+    mode,
+    toggleTheme,
+    isChristmasMode,
+    toggleChristmasMode
+  }), [mode, isChristmasMode]);
 
   return (
     <ThemeContext.Provider value={value}>

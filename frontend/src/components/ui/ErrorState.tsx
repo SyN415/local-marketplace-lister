@@ -10,7 +10,6 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './button';
 import { Mascot } from './Mascot';
-import type { MascotVariation } from './Mascot';
 import { cn } from '../../lib/utils';
 import { Home, RefreshCw, ArrowLeft, AlertTriangle, XCircle } from 'lucide-react';
 
@@ -22,7 +21,7 @@ export interface ErrorStateProps {
   /** Error code (e.g., 404, 500) */
   code?: string | number;
   /** Mascot variation to display */
-  mascotVariation?: MascotVariation;
+  mascotVariation?: 'happy' | 'sad' | 'surprised' | 'neutral' | 'cries' | 'vampire' | 'sleepy' | 'superhero';
   /** Primary action button */
   action?: {
     label: string;
@@ -83,20 +82,21 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         </motion.div>
       )}
 
-      {/* Mascot */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-      >
-        <Mascot
-          variation={mascotVariation}
-          size="lg"
-          animated
-          animation={mascotVariation === 'sad' || mascotVariation === 'crying' ? 'shake' : 'bounce'}
-          className="mb-6"
-        />
-      </motion.div>
+  {/* Mascot */}
+  <motion.div
+    initial={{ opacity: 0, scale: 0.8 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+  >
+    <Mascot
+      // @ts-ignore - Prop naming transition
+      variant={mascotVariation === 'crying' ? 'cries' : (mascotVariation as any)}
+      size="lg"
+      animated
+      animation={mascotVariation === 'sad' || mascotVariation === 'cries' ? 'shake' : 'bounce'}
+      className="mb-6"
+    />
+  </motion.div>
 
       {/* Title */}
       <motion.h1
@@ -178,16 +178,16 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
  * 404 Not Found Error
  */
 export const Error404: React.FC<{ className?: string }> = ({ className }) => (
-  <ErrorState
-    code="404"
-    title="Page Not Found"
-    description="Oops! The page you're looking for seems to have wandered off. Let's get you back on track."
-    mascotVariation="crying"
-    showHomeButton
-    showBackButton
-    fullPage
-    className={className}
-  />
+<ErrorState
+  code="404"
+  title="Page Not Found"
+  description="Oops! The page you're looking for seems to have wandered off. Let's get you back on track."
+  mascotVariation="cries"
+  showHomeButton
+  showBackButton
+  fullPage
+  className={className}
+/>
 );
 
 /**
@@ -261,7 +261,7 @@ export const ValidationError: React.FC<{
       className
     )}
   >
-    <Mascot variation="vampire" size="xs" animated animation="shake" />
+    <Mascot variant="vampire" size="sm" animated animation="shake" />
     <p className="flex-1 text-sm text-red-700 dark:text-red-300">{message}</p>
     {onDismiss && (
       <button
@@ -295,7 +295,7 @@ export const ErrorAlert: React.FC<{
     )}
   >
     <div className="flex items-start gap-3">
-      <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+      <Mascot variant="cries" size="sm" animated animation="shake" />
       <div className="flex-1">
         <h4 className="font-display font-semibold text-red-700 dark:text-red-300 mb-1">
           {title}

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Alert, Snackbar, CircularProgress } from '@mui/material';
 import { CheckCircle, Error } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Mascot } from '../components/ui/Mascot';
 import ListingForm from '../components/listings/ListingForm';
 import { listingsAPI } from '../services/api';
 import { FormTransformUtils } from '../utils/form';
@@ -141,15 +142,20 @@ const EditListing: React.FC = () => {
       <Box
         sx={{
           display: 'flex',
+          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '400px',
+          gap: 2
         }}
       >
-        <CircularProgress />
-        <Typography variant="body1" sx={{ ml: 2 }}>
-          Loading listing...
-        </Typography>
+        <Mascot variant="sleepy" size="xl" animated animation="pulse" />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <CircularProgress size={24} />
+          <Typography variant="body1">
+            Loading listing...
+          </Typography>
+        </Box>
       </Box>
     );
   }

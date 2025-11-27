@@ -28,7 +28,7 @@ import {
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout, isLoggingOut } = useAuthContext();
-  const { mode, toggleTheme } = useThemeContext();
+  const { mode, toggleTheme, isChristmasMode, toggleChristmasMode } = useThemeContext();
   
   // Menu states
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -116,6 +116,17 @@ const Navbar: React.FC = () => {
           </nav>
 
           <div className="flex items-center space-x-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleChristmasMode}
+              className={`h-9 w-9 ${isChristmasMode ? 'text-red-500' : ''}`}
+              title={isChristmasMode ? "Disable Holiday Mode" : "Enable Holiday Mode"}
+            >
+              <span className="text-lg">🎄</span>
+              <span className="sr-only">Toggle holiday mode</span>
+            </Button>
+
             <Button
               variant="ghost"
               size="icon"

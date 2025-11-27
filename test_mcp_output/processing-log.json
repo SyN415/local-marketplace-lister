@@ -1,0 +1,20 @@
+{
+  "totalFiles": 1,
+  "totalOriginalSize": "4.13MB",
+  "totalOptimizedSize": "0.20MB",
+  "details": [
+    {
+      "file": "jp1.webp",
+      "originalFormat": "jpg",
+      "originalSize": "4230.91KB",
+      "optimizedSize": "209.65KB",
+      "resolution": "3840x2051",
+      "enhancements": [
+        "noise_reduction",
+        "auto_levels_curves",
+        "texture_enhancement",
+        "resolution_optimization"
+      ]
+    }
+  ]
+}

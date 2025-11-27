@@ -80,13 +80,14 @@ const Hero: React.FC = () => {
   const navigate = useNavigate();
   const palette = useDefaultPalette();
   const [isVisible, setIsVisible] = useState(false);
+  const isChristmas = typeof window !== 'undefined' && document.documentElement.classList.contains('theme-christmas');
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
   return (
-    <section 
+    <section
       className="relative min-h-[92vh] flex items-center overflow-hidden"
       style={{
         background: `
@@ -100,8 +101,39 @@ const Hero: React.FC = () => {
         `,
       }}
     >
+      {/* Christmas Snow Effect */}
+      {isChristmas && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {[...Array(50)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute bg-white rounded-full opacity-70"
+              initial={{
+                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1000),
+                y: -10,
+                scale: Math.random() * 0.5 + 0.5
+              }}
+              animate={{
+                y: typeof window !== 'undefined' ? window.innerHeight + 10 : 1000,
+                x: `calc(${Math.random() * 100}vw + ${Math.sin(i) * 50}px)`
+              }}
+              transition={{
+                duration: Math.random() * 10 + 10,
+                repeat: Infinity,
+                delay: Math.random() * 10,
+                ease: "linear"
+              }}
+              style={{
+                width: Math.random() * 4 + 2 + 'px',
+                height: Math.random() * 4 + 2 + 'px',
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Background Pattern */}
-      <div 
+      <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30z' fill='none' stroke='%239F88C8' stroke-width='0.5'/%3E%3C/svg%3E")`,
@@ -288,10 +320,10 @@ const Hero: React.FC = () => {
                   className="absolute -bottom-4 -left-4 md:-bottom-6 md:-left-8 z-20"
                 >
                   <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-border">
-                    <Mascot 
-                      variation="happy" 
-                      size="sm" 
-                      animated 
+                    <Mascot
+                      variant="happy"
+                      size="sm"
+                      animated
                       animation="bounce"
                     />
                     <div>
