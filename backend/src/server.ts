@@ -75,6 +75,27 @@ app.use('/api/admin', adminRoutes);
 
 // Serve static files from the frontend build directory
 const frontendPath = path.join(__dirname, '../../frontend/dist');
+import fs from 'fs';
+console.log('Static files path:', frontendPath);
+try {
+  if (fs.existsSync(frontendPath)) {
+    console.log('Frontend dist exists. Contents:', fs.readdirSync(frontendPath));
+    const mascotsPath = path.join(frontendPath, 'mascots');
+    if (fs.existsSync(mascotsPath)) {
+       console.log('Mascots dir exists.');
+    } else {
+       console.log('Mascots dir MISSING at', mascotsPath);
+    }
+  } else {
+    console.error('Frontend dist directory DOES NOT EXIST at:', frontendPath);
+    // Try to find where we are
+    console.log('Current directory:', __dirname);
+    console.log('Repo root contents:', fs.readdirSync(path.join(__dirname, '../../')));
+  }
+} catch (error) {
+  console.error('Error checking static files:', error);
+}
+
 app.use(express.static(frontendPath));
 
 // Error handling middleware (must be last)

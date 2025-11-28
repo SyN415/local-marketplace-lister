@@ -127,9 +127,6 @@ export const Mascot: React.FC<MascotProps> = ({
 
   const containerStyle = responsive ? style : { width: pixelSize, height: pixelSize, ...style };
 
-  React.useEffect(() => {
-    console.log(`[Mascot] Mounting variant: ${effectiveVariant}, frame: ${frameIndex}, webpSrc: ${webpSrc}`);
-  }, [effectiveVariant, frameIndex, webpSrc]);
 
   return (
     <div
