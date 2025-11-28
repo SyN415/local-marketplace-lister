@@ -9,7 +9,7 @@ import {
   Link as LinkIcon, 
   History
 } from 'lucide-react';
-import logo from '../assets/jp1.jpg';
+import logo from '../assets/logo.png';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { getUserDisplayName, getUserInitials } from '../utils/auth';
@@ -79,7 +79,7 @@ const Navbar: React.FC = () => {
             <img
               src={logo}
               alt="Jiggly"
-              className="h-16 w-auto rounded-sm mix-blend-multiply dark:invert dark:mix-blend-screen"
+              className="h-16 w-auto rounded-sm"
             />
           </RouterLink>
           
