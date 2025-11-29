@@ -74,8 +74,8 @@ const getSize = (size: MascotSize): number => {
     case 'xs': return 24;
     case 'sm': return 32;
     case 'md': return 64;
-    case 'lg': return 250; // Increased base size
-    case 'xl': return 350; // Increased base size
+    case 'lg': return 300; // Increased base size for desktop
+    case 'xl': return 400; // Increased base size for desktop
     default: return 64;
   }
 };
