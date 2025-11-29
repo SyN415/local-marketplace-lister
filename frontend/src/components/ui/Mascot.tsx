@@ -74,9 +74,21 @@ const getSize = (size: MascotSize): number => {
     case 'xs': return 24;
     case 'sm': return 32;
     case 'md': return 64;
-    case 'lg': return 128;
-    case 'xl': return 256;
+    case 'lg': return 250; // Increased base size
+    case 'xl': return 350; // Increased base size
     default: return 64;
+  }
+};
+
+const getResponsiveClass = (size: MascotSize): string => {
+  if (typeof size === 'number') return '';
+  switch (size) {
+    case 'xs': return 'w-6 h-6';
+    case 'sm': return 'w-8 h-8';
+    case 'md': return 'w-16 h-16';
+    case 'lg': return 'w-[150px] h-[150px] md:w-[250px] md:h-[250px] lg:w-[300px] lg:h-[300px]';
+    case 'xl': return 'w-[200px] h-[200px] md:w-[350px] md:h-[350px]';
+    default: return 'w-16 h-16';
   }
 };
 
@@ -125,12 +137,13 @@ export const Mascot: React.FC<MascotProps> = ({
   // @ts-ignore - Framer motion types are complex
   const animateProp = animated ? ANIMATIONS[animationKey] : undefined;
 
+  const responsiveClass = responsive ? getResponsiveClass(size) : '';
   const containerStyle = responsive ? style : { width: pixelSize, height: pixelSize, ...style };
 
 
   return (
     <div
-      className={`relative inline-block ${className || ''}`}
+      className={`relative inline-block ${responsiveClass} ${className || ''}`}
       style={containerStyle}
     >
       <picture>

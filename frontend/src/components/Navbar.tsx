@@ -73,13 +73,13 @@ const Navbar: React.FC = () => {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-glass-border bg-glass-bg backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center px-4">
+        <div className="container mx-auto flex h-20 md:h-24 items-center px-4">
           {/* Logo/Home Link */}
           <RouterLink to="/" className="mr-6 flex items-center space-x-2">
             <img
               src={logo}
               alt="Jiggly"
-              className="h-16 w-auto rounded-sm"
+              className="w-[100px] md:w-[120px] lg:w-[150px] h-auto max-h-16 md:max-h-20 rounded-sm object-contain"
             />
           </RouterLink>
           
