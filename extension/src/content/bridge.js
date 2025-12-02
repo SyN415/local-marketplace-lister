@@ -7,26 +7,36 @@ console.log('Marketplace Lister Bridge loaded on', window.location.href);
 window.postMessage({ type: 'EXTENSION_LOADED', version: chrome.runtime.getManifest().version }, '*');
 document.documentElement.dataset.extensionInstalled = true;
 
-// Attempt to grab auth token from localStorage and pass to extension
-function syncAuthToken() {
+// Attempt to grab auth token from localStorage and pass to extension with retry
+function syncAuthToken(retryCount = 0) {
   const token = localStorage.getItem('auth_token');
   if (token) {
     console.log('Bridge: Auth token found, syncing to extension');
-    chrome.runtime.sendMessage({ 
-      action: 'set_auth_token', 
-      token: token 
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.warn('Bridge: Failed to sync token:', chrome.runtime.lastError);
-      } else {
-        console.log('Bridge: Token synced successfully');
-      }
-    });
+    try {
+      chrome.runtime.sendMessage({
+        action: 'set_auth_token',
+        token: token
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          // Service worker might be waking up, retry after delay
+          if (retryCount < 3) {
+            console.log('Bridge: Retrying token sync in 1s (attempt', retryCount + 1, ')');
+            setTimeout(() => syncAuthToken(retryCount + 1), 1000);
+          } else {
+            console.warn('Bridge: Token sync failed after retries:', chrome.runtime.lastError.message);
+          }
+        } else {
+          console.log('Bridge: Token synced successfully');
+        }
+      });
+    } catch (e) {
+      console.warn('Bridge: Error sending message:', e);
+    }
   }
 }
 
-// Run token sync on load and periodically
-syncAuthToken();
+// Run token sync after a short delay to let service worker initialize
+setTimeout(() => syncAuthToken(), 500);
 setInterval(syncAuthToken, 30000); // Re-sync every 30 seconds
 
 // Listen for messages from the React App

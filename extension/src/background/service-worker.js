@@ -64,133 +64,127 @@ function addLog(message, level = 'info') {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request.action, request);
 
-  // 1. Handle commands from Popup or Content Scripts
-  if (request.action === 'start_posting') {
-    handleStartPosting(request, sendResponse);
-    return true; // Async response
-  } 
-  
-  else if (request.action === 'stop_posting') {
-    updateStatus({ postingStatus: STATE.IDLE, lastError: 'Stopped by user', pendingTabId: null });
-    sendResponse({ success: true });
-  }
-
-  else if (request.action === 'get_listing_data') {
-    // Content script asking for data
-    chrome.storage.local.get(['currentListingData', 'postingStatus', 'currentPlatform'], (result) => {
-      sendResponse({ 
-        data: result.currentListingData,
-        status: result.postingStatus,
-        platform: result.currentPlatform
-      });
-    });
-    return true;
-  }
-
-  else if (request.action === 'check_pending_work') {
-    // Content script checking if it should start automation
-    chrome.storage.local.get(['postingStatus', 'currentPlatform', 'currentListingData', 'pendingTabId'], (result) => {
-      const shouldAutomate = (
-        result.postingStatus === STATE.POSTING || 
-        result.postingStatus === STATE.AWAITING_LOGIN
-      ) && result.currentListingData;
-      
-      sendResponse({
-        shouldAutomate,
-        data: result.currentListingData,
-        platform: result.currentPlatform,
-        status: result.postingStatus
-      });
-    });
-    return true;
-  }
-  
-  else if (request.action === 'trigger_fill') {
-    // Manual trigger from popup
-    handleManualFill(sendResponse);
-    return true;
-  }
-  
-  else if (request.action === 'update_progress') {
-    // Content scripts updating their progress
-    updateStatus({
-      progress: request.progress,
-      postingStatus: request.status || STATE.POSTING
-    });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  else if (request.action === 'posting_complete') {
-    // Content script signals completion
-    addLog(`Posting to ${request.platform} completed successfully`);
-    updateStatus({
-      postingStatus: STATE.COMPLETED,
-      progress: { current: 100, total: 100 },
-      pendingTabId: null
-    });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  else if (request.action === 'posting_error') {
-    // Content script signals error
-    addLog(`Posting error: ${request.error}`, 'error');
-    updateStatus({
-      postingStatus: STATE.ERROR,
-      lastError: request.error,
-      pendingTabId: null
-    });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  else if (request.action === 'login_detected') {
-    // Facebook content script detected we're on login page
-    addLog('Facebook login page detected, awaiting user login');
-    updateStatus({ postingStatus: STATE.AWAITING_LOGIN });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  else if (request.action === 'QUEUE_LISTING') {
-    // Received from Frontend Bridge
-    handleQueueListing(request.payload, sendResponse);
-    return true;
-  }
-
-  // Auth and listings fetch
-  else if (request.action === 'set_auth_token') {
-    chrome.storage.local.set({ authToken: request.token }, () => {
-      addLog('Auth token saved');
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-
-  else if (request.action === 'fetch_listings') {
-    handleFetchListings(sendResponse);
-    return true;
-  }
-
-  else if (request.action === 'select_listing') {
-    // User selected a listing from the popup
-    chrome.storage.local.set({ 
-      currentListingData: request.listing,
-      postingStatus: STATE.IDLE
-    }, () => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-
-  else if (request.action === 'get_logs') {
-    chrome.storage.local.get(['logs'], (result) => {
-      sendResponse({ logs: result.logs || [] });
-    });
-    return true;
-  }
+  // Handle all actions - always return true to indicate async response
+  handleMessage(request, sender, sendResponse);
+  return true; // Always return true for async
 });
+
+// Async message handler
+async function handleMessage(request, sender, sendResponse) {
+  try {
+    switch (request.action) {
+      case 'start_posting':
+        handleStartPosting(request, sendResponse);
+        break;
+        
+      case 'stop_posting':
+        updateStatus({ postingStatus: STATE.IDLE, lastError: 'Stopped by user', pendingTabId: null });
+        sendResponse({ success: true });
+        break;
+
+      case 'get_listing_data':
+        chrome.storage.local.get(['currentListingData', 'postingStatus', 'currentPlatform'], (result) => {
+          sendResponse({
+            data: result.currentListingData,
+            status: result.postingStatus,
+            platform: result.currentPlatform
+          });
+        });
+        break;
+
+      case 'check_pending_work':
+        chrome.storage.local.get(['postingStatus', 'currentPlatform', 'currentListingData', 'pendingTabId'], (result) => {
+          const shouldAutomate = (
+            result.postingStatus === STATE.POSTING ||
+            result.postingStatus === STATE.AWAITING_LOGIN
+          ) && result.currentListingData;
+          
+          sendResponse({
+            shouldAutomate,
+            data: result.currentListingData,
+            platform: result.currentPlatform,
+            status: result.postingStatus
+          });
+        });
+        break;
+        
+      case 'trigger_fill':
+        handleManualFill(sendResponse);
+        break;
+        
+      case 'update_progress':
+        updateStatus({
+          progress: request.progress,
+          postingStatus: request.status || STATE.POSTING
+        });
+        sendResponse({ success: true });
+        break;
+
+      case 'posting_complete':
+        addLog(`Posting to ${request.platform} completed successfully`);
+        updateStatus({
+          postingStatus: STATE.COMPLETED,
+          progress: { current: 100, total: 100 },
+          pendingTabId: null
+        });
+        sendResponse({ success: true });
+        break;
+
+      case 'posting_error':
+        addLog(`Posting error: ${request.error}`, 'error');
+        updateStatus({
+          postingStatus: STATE.ERROR,
+          lastError: request.error,
+          pendingTabId: null
+        });
+        sendResponse({ success: true });
+        break;
+
+      case 'login_detected':
+        addLog('Facebook login page detected, awaiting user login');
+        updateStatus({ postingStatus: STATE.AWAITING_LOGIN });
+        sendResponse({ success: true });
+        break;
+
+      case 'QUEUE_LISTING':
+        handleQueueListing(request.payload, sendResponse);
+        break;
+
+      case 'set_auth_token':
+        chrome.storage.local.set({ authToken: request.token }, () => {
+          addLog('Auth token saved');
+          sendResponse({ success: true });
+        });
+        break;
+
+      case 'fetch_listings':
+        await handleFetchListingsAsync(sendResponse);
+        break;
+
+      case 'select_listing':
+        chrome.storage.local.set({
+          currentListingData: request.listing,
+          postingStatus: STATE.IDLE
+        }, () => {
+          sendResponse({ success: true });
+        });
+        break;
+
+      case 'get_logs':
+        chrome.storage.local.get(['logs'], (result) => {
+          sendResponse({ logs: result.logs || [] });
+        });
+        break;
+        
+      default:
+        console.warn('Unknown action:', request.action);
+        sendResponse({ success: false, error: 'Unknown action' });
+    }
+  } catch (error) {
+    console.error('Error handling message:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
 
 // Listen for tab updates to detect when Facebook loads after login
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -310,56 +304,62 @@ function handleQueueListing(payload, sendResponse) {
   });
 }
 
-// Fetch listings from the backend API
-async function handleFetchListings(sendResponse) {
-  chrome.storage.local.get(['authToken'], async (result) => {
-    const token = result.authToken;
-    
-    if (!token) {
-      addLog('No auth token found, cannot fetch listings', 'warn');
-      sendResponse({ success: false, error: 'Not authenticated. Please login on the dashboard first.' });
-      return;
-    }
-
-    try {
-      addLog('Fetching listings from backend...');
+// Fetch listings from the backend API - Promise-based version for async handler
+function handleFetchListingsAsync(sendResponse) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['authToken'], async (result) => {
+      const token = result.authToken;
       
-      const response = await fetch(`${API_BASE_URL}/api/listings`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          addLog('Auth token expired or invalid', 'error');
-          chrome.storage.local.set({ authToken: null });
-          sendResponse({ success: false, error: 'Session expired. Please login again on the dashboard.' });
-          return;
-        }
-        throw new Error(`HTTP ${response.status}`);
+      if (!token) {
+        addLog('No auth token found, cannot fetch listings', 'warn');
+        sendResponse({ success: false, error: 'Not authenticated. Please login on the dashboard first.' });
+        resolve();
+        return;
       }
 
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        const listings = data.data.listings || [];
-        addLog(`Fetched ${listings.length} listings`);
+      try {
+        addLog('Fetching listings from backend...');
         
-        chrome.storage.local.set({ 
-          userListings: listings,
-          listingsLastFetched: Date.now()
-        }, () => {
-          sendResponse({ success: true, listings });
+        const response = await fetch(`${API_BASE_URL}/api/listings`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
-      } else {
-        throw new Error(data.error || 'Failed to fetch listings');
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            addLog('Auth token expired or invalid', 'error');
+            chrome.storage.local.set({ authToken: null });
+            sendResponse({ success: false, error: 'Session expired. Please login again on the dashboard.' });
+            resolve();
+            return;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          const listings = data.data.listings || [];
+          addLog(`Fetched ${listings.length} listings`);
+          
+          chrome.storage.local.set({
+            userListings: listings,
+            listingsLastFetched: Date.now()
+          }, () => {
+            sendResponse({ success: true, listings });
+            resolve();
+          });
+        } else {
+          throw new Error(data.error || 'Failed to fetch listings');
+        }
+      } catch (error) {
+        addLog(`Error fetching listings: ${error.message}`, 'error');
+        sendResponse({ success: false, error: error.message });
+        resolve();
       }
-    } catch (error) {
-      addLog(`Error fetching listings: ${error.message}`, 'error');
-      sendResponse({ success: false, error: error.message });
-    }
+    });
   });
 }

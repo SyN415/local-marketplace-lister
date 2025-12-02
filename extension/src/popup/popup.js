@@ -75,26 +75,58 @@ document.addEventListener('DOMContentLoaded', () => {
     noAuthMessage.style.display = 'none';
     listingsSelect.disabled = true;
 
-    chrome.runtime.sendMessage({ action: 'fetch_listings' }, (response) => {
-      listingsLoading.style.display = 'none';
+    // First try to load cached listings from storage
+    chrome.storage.local.get(['userListings', 'authToken'], (cached) => {
+      // Show cached listings immediately if available
+      if (cached.userListings && cached.userListings.length > 0) {
+        userListings = cached.userListings;
+        populateListingsDropdown(userListings);
+      }
       
-      if (chrome.runtime.lastError) {
-        console.error('Error fetching listings:', chrome.runtime.lastError);
-        showListingsError('Failed to communicate with extension');
+      // If no auth token, show login message
+      if (!cached.authToken) {
+        listingsLoading.style.display = 'none';
+        noAuthMessage.style.display = 'block';
+        listingsSelect.style.display = 'none';
         return;
       }
       
-      if (response && response.success) {
-        userListings = response.listings || [];
-        populateListingsDropdown(userListings);
-        noAuthMessage.style.display = 'none';
-      } else {
-        const error = response?.error || 'Failed to fetch listings';
-        if (error.includes('Not authenticated') || error.includes('Session expired')) {
-          noAuthMessage.style.display = 'block';
-          listingsSelect.style.display = 'none';
-        } else {
-          showListingsError(error);
+      // Try to fetch fresh listings
+      try {
+        chrome.runtime.sendMessage({ action: 'fetch_listings' }, (response) => {
+          listingsLoading.style.display = 'none';
+          
+          if (chrome.runtime.lastError) {
+            console.error('Error fetching listings:', chrome.runtime.lastError);
+            // If we have cached listings, just show a warning
+            if (userListings.length > 0) {
+              console.log('Using cached listings due to fetch error');
+            } else {
+              showListingsError('Unable to fetch listings. Try refreshing.');
+            }
+            return;
+          }
+          
+          if (response && response.success) {
+            userListings = response.listings || [];
+            populateListingsDropdown(userListings);
+            noAuthMessage.style.display = 'none';
+          } else {
+            const error = response?.error || 'Failed to fetch listings';
+            if (error.includes('Not authenticated') || error.includes('Session expired')) {
+              noAuthMessage.style.display = 'block';
+              listingsSelect.style.display = 'none';
+            } else if (userListings.length === 0) {
+              // Only show error if we have no cached listings
+              showListingsError(error);
+            }
+          }
+        });
+      } catch (e) {
+        listingsLoading.style.display = 'none';
+        console.error('Exception sending message:', e);
+        if (userListings.length === 0) {
+          showListingsError('Extension communication error');
         }
       }
     });
