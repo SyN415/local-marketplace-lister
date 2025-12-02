@@ -7,16 +7,34 @@
 <body>
   <header>
     <h2>Cross-Lister</h2>
-    <div id="connectionStatus" class="connection-status">Disconnected</div>
+    <div id="connectionStatus" class="connection-status">Idle</div>
   </header>
 
   <main>
-    <!-- Listing Queue Section -->
+    <!-- Listings Section -->
     <div class="section">
-      <span class="section-title">Current Listing</span>
-      <div id="queueContainer">
-        <!-- Will be populated by JS -->
-        <div class="empty-state">No listing loaded</div>
+      <div class="section-header">
+        <span class="section-title">Your Listings</span>
+        <button id="refreshListingsBtn" class="btn-icon" title="Refresh listings">↻</button>
+      </div>
+      
+      <div id="listingsContainer">
+        <div id="listingsLoading" class="loading-state" style="display: none;">
+          <span class="spinner"></span> Loading listings...
+        </div>
+        <div id="listingsError" class="error-state" style="display: none;"></div>
+        
+        <select id="listingsSelect" class="listings-select" disabled>
+          <option value="">-- Select a listing --</option>
+        </select>
+        
+        <div id="selectedListingPreview" class="selected-preview" style="display: none;">
+          <div id="selectedListingInfo"></div>
+        </div>
+      </div>
+      
+      <div id="noAuthMessage" class="empty-state" style="display: none;">
+        Please <a id="loginLink" class="link">login on the dashboard</a> first to see your listings.
       </div>
     </div>
 
@@ -51,9 +69,20 @@
 
     <div class="footer-links">
       <a id="openDashboard" class="footer-link">Open Dashboard</a>
-      <a id="openSettings" class="footer-link">Settings</a>
+      <a id="viewLogs" class="footer-link">View Logs</a>
     </div>
   </main>
+
+  <!-- Logs Modal -->
+  <div id="logsModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Activity Logs</h3>
+        <button id="closeLogsBtn" class="btn-close">×</button>
+      </div>
+      <div id="logsContainer" class="logs-container"></div>
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Local Marketplace Lister",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Cross-list your items to Craigslist, Facebook Marketplace, and OfferUp.",
   "permissions": [
     "scripting",
     "activeTab",
     "storage",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "tabs"
   ],
   "host_permissions": [
     "*://*.facebook.com/*",
