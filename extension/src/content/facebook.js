@@ -665,15 +665,41 @@ async function selectCategory(data) {
     
     console.log('Looking for category:', categoryText);
     
-    // Wait for dropdown menu to appear
+    // Check for "Type to search" input first
+    const searchInput = document.querySelector('input[placeholder*="search"], input[aria-label*="search"]');
+    if (searchInput) {
+      console.log('Found category search box, typing category...');
+      await simulateTyping(searchInput, categoryText);
+      await new Promise(r => setTimeout(r, 1000));
+      
+      // Look for the first result
+      const results = document.querySelectorAll('[role="option"], [role="menuitem"], [role="listitem"]');
+      if (results.length > 0) {
+        console.log('Selecting first search result:', results[0].textContent);
+        results[0].click();
+        stepCompletionFlags.categorySelected = true;
+        
+        chrome.runtime.sendMessage({
+          action: 'update_progress',
+          progress: { current: 30, total: 100 }
+        });
+        return;
+      }
+    }
+    
+    // Wait for dropdown menu to appear if search didn't work or wasn't found
     await new Promise(r => setTimeout(r, 500));
     
     // Look for category options - they should be visible now
-    // Try searching in a menu/listbox that just appeared
     const menuItems = document.querySelectorAll('[role="option"], [role="menuitem"], [role="listitem"], [role="menuitemradio"]');
     console.log('Found', menuItems.length, 'menu items');
     
     let categoryFound = false;
+    // Map "Home & Garden" to "Home & Kitchen" or "Patio & Garden"
+    if (categoryText.toLowerCase() === 'home & garden') {
+        categoryText = 'Home & Kitchen'; // Default mapping, could also be Patio & Garden
+    }
+
     const categoryKeywords = categoryText.toLowerCase().split(/[\s&]+/).filter(w => w.length > 2);
     
     // First pass: try exact or close match
@@ -682,6 +708,7 @@ async function selectCategory(data) {
       
       // Check for keyword matches
       const matchScore = categoryKeywords.filter(kw => optionText.includes(kw)).length;
+      // Require at least one significant keyword match, or all if short
       if (matchScore >= 1) {
         console.log('Found matching category option:', option.textContent);
         option.click();
@@ -693,7 +720,6 @@ async function selectCategory(data) {
     }
     
     // If no match, look for visible category buttons from the page log
-    // The screenshot shows buttons like "Sofas, Loveseats & Sectionals", "Furniture", etc.
     if (!categoryFound) {
       const allButtons = document.querySelectorAll('[role="button"]');
       // Updated list based on user provided screenshots
@@ -706,16 +732,44 @@ async function selectCategory(data) {
         'toys', 'games', 'travel', 'luggage', 'video games', 'miscellaneous'
       ];
       
+      // Filter buttons that match our target category first
+      let bestButton = null;
+      let maxScore = 0;
+
       for (const btn of allButtons) {
+        if (btn.offsetParent === null) continue; // Skip invisible
         const btnText = btn.textContent?.toLowerCase() || '';
-        if (validCategoryNames.some(cat => btnText.includes(cat)) && btn.offsetParent !== null) {
-          console.log('Clicking category button:', btn.textContent);
-          btn.click();
+        
+        let score = 0;
+        categoryKeywords.forEach(kw => {
+            if (btnText.includes(kw)) score++;
+        });
+
+        if (score > maxScore) {
+            maxScore = score;
+            bestButton = btn;
+        }
+      }
+
+      if (bestButton && maxScore > 0) {
+          console.log('Clicking best matching category button:', bestButton.textContent);
+          bestButton.click();
           stepCompletionFlags.categorySelected = true;
           categoryFound = true;
           await new Promise(r => setTimeout(r, 500));
-          break;
-        }
+      } else {
+          // Fallback to searching all valid categories if precise match failed
+          for (const btn of allButtons) {
+            const btnText = btn.textContent?.toLowerCase() || '';
+            if (validCategoryNames.some(cat => btnText.includes(cat)) && btn.offsetParent !== null) {
+              console.log('Clicking fallback category button:', btn.textContent);
+              btn.click();
+              stepCompletionFlags.categorySelected = true;
+              categoryFound = true;
+              await new Promise(r => setTimeout(r, 500));
+              break;
+            }
+          }
       }
     }
     
