@@ -616,8 +616,48 @@ async function fillForm(data) {
 async function selectCategory(data) {
   console.log('Selecting category...');
   
-  await new Promise(resolve => setTimeout(resolve, 800));
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
+  // Strategy 1: Look for "Suggested" categories pills/buttons first
+  // These are often displayed below the category field
+  try {
+    const allButtons = Array.from(document.querySelectorAll('[role="button"]'));
+    // Find buttons that look like categories (not "Next", "Back", etc.)
+    // Often they are near the "Category" label
+    const categoryLabel = Array.from(document.querySelectorAll('label, span, div')).find(el =>
+      el.textContent === 'Category' || el.textContent === 'Suggested categories');
+    
+    if (categoryLabel) {
+      const container = categoryLabel.closest('div').parentElement;
+      if (container) {
+        const suggestedButtons = Array.from(container.querySelectorAll('[role="button"]'))
+          .filter(btn => {
+            const text = btn.textContent?.trim();
+            return text &&
+                   text !== 'Next' &&
+                   text !== 'Back' &&
+                   !text.includes('Category') &&
+                   btn.offsetParent !== null; // Visible
+          });
+        
+        if (suggestedButtons.length > 0) {
+          console.log('Found suggested category buttons, clicking first one:', suggestedButtons[0].textContent);
+          suggestedButtons[0].click();
+          stepCompletionFlags.categorySelected = true;
+          
+          chrome.runtime.sendMessage({
+            action: 'update_progress',
+            progress: { current: 30, total: 100 }
+          });
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error checking suggested categories:', e);
+  }
+
+  // Strategy 2: Dropdown selection
   // First, find and click the category dropdown trigger
   // Look for elements that contain "Category" text and have a dropdown indicator
   const categoryContainers = document.querySelectorAll('div');
@@ -677,6 +717,9 @@ async function selectCategory(data) {
       if (results.length > 0) {
         console.log('Selecting first search result:', results[0].textContent);
         results[0].click();
+        // Also dispatch standard click event
+        results[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        
         stepCompletionFlags.categorySelected = true;
         
         chrome.runtime.sendMessage({
