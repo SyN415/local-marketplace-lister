@@ -9,6 +9,22 @@ const STATE = {
   ERROR: 'error'
 };
 
+// Facebook workflow steps (mirrored from content script)
+const FB_WORKFLOW_STEPS = {
+  IDLE: 'idle',
+  FORM_FILL: 'form_fill',
+  SELECTING_CATEGORY: 'selecting_category',
+  SELECTING_CONDITION: 'selecting_condition',
+  UPLOADING_IMAGES: 'uploading_images',
+  CLICKING_NEXT_1: 'clicking_next_1',
+  LOCATION_DELIVERY: 'location_delivery',
+  CLICKING_NEXT_2: 'clicking_next_2',
+  VISIBILITY_OPTIONS: 'visibility_options',
+  PUBLISHING: 'publishing',
+  COMPLETED: 'completed',
+  ERROR: 'error'
+};
+
 // API Configuration - matches frontend API URL
 const API_BASE_URL = 'https://local-marketplace-backend-wr5e.onrender.com';
 
@@ -157,6 +173,9 @@ async function handleMessage(request, sender) {
         await updateStatus({ postingStatus: STATE.AWAITING_LOGIN });
         return { success: true };
 
+      case 'workflow_step_changed':
+        return await handleWorkflowStepChanged(request);
+
       case 'QUEUE_LISTING':
         return await handleQueueListing(request.payload);
 
@@ -178,6 +197,19 @@ async function handleMessage(request, sender) {
       case 'get_logs': {
         const result = await storageGet(['logs']);
         return { logs: result.logs || [] };
+      }
+      
+      case 'get_workflow_status':
+        return await getWorkflowStatus();
+      
+      case 'reset_workflow': {
+        await storageSet({
+          facebookWorkflowStep: FB_WORKFLOW_STEPS.IDLE,
+          postingStatus: STATE.IDLE,
+          lastError: null
+        });
+        await addLog('Workflow reset');
+        return { success: true };
       }
         
       default:
@@ -347,4 +379,75 @@ async function handleFetchListings() {
     await addLog(`Error fetching listings: ${error.message}`, 'error');
     return { success: false, error: error.message };
   }
+}
+
+// Handle workflow step changes from content script
+async function handleWorkflowStepChanged(request) {
+  const { step, platform, error } = request;
+  
+  await addLog(`${platform} workflow step: ${step}${error ? ` (error: ${error})` : ''}`);
+  
+  // Update storage with current workflow step
+  await updateStatus({
+    facebookWorkflowStep: step,
+    ...(error && { lastError: error })
+  });
+  
+  // Calculate progress percentage based on step
+  const stepProgressMap = {
+    [FB_WORKFLOW_STEPS.IDLE]: 0,
+    [FB_WORKFLOW_STEPS.FORM_FILL]: 15,
+    [FB_WORKFLOW_STEPS.SELECTING_CATEGORY]: 25,
+    [FB_WORKFLOW_STEPS.SELECTING_CONDITION]: 35,
+    [FB_WORKFLOW_STEPS.UPLOADING_IMAGES]: 45,
+    [FB_WORKFLOW_STEPS.CLICKING_NEXT_1]: 50,
+    [FB_WORKFLOW_STEPS.LOCATION_DELIVERY]: 60,
+    [FB_WORKFLOW_STEPS.CLICKING_NEXT_2]: 70,
+    [FB_WORKFLOW_STEPS.VISIBILITY_OPTIONS]: 80,
+    [FB_WORKFLOW_STEPS.PUBLISHING]: 90,
+    [FB_WORKFLOW_STEPS.COMPLETED]: 100,
+    [FB_WORKFLOW_STEPS.ERROR]: -1
+  };
+  
+  const progress = stepProgressMap[step] ?? 0;
+  
+  if (step === FB_WORKFLOW_STEPS.COMPLETED) {
+    await updateStatus({
+      postingStatus: STATE.COMPLETED,
+      progress: { current: 100, total: 100 }
+    });
+    await addLog(`${platform} listing posted successfully!`);
+  } else if (step === FB_WORKFLOW_STEPS.ERROR) {
+    await updateStatus({
+      postingStatus: STATE.ERROR,
+      lastError: error || 'Unknown error during posting'
+    });
+  } else if (progress > 0) {
+    await updateStatus({
+      progress: { current: progress, total: 100 }
+    });
+  }
+  
+  return { success: true };
+}
+
+// Get current workflow status for debugging/monitoring
+async function getWorkflowStatus() {
+  const state = await storageGet([
+    'postingStatus',
+    'currentPlatform',
+    'currentListingData',
+    'facebookWorkflowStep',
+    'progress',
+    'lastError'
+  ]);
+  
+  return {
+    postingStatus: state.postingStatus,
+    platform: state.currentPlatform,
+    workflowStep: state.facebookWorkflowStep,
+    progress: state.progress,
+    lastError: state.lastError,
+    hasListingData: !!state.currentListingData
+  };
 }
