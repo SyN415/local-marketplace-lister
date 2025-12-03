@@ -190,7 +190,7 @@ async function handleMessage(request, sender) {
   }
 }
 
-// Listen for tab updates to detect when Facebook loads after login
+// Listen for tab updates to detect login redirects
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete') {
     handleTabUpdate(tabId, tab).catch(console.error);
@@ -201,32 +201,16 @@ async function handleTabUpdate(tabId, tab) {
   const state = await storageGet(['postingStatus', 'currentPlatform', 'pendingTabId']);
   
   // Check if this is a pending Facebook tab
-  if (state.currentPlatform === 'facebook' && 
+  if (state.currentPlatform === 'facebook' &&
       (state.postingStatus === STATE.POSTING || state.postingStatus === STATE.AWAITING_LOGIN)) {
     
     const url = tab.url || '';
     
-    // If we're on the marketplace create item page, trigger form fill
+    // If we're on the marketplace create item page, just log it
+    // The content script will handle form filling via check_pending_work
     if (url.includes('facebook.com/marketplace/create')) {
-      console.log('Facebook marketplace create page detected, sending fill command');
-      await addLog('Marketplace create page loaded, triggering form fill');
-      
-      // Small delay to let the page fully render
-      setTimeout(async () => {
-        const result = await storageGet(['currentListingData']);
-        if (result.currentListingData) {
-          chrome.tabs.sendMessage(tabId, {
-            action: 'FILL_FORM',
-            data: result.currentListingData
-          }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.warn('Could not send fill command:', chrome.runtime.lastError);
-            } else {
-              console.log('Fill command sent successfully');
-            }
-          });
-        }
-      }, 2000);
+      console.log('Facebook marketplace create page detected');
+      await addLog('Marketplace create page loaded - content script will handle form fill');
     }
     
     // If user is on login page, update status

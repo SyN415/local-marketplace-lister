@@ -1,27 +1,23 @@
 // Content script for Facebook Marketplace
 console.log('Marketplace Lister: Facebook content script loaded on', window.location.href);
 
-// Track if we've already started form filling
 let formFillAttempted = false;
+let imagesUploaded = false;
 
-// Helper to wait for elements
 const waitForElement = (selector, timeout = 10000) => {
   return new Promise((resolve, reject) => {
-    if (document.querySelector(selector)) {
-      return resolve(document.querySelector(selector));
-    }
+    const el = document.querySelector(selector);
+    if (el) return resolve(el);
 
-    const observer = new MutationObserver((mutations) => {
-      if (document.querySelector(selector)) {
+    const observer = new MutationObserver(() => {
+      const el = document.querySelector(selector);
+      if (el) {
         observer.disconnect();
-        resolve(document.querySelector(selector));
+        resolve(el);
       }
     });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     setTimeout(() => {
       observer.disconnect();
@@ -30,102 +26,104 @@ const waitForElement = (selector, timeout = 10000) => {
   });
 };
 
-// Helper to wait for multiple possible selectors
-const waitForAnyElement = (selectors, timeout = 10000) => {
-  return new Promise((resolve, reject) => {
-    const findElement = () => {
-      for (const selector of selectors) {
-        const el = document.querySelector(selector);
-        if (el) return el;
+const findInputByLabel = (labelText, inputType = 'input') => {
+  const allElements = document.querySelectorAll('label, span, div');
+  
+  for (const el of allElements) {
+    const text = el.textContent?.trim();
+    if (text === labelText || text?.startsWith(labelText)) {
+      const parent = el.closest('div[class]');
+      if (parent) {
+        const input = parent.querySelector(inputType);
+        if (input) return input;
+        
+        const nextSibling = parent.nextElementSibling;
+        if (nextSibling) {
+          const siblingInput = nextSibling.querySelector(inputType);
+          if (siblingInput) return siblingInput;
+        }
       }
-      return null;
-    };
-
-    const found = findElement();
-    if (found) return resolve(found);
-
-    const observer = new MutationObserver(() => {
-      const el = findElement();
-      if (el) {
-        observer.disconnect();
-        resolve(el);
-      }
-    });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    setTimeout(() => {
-      observer.disconnect();
-      reject(new Error(`None of the elements found within ${timeout}ms`));
-    }, timeout);
-  });
-};
-
-// Helper to simulate React input events
-const simulateInput = (element, value) => {
-  try {
-    // Focus the element first
-    element.focus();
-    
-    // Clear existing value
-    element.value = '';
-    
-    // Get the value setter from the prototype
-    const valueSetter = Object.getOwnPropertyDescriptor(element, 'value')?.set;
-    const prototype = Object.getPrototypeOf(element);
-    const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
-
-    if (valueSetter && valueSetter !== prototypeValueSetter) {
-      prototypeValueSetter.call(element, value);
-    } else if (prototypeValueSetter) {
-      prototypeValueSetter.call(element, value);
-    } else {
-      element.value = value;
     }
-
-    // Dispatch all relevant events
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    element.dispatchEvent(new Event('blur', { bubbles: true }));
-    
-    return true;
-  } catch (e) {
-    console.error('simulateInput error:', e);
-    return false;
   }
+  return null;
 };
 
-// Listen for messages from background/popup
+const findInputByPlaceholder = (placeholderText, inputType = 'input') => {
+  const inputs = document.querySelectorAll(inputType);
+  for (const input of inputs) {
+    const placeholder = input.getAttribute('placeholder') || '';
+    if (placeholder.toLowerCase().includes(placeholderText.toLowerCase())) {
+      return input;
+    }
+  }
+  return null;
+};
+
+const findInputByAttributes = (selectors) => {
+  for (const selector of selectors) {
+    try {
+      const el = document.querySelector(selector);
+      if (el) return el;
+    } catch (e) {
+      continue;
+    }
+  }
+  return null;
+};
+
+const simulateTyping = async (element, value) => {
+  if (!element) return false;
+  
+  element.focus();
+  element.click();
+  
+  element.value = '';
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  
+  for (const char of value) {
+    element.value += char;
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 10));
+  }
+  
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  element.dispatchEvent(new Event('blur', { bubbles: true }));
+  
+  return element.value === value;
+};
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Facebook content script received message:', request.action);
   
   if (request.action === 'FILL_FORM') {
     console.log('Marketplace Lister: Received FILL_FORM command', request.data);
+    
+    if (formFillAttempted) {
+      console.log('Form fill already attempted, skipping');
+      sendResponse({ success: true, message: 'Already attempted' });
+      return true;
+    }
+    
     formFillAttempted = true;
     
     fillForm(request.data)
       .then(() => {
-        console.log('Form fill completed successfully');
+        console.log('Form fill completed');
         sendResponse({ success: true });
       })
       .catch((err) => {
         console.error('Marketplace Lister: Error filling form', err);
         sendResponse({ success: false, error: err.message });
       });
-    return true; // Async response
+    return true;
   }
   
   if (request.action === 'CHECK_READY') {
-    // Background script checking if content script is ready
     sendResponse({ ready: true, url: window.location.href });
     return true;
   }
 });
 
-// Proactive check on page load
 function checkForPendingWork() {
   console.log('Checking for pending work...');
   
@@ -141,16 +139,10 @@ function checkForPendingWork() {
       console.log('Found pending work, starting form fill...');
       formFillAttempted = true;
       
-      // Wait a bit for the page to fully load
       setTimeout(() => {
         fillForm(response.data)
           .then(() => {
             console.log('Automatic form fill completed');
-            chrome.runtime.sendMessage({ 
-              action: 'update_progress', 
-              progress: { current: 50, total: 100 },
-              status: 'posting'
-            });
           })
           .catch((err) => {
             console.error('Automatic form fill failed:', err);
@@ -160,260 +152,339 @@ function checkForPendingWork() {
               platform: 'facebook'
             });
           });
-      }, 2000);
+      }, 3000);
     }
   });
 }
 
-// Detect if we're on login page and notify background
 function detectLoginPage() {
   const url = window.location.href;
-  
   if (url.includes('/login') || url.includes('?next=')) {
-    console.log('Login page detected, notifying background');
-    chrome.runtime.sendMessage({ 
-      action: 'login_detected', 
-      platform: 'facebook' 
-    });
+    console.log('Login page detected');
+    chrome.runtime.sendMessage({ action: 'login_detected', platform: 'facebook' });
     return true;
   }
   return false;
 }
 
-// Initialize on page load
 function init() {
   console.log('Facebook content script initializing...');
   
-  // Check if this is a login page
   if (detectLoginPage()) {
     console.log('On login page, waiting for user to login...');
     return;
   }
   
-  // Check if we're on the marketplace create page
   if (window.location.href.includes('marketplace/create')) {
-    console.log('On marketplace create page, checking for pending work');
+    console.log('On marketplace create page');
     
-    // Wait for page to be ready, then check for pending work
     if (document.readyState === 'complete') {
-      setTimeout(checkForPendingWork, 1500);
+      setTimeout(checkForPendingWork, 2500);
     } else {
       window.addEventListener('load', () => {
-        setTimeout(checkForPendingWork, 1500);
+        setTimeout(checkForPendingWork, 2500);
       });
     }
   }
 }
 
 async function fillForm(data) {
-  console.log('Marketplace Lister: Starting form fill sequence with data:', data);
+  console.log('Starting Form Fill');
+  console.log('Data:', JSON.stringify(data, null, 2));
 
-  // Update progress
   chrome.runtime.sendMessage({ 
     action: 'update_progress', 
     progress: { current: 10, total: 100 },
     status: 'posting'
   });
 
-  // Wait for the form to be ready
   await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  const allInputs = document.querySelectorAll('input, textarea');
+  console.log('Found inputs on page:', allInputs.length);
+  allInputs.forEach((input, i) => {
+    console.log(`Input ${i}:`, {
+      tag: input.tagName,
+      type: input.type,
+      placeholder: input.placeholder,
+      ariaLabel: input.getAttribute('aria-label'),
+      name: input.name,
+      id: input.id
+    });
+  });
 
-  // 1. Title - try multiple selectors
+  let titleFilled = false;
   try {
-    console.log('Looking for title input...');
-    const titleSelectors = [
-      'label[aria-label="Title"] input',
-      'input[aria-label="Title"]',
-      'input[placeholder*="Title"]',
-      'input[name="title"]',
-      '[data-testid="marketplace-create-title"] input'
-    ];
+    console.log('Looking for Title field...');
     
-    const titleInput = await waitForAnyElement(titleSelectors, 8000);
+    let titleInput = findInputByPlaceholder('Title');
+    
+    if (!titleInput) {
+      titleInput = findInputByLabel('Title', 'input');
+    }
+    
+    if (!titleInput) {
+      titleInput = findInputByAttributes([
+        'input[aria-label="Title"]',
+        'input[name="title"]',
+        'input[placeholder="Title"]'
+      ]);
+    }
+    
+    if (!titleInput) {
+      const requiredSection = Array.from(document.querySelectorAll('span, div'))
+        .find(el => el.textContent === 'Required');
+      if (requiredSection) {
+        const container = requiredSection.closest('div[class]')?.parentElement;
+        if (container) {
+          titleInput = container.querySelector('input[type="text"], input:not([type])');
+        }
+      }
+    }
+    
     if (titleInput) {
-      simulateInput(titleInput, data.title);
-      console.log('✓ Filled Title:', data.title);
-      chrome.runtime.sendMessage({ 
-        action: 'update_progress', 
-        progress: { current: 25, total: 100 }
-      });
+      console.log('Found title input:', titleInput);
+      await simulateTyping(titleInput, data.title);
+      titleFilled = true;
+      console.log('Title filled');
+    } else {
+      console.warn('Could not find Title input');
     }
   } catch (e) {
-    console.warn('Could not find Title input:', e.message);
+    console.error('Error filling title:', e);
   }
 
+  chrome.runtime.sendMessage({ 
+    action: 'update_progress', 
+    progress: { current: 25, total: 100 }
+  });
+  
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  // 2. Price
+  let priceFilled = false;
   try {
-    console.log('Looking for price input...');
-    const priceSelectors = [
-      'label[aria-label="Price"] input',
-      'input[aria-label="Price"]',
-      'input[placeholder*="Price"]',
-      'input[name="price"]',
-      '[data-testid="marketplace-create-price"] input'
-    ];
+    console.log('Looking for Price field...');
     
-    const priceInput = await waitForAnyElement(priceSelectors, 5000);
+    let priceInput = findInputByPlaceholder('Price');
+    
+    if (!priceInput) {
+      priceInput = findInputByLabel('Price', 'input');
+    }
+    
+    if (!priceInput) {
+      priceInput = findInputByAttributes([
+        'input[aria-label="Price"]',
+        'input[name="price"]',
+        'input[placeholder="Price"]',
+        'input[type="number"]'
+      ]);
+    }
+    
+    if (!priceInput && titleFilled) {
+      const textInputs = document.querySelectorAll('input[type="text"], input:not([type])');
+      if (textInputs.length >= 2) {
+        priceInput = textInputs[1];
+      }
+    }
+    
     if (priceInput) {
-      simulateInput(priceInput, String(data.price).replace('$', ''));
-      console.log('✓ Filled Price:', data.price);
-      chrome.runtime.sendMessage({ 
-        action: 'update_progress', 
-        progress: { current: 40, total: 100 }
-      });
+      console.log('Found price input:', priceInput);
+      const priceValue = String(data.price).replace(/[$,]/g, '');
+      await simulateTyping(priceInput, priceValue);
+      priceFilled = true;
+      console.log('Price filled');
+    } else {
+      console.warn('Could not find Price input');
     }
   } catch (e) {
-    console.warn('Could not find Price input:', e.message);
+    console.error('Error filling price:', e);
   }
+
+  chrome.runtime.sendMessage({ 
+    action: 'update_progress', 
+    progress: { current: 40, total: 100 }
+  });
 
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  // 3. Description
   try {
-    console.log('Looking for description input...');
-    const descSelectors = [
-      'label[aria-label="Description"] textarea',
-      'textarea[aria-label="Description"]',
-      'textarea[placeholder*="Description"]',
-      'textarea[placeholder*="description"]',
-      'textarea[name="description"]',
-      '[data-testid="marketplace-create-description"] textarea'
-    ];
+    console.log('Looking for Description field...');
     
-    const descInput = await waitForAnyElement(descSelectors, 5000);
-    if (descInput) {
-      simulateInput(descInput, data.description || '');
-      console.log('✓ Filled Description');
-      chrome.runtime.sendMessage({ 
-        action: 'update_progress', 
-        progress: { current: 55, total: 100 }
-      });
+    let descInput = document.querySelector('textarea');
+    
+    if (!descInput) {
+      descInput = findInputByPlaceholder('Description', 'textarea');
+    }
+    
+    if (!descInput) {
+      descInput = findInputByLabel('Description', 'textarea');
+    }
+    
+    if (descInput && data.description) {
+      console.log('Found description textarea:', descInput);
+      await simulateTyping(descInput, data.description);
+      console.log('Description filled');
+    } else if (!descInput) {
+      console.warn('Could not find Description textarea');
     }
   } catch (e) {
-    console.warn('Could not find Description input:', e.message);
+    console.error('Error filling description:', e);
   }
+
+  chrome.runtime.sendMessage({ 
+    action: 'update_progress', 
+    progress: { current: 55, total: 100 }
+  });
 
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  // 4. Category (Complex - usually requires clicking)
-  console.log('ℹ Category selection requires user interaction in this version.');
-
-  // 5. Condition dropdown (if available)
   try {
-    console.log('Looking for condition selector...');
-    const conditionSelectors = [
-      'label[aria-label="Condition"]',
-      '[aria-label="Condition"]',
-      '[data-testid="marketplace-create-condition"]'
-    ];
+    console.log('Looking for Category selector...');
     
-    const conditionButton = await waitForAnyElement(conditionSelectors, 3000);
-    if (conditionButton) {
-      conditionButton.click();
+    const categoryTrigger = findInputByAttributes([
+      '[aria-label="Category"]',
+      'div[aria-haspopup="listbox"]',
+      '[role="combobox"]'
+    ]) || findInputByLabel('Category', 'div');
+    
+    if (categoryTrigger) {
+      console.log('Found category trigger, clicking...');
+      categoryTrigger.click();
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const categoryText = data.category || 'Furniture';
+      const options = document.querySelectorAll('[role="option"], [role="menuitem"], [role="listitem"]');
+      
+      for (const option of options) {
+        if (option.textContent?.toLowerCase().includes(categoryText.toLowerCase())) {
+          option.click();
+          console.log('Category selected:', categoryText);
+          break;
+        }
+      }
+    } else {
+      console.log('Category selector not found - may need manual selection');
+    }
+  } catch (e) {
+    console.error('Error with category:', e);
+  }
+
+  chrome.runtime.sendMessage({ 
+    action: 'update_progress', 
+    progress: { current: 65, total: 100 }
+  });
+
+  try {
+    console.log('Looking for Condition selector...');
+    
+    const conditionTrigger = findInputByAttributes([
+      '[aria-label="Condition"]'
+    ]) || findInputByLabel('Condition', 'div');
+    
+    if (conditionTrigger) {
+      conditionTrigger.click();
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Try to find the right condition option
       const conditionMap = {
-        'new': ['New', 'Brand new'],
+        'new': ['New', 'Brand New'],
         'like_new': ['Like New', 'Used - Like New'],
         'good': ['Good', 'Used - Good'],
         'fair': ['Fair', 'Used - Fair']
       };
       
-      const conditionOptions = conditionMap[data.condition?.toLowerCase()] || ['Good'];
-      for (const optionText of conditionOptions) {
-        const options = document.querySelectorAll('[role="option"], [role="menuitem"]');
-        for (const option of options) {
-          if (option.textContent?.includes(optionText)) {
-            option.click();
-            console.log('✓ Selected Condition:', optionText);
-            break;
-          }
+      const targetConditions = conditionMap[data.condition?.toLowerCase()] || ['Good'];
+      const options = document.querySelectorAll('[role="option"], [role="menuitem"]');
+      
+      for (const option of options) {
+        const text = option.textContent?.trim();
+        if (targetConditions.some(t => text?.includes(t))) {
+          option.click();
+          console.log('Condition selected:', text);
+          break;
         }
       }
     }
   } catch (e) {
-    console.warn('Could not set Condition:', e.message);
+    console.error('Error with condition:', e);
   }
 
-  // 6. Images
-  if (data.images && data.images.length > 0) {
+  if (data.images && data.images.length > 0 && !imagesUploaded) {
     chrome.runtime.sendMessage({ 
       action: 'update_progress', 
-      progress: { current: 70, total: 100 }
+      progress: { current: 75, total: 100 }
     });
     await handleImages(data.images);
+    imagesUploaded = true;
   }
 
-  // Update to near-complete
   chrome.runtime.sendMessage({ 
     action: 'update_progress', 
-    progress: { current: 90, total: 100 }
+    progress: { current: 95, total: 100 }
   });
 
-  console.log('✓ Form fill sequence completed. Please review and submit manually.');
-  
-  // Show a helpful message to user
-  showNotification('Form filled! Please review and click "Publish" to complete posting.');
+  console.log('Form Fill Complete');
+  showNotification('Form filled! Please review and click "Next" to continue.');
 }
 
 async function handleImages(imageUrls) {
-  console.log('Marketplace Lister: Handling images', imageUrls);
+  console.log('Handling images:', imageUrls);
   
-  // Find file input - Facebook often hides it but it should be there
-  const fileInputSelectors = [
-    'input[type="file"][accept*="image"]',
-    'input[type="file"]',
-    '[data-testid="photo-input"] input'
-  ];
-  
-  let fileInput = null;
-  for (const selector of fileInputSelectors) {
-    fileInput = document.querySelector(selector);
-    if (fileInput) break;
-  }
+  const fileInput = document.querySelector('input[type="file"][accept*="image"]') 
+    || document.querySelector('input[type="file"]');
   
   if (!fileInput) {
-    console.warn('Could not find file input for images. Please upload manually.');
-    showNotification('Please add images manually - auto-upload not available.');
+    console.warn('No file input found');
+    showNotification('Please upload images manually.');
     return;
   }
 
   try {
-    // Fetch images and create blobs
     const dataTransfer = new DataTransfer();
+    const uniqueUrls = [...new Set(imageUrls)];
     
-    for (const url of imageUrls) {
+    console.log('Fetching', uniqueUrls.length, 'unique images');
+    
+    for (let i = 0; i < uniqueUrls.length; i++) {
+      const url = uniqueUrls[i];
       try {
-        console.log('Fetching image:', url);
-        const response = await fetch(url, { mode: 'cors' });
+        console.log(`Fetching image ${i + 1}/${uniqueUrls.length}:`, url);
+        
+        const response = await fetch(url, { 
+          mode: 'cors',
+          credentials: 'omit'
+        });
+        
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const blob = await response.blob();
-        const filename = url.split('/').pop() || `image_${Date.now()}.jpg`;
+        const filename = `image_${i + 1}_${Date.now()}.jpg`;
         const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
         dataTransfer.items.add(file);
-        console.log('✓ Image prepared:', filename);
+        
+        console.log('Image prepared:', filename, 'size:', blob.size);
       } catch (err) {
-        console.error(`Failed to fetch image: ${url}`, err);
+        console.error(`Failed to fetch image ${url}:`, err.message);
       }
     }
 
     if (dataTransfer.files.length > 0) {
+      console.log('Uploading', dataTransfer.files.length, 'images...');
       fileInput.files = dataTransfer.files;
       fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-      console.log('✓ Images uploaded to file input:', dataTransfer.files.length);
+      fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+      console.log('Images uploaded');
     }
   } catch (e) {
     console.error('Error handling images:', e);
   }
 }
 
-// Helper to show user notifications
 function showNotification(message) {
+  const existing = document.querySelector('#marketplace-lister-notification');
+  if (existing) existing.remove();
+  
   const notification = document.createElement('div');
+  notification.id = 'marketplace-lister-notification';
   notification.style.cssText = `
     position: fixed;
     top: 20px;
@@ -422,12 +493,11 @@ function showNotification(message) {
     color: white;
     padding: 16px 20px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 999999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 2147483647;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 14px;
-    max-width: 300px;
-    animation: slideIn 0.3s ease;
+    max-width: 320px;
   `;
   
   notification.innerHTML = `
@@ -437,27 +507,13 @@ function showNotification(message) {
     </div>
   `;
   
-  // Add animation style
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes slideIn {
-      from { transform: translateX(100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-  `;
-  document.head.appendChild(style);
-  
   document.body.appendChild(notification);
   
-  // Remove after 8 seconds
   setTimeout(() => {
-    notification.style.animation = 'slideIn 0.3s ease reverse';
-    setTimeout(() => {
-      notification.remove();
-      style.remove();
-    }, 300);
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s';
+    setTimeout(() => notification.remove(), 300);
   }, 8000);
 }
 
-// Start initialization
 init();
