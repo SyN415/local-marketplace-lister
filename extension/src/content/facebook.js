@@ -616,77 +616,115 @@ async function fillForm(data) {
 async function selectCategory(data) {
   console.log('Selecting category...');
   
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 800));
 
-  try {
-    // Try multiple selectors for category dropdown
-    const categorySelectors = [
-      '[aria-label="Category"]',
-      '[aria-label*="category"]',
-      'div[aria-haspopup="listbox"]',
-      '[role="combobox"]',
-      'label:has-text("Category") + div',
-      'span:has-text("Category")'
-    ];
+  // First, find and click the category dropdown trigger
+  // Look for elements that contain "Category" text and have a dropdown indicator
+  const categoryContainers = document.querySelectorAll('div');
+  let categoryDropdown = null;
+  
+  for (const div of categoryContainers) {
+    const text = div.textContent || '';
+    // Look for the Category label section
+    if (text.includes('Category') && text.includes('Please select') && div.querySelector('[role="button"], [aria-haspopup]')) {
+      categoryDropdown = div.querySelector('[role="button"], [aria-haspopup], [role="combobox"]');
+      if (categoryDropdown) break;
+    }
+  }
+  
+  // Fallback: look for aria-label
+  if (!categoryDropdown) {
+    categoryDropdown = document.querySelector('[aria-label="Category"]') ||
+                       document.querySelector('[aria-label*="category"]');
+  }
+  
+  // Another fallback: find by the label text
+  if (!categoryDropdown) {
+    const labels = document.querySelectorAll('label, span');
+    for (const label of labels) {
+      if (label.textContent?.trim() === 'Category') {
+        const parent = label.closest('div');
+        if (parent) {
+          categoryDropdown = parent.querySelector('[role="button"], [role="combobox"], div[tabindex]');
+        }
+        break;
+      }
+    }
+  }
+  
+  if (categoryDropdown) {
+    console.log('Found category dropdown, clicking to open...');
+    categoryDropdown.click();
+    await new Promise(resolve => setTimeout(resolve, 1200));
     
-    let categoryTrigger = null;
-    for (const selector of categorySelectors) {
-      try {
-        categoryTrigger = document.querySelector(selector);
-        if (categoryTrigger) break;
-      } catch (e) {
-        continue;
+    // Determine category to select
+    let categoryText = data.category;
+    if (!categoryText) {
+      categoryText = inferCategoryFromTitle(data.title, data.description);
+    }
+    
+    console.log('Looking for category:', categoryText);
+    
+    // Wait for dropdown menu to appear
+    await new Promise(r => setTimeout(r, 500));
+    
+    // Look for category options - they should be visible now
+    // Try searching in a menu/listbox that just appeared
+    const menuItems = document.querySelectorAll('[role="option"], [role="menuitem"], [role="listitem"], [role="menuitemradio"]');
+    console.log('Found', menuItems.length, 'menu items');
+    
+    let categoryFound = false;
+    const categoryKeywords = categoryText.toLowerCase().split(/[\s&]+/).filter(w => w.length > 2);
+    
+    // First pass: try exact or close match
+    for (const option of menuItems) {
+      const optionText = option.textContent?.toLowerCase() || '';
+      
+      // Check for keyword matches
+      const matchScore = categoryKeywords.filter(kw => optionText.includes(kw)).length;
+      if (matchScore >= 1) {
+        console.log('Found matching category option:', option.textContent);
+        option.click();
+        stepCompletionFlags.categorySelected = true;
+        categoryFound = true;
+        await new Promise(r => setTimeout(r, 500));
+        break;
       }
     }
     
-    if (!categoryTrigger) {
-      categoryTrigger = findInputByLabel('Category', 'div');
-    }
-    
-    if (categoryTrigger) {
-      console.log('Found category trigger, clicking...');
-      categoryTrigger.click();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // If no match, look for visible category buttons from the page log
+    // The screenshot shows buttons like "Sofas, Loveseats & Sectionals", "Furniture", etc.
+    if (!categoryFound) {
+      const allButtons = document.querySelectorAll('[role="button"]');
+      const validCategoryNames = ['furniture', 'electronics', 'home', 'garden', 'clothing', 'toys', 'sports', 'books', 'miscellaneous', 'general', 'household', 'sofas'];
       
-      // Determine category to select - use data.category or infer from title
-      let categoryText = data.category;
-      if (!categoryText) {
-        categoryText = inferCategoryFromTitle(data.title, data.description);
-      }
-      
-      console.log('Looking for category:', categoryText);
-      
-      const options = document.querySelectorAll('[role="option"], [role="menuitem"], [role="listitem"], [role="button"]');
-      let categoryFound = false;
-      
-      for (const option of options) {
-        const optionText = option.textContent?.toLowerCase() || '';
-        if (optionText.includes(categoryText.toLowerCase())) {
-          option.click();
-          console.log('Category selected:', categoryText);
+      for (const btn of allButtons) {
+        const btnText = btn.textContent?.toLowerCase() || '';
+        if (validCategoryNames.some(cat => btnText.includes(cat)) && btn.offsetParent !== null) {
+          console.log('Clicking category button:', btn.textContent);
+          btn.click();
           stepCompletionFlags.categorySelected = true;
           categoryFound = true;
+          await new Promise(r => setTimeout(r, 500));
           break;
         }
       }
-      
-      // If exact match not found, try to click "Miscellaneous" or "General"
-      if (!categoryFound) {
-        for (const option of options) {
-          const optionText = option.textContent?.toLowerCase() || '';
-          if (optionText.includes('miscellaneous') || optionText.includes('general') || optionText.includes('other')) {
-            option.click();
-            console.log('Fallback category selected:', option.textContent);
-            stepCompletionFlags.categorySelected = true;
-            break;
-          }
-        }
-      }
-    } else {
-      console.log('Category selector not found - may be pre-selected or not required');
     }
-  } catch (e) {
-    console.error('Error with category:', e);
+    
+    if (!categoryFound) {
+      console.warn('Could not find matching category - listing all visible options:');
+      menuItems.forEach((item, i) => console.log(`  Option ${i}: ${item.textContent?.substring(0, 50)}`));
+      throw new Error('Category selection failed - no matching option found');
+    }
+  } else {
+    // Check if category is already selected (no warning icon visible)
+    const categoryWarning = document.querySelector('[aria-label*="Category"] [aria-invalid="true"]');
+    if (!categoryWarning) {
+      console.log('Category may already be selected or not required');
+    } else {
+      console.error('Category dropdown not found');
+      throw new Error('Category dropdown not found');
+    }
   }
 
   chrome.runtime.sendMessage({
@@ -727,62 +765,111 @@ function inferCategoryFromTitle(title, description) {
 async function selectCondition(data) {
   console.log('Selecting condition...');
   
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 800));
 
-  try {
-    const conditionSelectors = [
-      '[aria-label="Condition"]',
-      '[aria-label*="condition"]',
-      'label:has-text("Condition") + div'
-    ];
+  // Find condition dropdown trigger
+  let conditionDropdown = null;
+  
+  // Look for elements containing "Condition" text
+  const conditionContainers = document.querySelectorAll('div');
+  for (const div of conditionContainers) {
+    const text = div.textContent || '';
+    if (text.includes('Condition') && text.includes('Please select') && div.querySelector('[role="button"], [aria-haspopup]')) {
+      conditionDropdown = div.querySelector('[role="button"], [aria-haspopup], [role="combobox"]');
+      if (conditionDropdown) break;
+    }
+  }
+  
+  // Fallback: aria-label
+  if (!conditionDropdown) {
+    conditionDropdown = document.querySelector('[aria-label="Condition"]') ||
+                        document.querySelector('[aria-label*="condition"]');
+  }
+  
+  // Another fallback: find by label
+  if (!conditionDropdown) {
+    const labels = document.querySelectorAll('label, span');
+    for (const label of labels) {
+      if (label.textContent?.trim() === 'Condition') {
+        const parent = label.closest('div');
+        if (parent) {
+          conditionDropdown = parent.querySelector('[role="button"], [role="combobox"], div[tabindex]');
+        }
+        break;
+      }
+    }
+  }
+  
+  if (conditionDropdown) {
+    console.log('Found condition dropdown, clicking to open...');
+    conditionDropdown.click();
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    let conditionTrigger = null;
-    for (const selector of conditionSelectors) {
-      try {
-        conditionTrigger = document.querySelector(selector);
-        if (conditionTrigger) break;
-      } catch (e) {
-        continue;
+    const conditionMap = {
+      'new': ['new', 'brand new'],
+      'like_new': ['like new', 'used - like new'],
+      'good': ['good', 'used - good'],
+      'fair': ['fair', 'used - fair'],
+      'used': ['used']
+    };
+    
+    const dataCondition = data.condition?.toLowerCase().replace(/[\s-]+/g, '_') || 'good';
+    const targetConditions = conditionMap[dataCondition] || conditionMap['good'];
+    
+    console.log('Looking for condition options:', targetConditions);
+    
+    // Wait for dropdown to render
+    await new Promise(r => setTimeout(r, 500));
+    
+    // Look for condition options
+    const options = document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], [role="radio"]');
+    console.log('Found', options.length, 'condition options');
+    
+    let conditionFound = false;
+    
+    for (const option of options) {
+      const text = option.textContent?.toLowerCase().trim() || '';
+      console.log('  Checking option:', text);
+      
+      if (targetConditions.some(t => text.includes(t))) {
+        console.log('Clicking condition option:', option.textContent);
+        option.click();
+        stepCompletionFlags.conditionSelected = true;
+        conditionFound = true;
+        await new Promise(r => setTimeout(r, 500));
+        break;
       }
     }
     
-    if (!conditionTrigger) {
-      conditionTrigger = findInputByLabel('Condition', 'div');
-    }
-    
-    if (conditionTrigger) {
-      conditionTrigger.click();
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const conditionMap = {
-        'new': ['New', 'Brand New'],
-        'like_new': ['Like New', 'Used - Like New', 'Like new'],
-        'good': ['Good', 'Used - Good'],
-        'fair': ['Fair', 'Used - Fair'],
-        'used': ['Used', 'Used - Good']
-      };
-      
-      const dataCondition = data.condition?.toLowerCase().replace(/\s+/g, '_') || 'good';
-      const targetConditions = conditionMap[dataCondition] || conditionMap['good'];
-      
-      console.log('Looking for condition:', targetConditions);
-      
-      const options = document.querySelectorAll('[role="option"], [role="menuitem"], [role="radio"]');
-      
+    // Fallback: click first available condition if no match
+    if (!conditionFound && options.length > 0) {
+      const validConditions = ['new', 'like new', 'good', 'fair', 'used'];
       for (const option of options) {
-        const text = option.textContent?.trim();
-        if (targetConditions.some(t => text?.toLowerCase().includes(t.toLowerCase()))) {
+        const text = option.textContent?.toLowerCase() || '';
+        if (validConditions.some(c => text.includes(c))) {
+          console.log('Fallback - clicking first valid condition:', option.textContent);
           option.click();
-          console.log('Condition selected:', text);
           stepCompletionFlags.conditionSelected = true;
+          conditionFound = true;
           break;
         }
       }
-    } else {
-      console.log('Condition selector not found - may be pre-selected');
     }
-  } catch (e) {
-    console.error('Error with condition:', e);
+    
+    if (!conditionFound) {
+      console.warn('Could not find matching condition option');
+      options.forEach((opt, i) => console.log(`  Option ${i}: ${opt.textContent?.substring(0, 30)}`));
+      throw new Error('Condition selection failed');
+    }
+  } else {
+    // Check if condition is already selected
+    const conditionWarning = document.querySelector('[aria-label*="Condition"] [aria-invalid="true"]');
+    if (!conditionWarning) {
+      console.log('Condition may already be selected or not required');
+    } else {
+      console.error('Condition dropdown not found');
+      throw new Error('Condition dropdown not found');
+    }
   }
 
   chrome.runtime.sendMessage({
@@ -797,31 +884,15 @@ async function clickNextButton(buttonNumber = 1) {
   
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  const nextButtonSelectors = [
-    'div[aria-label="Next"]',
-    'div[aria-label="next"]',
-    'span[aria-label="Next"]',
-    '[role="button"]:has(span:has-text("Next"))',
-    'div[role="button"] span:has-text("Next")',
-    'button:has-text("Next")',
-    '[data-testid="marketplace-create-listing-next-button"]'
-  ];
-  
+  // Find the Next button
   let nextButton = null;
   
-  // Try each selector
-  for (const selector of nextButtonSelectors) {
-    try {
-      const elements = document.querySelectorAll(selector);
-      for (const el of elements) {
-        if (el.textContent?.includes('Next') && el.offsetParent !== null) {
-          nextButton = el;
-          break;
-        }
-      }
-      if (nextButton) break;
-    } catch (e) {
-      continue;
+  // Primary: Look for aria-label="Next"
+  const nextButtons = document.querySelectorAll('[aria-label="Next"], [aria-label="next"]');
+  for (const btn of nextButtons) {
+    if (btn.offsetParent !== null) {
+      nextButton = btn;
+      break;
     }
   }
   
@@ -836,91 +907,82 @@ async function clickNextButton(buttonNumber = 1) {
     }
   }
   
-  // Another fallback: Find clickable div with Next text
   if (!nextButton) {
-    const allDivs = document.querySelectorAll('div');
-    for (const div of allDivs) {
-      if (div.textContent?.trim() === 'Next' &&
-          div.offsetParent !== null &&
-          (div.getAttribute('role') === 'button' || div.style.cursor === 'pointer' || div.onclick)) {
-        nextButton = div;
-        break;
-      }
-    }
-  }
-  
-  // Final fallback: Search more aggressively for any element containing "Next"
-  if (!nextButton) {
-    const allElements = document.querySelectorAll('*');
-    for (const el of allElements) {
-      const text = el.textContent?.trim();
-      const children = el.children.length;
-      
-      // Look for leaf nodes or near-leaf nodes with "Next" text
-      if (text === 'Next' && children <= 2 && el.offsetParent !== null) {
-        // Check if it's clickable
-        const style = window.getComputedStyle(el);
-        if (style.cursor === 'pointer' || el.onclick || el.getAttribute('role') === 'button') {
-          nextButton = el;
-          break;
-        }
-        // Or if parent is clickable
-        const parent = el.parentElement;
-        if (parent && (parent.getAttribute('role') === 'button' || parent.onclick)) {
-          nextButton = parent;
-          break;
-        }
-      }
-    }
-  }
-  
-  if (nextButton) {
-    console.log(`Found Next button #${buttonNumber}:`, nextButton);
-    
-    // Scroll into view if needed
-    nextButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await new Promise(r => setTimeout(r, 300));
-    
-    // Try multiple click methods for better compatibility
-    try {
-      // Method 1: Direct click
-      nextButton.click();
-    } catch (e) {
-      console.warn('Direct click failed, trying dispatch event');
-    }
-    
-    // Method 2: Dispatch mouse events
-    try {
-      nextButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      nextButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-      nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    } catch (e) {
-      console.warn('Mouse event dispatch failed');
-    }
-    
-    console.log(`Clicked Next button #${buttonNumber}`);
-    
-    stepCompletionFlags[`nextButton${buttonNumber}Clicked`] = true;
-    
-    // Wait for page transition
-    await new Promise(r => setTimeout(r, 2000));
-    
-    chrome.runtime.sendMessage({
-      action: 'update_progress',
-      progress: { current: buttonNumber === 1 ? 50 : 70, total: 100 }
-    });
-    
-    return true;
-  } else {
     console.error(`Next button #${buttonNumber} not found`);
-    // Log page state for debugging
-    console.log('Current page buttons:',
-      Array.from(document.querySelectorAll('[role="button"], button'))
-        .map(b => ({ text: b.textContent?.trim().substring(0, 30), visible: b.offsetParent !== null }))
-        .filter(b => b.visible)
-    );
     throw new Error(`Next button #${buttonNumber} not found - please click manually`);
   }
+  
+  // CRITICAL: Check if button is disabled
+  const isDisabled = nextButton.getAttribute('aria-disabled') === 'true' ||
+                     nextButton.hasAttribute('disabled') ||
+                     nextButton.classList.contains('disabled');
+  
+  if (isDisabled) {
+    console.error(`Next button #${buttonNumber} is DISABLED - form validation failed`);
+    
+    // Check what's missing
+    const missingFields = [];
+    
+    // Check category
+    const categorySection = Array.from(document.querySelectorAll('div')).find(d =>
+      d.textContent?.includes('Category') && d.textContent?.includes('Please select'));
+    if (categorySection) {
+      missingFields.push('Category');
+    }
+    
+    // Check condition
+    const conditionSection = Array.from(document.querySelectorAll('div')).find(d =>
+      d.textContent?.includes('Condition') && d.textContent?.includes('Please select'));
+    if (conditionSection) {
+      missingFields.push('Condition');
+    }
+    
+    const errorMsg = `Next button is disabled. Missing: ${missingFields.join(', ') || 'unknown fields'}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  console.log(`Found Next button #${buttonNumber} (enabled):`, nextButton);
+  
+  // Scroll into view
+  nextButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  await new Promise(r => setTimeout(r, 300));
+  
+  // Record current URL to detect navigation
+  const urlBefore = window.location.href;
+  const pageContentBefore = document.body.innerHTML.length;
+  
+  // Click the button
+  nextButton.click();
+  
+  // Also dispatch events for React
+  nextButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  nextButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+  nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  
+  console.log(`Clicked Next button #${buttonNumber}`);
+  
+  // Wait for page transition
+  await new Promise(r => setTimeout(r, 2500));
+  
+  // Verify something changed (page content should be different)
+  const pageContentAfter = document.body.innerHTML.length;
+  const contentChanged = Math.abs(pageContentAfter - pageContentBefore) > 500;
+  
+  if (!contentChanged) {
+    console.warn('Page content may not have changed after clicking Next');
+    // Additional wait and re-check
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  
+  stepCompletionFlags[`nextButton${buttonNumber}Clicked`] = true;
+  
+  chrome.runtime.sendMessage({
+    action: 'update_progress',
+    progress: { current: buttonNumber === 1 ? 50 : 70, total: 100 }
+  });
+  
+  return true;
 }
 
 // Handle Location and Delivery options (second screen)
