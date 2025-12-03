@@ -4,10 +4,10 @@ console.log('Jiggly: Facebook content script loaded on', window.location.href);
 // Workflow steps for the posting state machine
 const WORKFLOW_STEPS = {
   IDLE: 'idle',
+  UPLOADING_IMAGES: 'uploading_images',
   FORM_FILL: 'form_fill',
   SELECTING_CATEGORY: 'selecting_category',
   SELECTING_CONDITION: 'selecting_condition',
-  UPLOADING_IMAGES: 'uploading_images',
   CLICKING_NEXT_1: 'clicking_next_1',
   LOCATION_DELIVERY: 'location_delivery',
   CLICKING_NEXT_2: 'clicking_next_2',
@@ -386,24 +386,26 @@ async function runFullPostingWorkflow(data) {
   console.log('Data:', JSON.stringify(data, null, 2));
   
   try {
-    // Step 1: Fill the form (title, price, description)
-    await updateWorkflowStep(WORKFLOW_STEPS.FORM_FILL);
-    await withRetry('Fill Form', () => fillForm(data), 2, 1000);
-    
-    // Step 2: Select category (soft retry - continue if fails)
-    await updateWorkflowStep(WORKFLOW_STEPS.SELECTING_CATEGORY);
-    await withSoftRetry('Select Category', () => selectCategory(data), 2, 800);
-    
-    // Step 3: Select condition (soft retry - continue if fails)
-    await updateWorkflowStep(WORKFLOW_STEPS.SELECTING_CONDITION);
-    await withSoftRetry('Select Condition', () => selectCondition(data), 2, 800);
-    
-    // Step 4: Upload images
+    // Step 1: Upload images first (to trigger category suggestions)
     if (data.images && data.images.length > 0 && !imagesUploaded) {
       await updateWorkflowStep(WORKFLOW_STEPS.UPLOADING_IMAGES);
       await withSoftRetry('Upload Images', () => handleImages(data.images), 2, 1500);
       imagesUploaded = true;
+      // Wait for images to be processed by Facebook which might generate suggestions
+      await new Promise(r => setTimeout(r, 4000));
     }
+
+    // Step 2: Fill the form (title, price, description)
+    await updateWorkflowStep(WORKFLOW_STEPS.FORM_FILL);
+    await withRetry('Fill Form', () => fillForm(data), 2, 1000);
+    
+    // Step 3: Select category (soft retry - continue if fails)
+    await updateWorkflowStep(WORKFLOW_STEPS.SELECTING_CATEGORY);
+    await withSoftRetry('Select Category', () => selectCategory(data), 2, 800);
+    
+    // Step 4: Select condition (soft retry - continue if fails)
+    await updateWorkflowStep(WORKFLOW_STEPS.SELECTING_CONDITION);
+    await withSoftRetry('Select Condition', () => selectCondition(data), 2, 800);
     
     // Wait for any pending uploads to process
     await new Promise(r => setTimeout(r, 2500));

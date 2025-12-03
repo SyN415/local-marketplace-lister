@@ -12,10 +12,10 @@ const STATE = {
 // Facebook workflow steps (mirrored from content script)
 const FB_WORKFLOW_STEPS = {
   IDLE: 'idle',
+  UPLOADING_IMAGES: 'uploading_images',
   FORM_FILL: 'form_fill',
   SELECTING_CATEGORY: 'selecting_category',
   SELECTING_CONDITION: 'selecting_condition',
-  UPLOADING_IMAGES: 'uploading_images',
   CLICKING_NEXT_1: 'clicking_next_1',
   LOCATION_DELIVERY: 'location_delivery',
   CLICKING_NEXT_2: 'clicking_next_2',
@@ -396,10 +396,10 @@ async function handleWorkflowStepChanged(request) {
   // Calculate progress percentage based on step
   const stepProgressMap = {
     [FB_WORKFLOW_STEPS.IDLE]: 0,
-    [FB_WORKFLOW_STEPS.FORM_FILL]: 15,
-    [FB_WORKFLOW_STEPS.SELECTING_CATEGORY]: 25,
-    [FB_WORKFLOW_STEPS.SELECTING_CONDITION]: 35,
-    [FB_WORKFLOW_STEPS.UPLOADING_IMAGES]: 45,
+    [FB_WORKFLOW_STEPS.UPLOADING_IMAGES]: 15,
+    [FB_WORKFLOW_STEPS.FORM_FILL]: 30,
+    [FB_WORKFLOW_STEPS.SELECTING_CATEGORY]: 40,
+    [FB_WORKFLOW_STEPS.SELECTING_CONDITION]: 45,
     [FB_WORKFLOW_STEPS.CLICKING_NEXT_1]: 50,
     [FB_WORKFLOW_STEPS.LOCATION_DELIVERY]: 60,
     [FB_WORKFLOW_STEPS.CLICKING_NEXT_2]: 70,
