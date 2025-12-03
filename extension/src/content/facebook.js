@@ -696,7 +696,15 @@ async function selectCategory(data) {
     // The screenshot shows buttons like "Sofas, Loveseats & Sectionals", "Furniture", etc.
     if (!categoryFound) {
       const allButtons = document.querySelectorAll('[role="button"]');
-      const validCategoryNames = ['furniture', 'electronics', 'home', 'garden', 'clothing', 'toys', 'sports', 'books', 'miscellaneous', 'general', 'household', 'sofas'];
+      // Updated list based on user provided screenshots
+      const validCategoryNames = [
+        'antiques', 'collectibles', 'arts', 'crafts', 'auto parts', 'baby',
+        'books', 'movies', 'music', 'cell phones', 'clothing', 'shoes',
+        'electronics', 'furniture', 'health', 'beauty', 'home', 'kitchen',
+        'jewelry', 'watches', 'musical instruments', 'office supplies',
+        'patio', 'garden', 'pet supplies', 'sporting goods', 'tools',
+        'toys', 'games', 'travel', 'luggage', 'video games', 'miscellaneous'
+      ];
       
       for (const btn of allButtons) {
         const btnText = btn.textContent?.toLowerCase() || '';
@@ -738,16 +746,28 @@ function inferCategoryFromTitle(title, description) {
   const text = `${title} ${description}`.toLowerCase();
   
   const categoryKeywords = {
-    'Electronics': ['phone', 'laptop', 'computer', 'tablet', 'tv', 'television', 'camera', 'gaming', 'console', 'headphones', 'speaker'],
-    'Furniture': ['chair', 'table', 'desk', 'sofa', 'couch', 'bed', 'dresser', 'cabinet', 'shelf', 'bookcase'],
-    'Clothing': ['shirt', 'pants', 'dress', 'shoes', 'jacket', 'coat', 'jeans', 'sweater', 'sneakers'],
-    'Home': ['decor', 'lamp', 'rug', 'curtain', 'pillow', 'blanket', 'kitchen', 'appliance'],
-    'Toys': ['toy', 'game', 'puzzle', 'lego', 'doll', 'action figure', 'board game'],
-    'Sports': ['bike', 'bicycle', 'golf', 'tennis', 'basketball', 'football', 'fitness', 'gym', 'weights'],
-    'Books': ['book', 'textbook', 'magazine', 'novel'],
-    'Baby': ['baby', 'stroller', 'crib', 'diaper', 'infant', 'toddler'],
-    'Vehicles': ['car', 'truck', 'motorcycle', 'scooter', 'boat', 'auto'],
-    'Tools': ['tool', 'drill', 'saw', 'hammer', 'wrench', 'screwdriver']
+    'Antiques & Collectibles': ['antique', 'vintage', 'collectible', 'memorabilia', 'rare'],
+    'Arts & Crafts': ['art', 'craft', 'painting', 'easel', 'yarn', 'sewing', 'knitting', 'canvas', 'paint'],
+    'Auto Parts & Accessories': ['tire', 'wheel', 'rim', 'engine', 'bumper', 'car part', 'auto part'],
+    'Baby Products': ['baby', 'stroller', 'crib', 'diaper', 'infant', 'toddler', 'car seat', 'high chair'],
+    'Books, Movies & Music': ['book', 'textbook', 'magazine', 'novel', 'dvd', 'bluray', 'cd', 'record', 'vinyl'],
+    'Cell Phones & Accessories': ['iphone', 'samsung', 'galaxy', 'pixel', 'smartphone', 'case', 'charger'],
+    'Clothing, Shoes & Accessories': ['shirt', 'pants', 'dress', 'shoes', 'jacket', 'coat', 'jeans', 'sweater', 'sneakers', 'boots', 'bag', 'purse', 'wallet'],
+    'Electronics': ['computer', 'laptop', 'tablet', 'ipad', 'monitor', 'printer', 'camera', 'lens', 'drone', 'tv', 'television', 'speaker', 'headphones'],
+    'Furniture': ['chair', 'table', 'desk', 'sofa', 'couch', 'sectional', 'bed', 'mattress', 'dresser', 'cabinet', 'shelf', 'bookcase', 'wardrobe', 'stool', 'bench'],
+    'Health & Beauty': ['makeup', 'perfume', 'cologne', 'hair', 'skincare', 'lotion', 'shampoo'],
+    'Home & Kitchen': ['kitchen', 'appliance', 'cookware', 'dish', 'plate', 'glass', 'decor', 'lamp', 'rug', 'curtain', 'pillow', 'blanket', 'bedding'],
+    'Jewelry & Watches': ['jewelry', 'necklace', 'ring', 'earring', 'bracelet', 'watch', 'rolex'],
+    'Musical Instruments': ['guitar', 'piano', 'keyboard', 'drum', 'violin', 'instrument', 'amplifier'],
+    'Office Supplies': ['office', 'paper', 'notebook', 'pen', 'printer ink', 'stapler'],
+    'Patio & Garden': ['patio', 'garden', 'plant', 'pot', 'mower', 'grill', 'bbq', 'outdoor furniture'],
+    'Pet Supplies': ['pet', 'dog', 'cat', 'aquarium', 'cage', 'leash', 'collar', 'food'],
+    'Sporting Goods': ['bike', 'bicycle', 'golf', 'tennis', 'basketball', 'football', 'fitness', 'gym', 'weight', 'treadmill', 'camping', 'tent'],
+    'Tools & Home Improvement': ['tool', 'drill', 'saw', 'hammer', 'wrench', 'screwdriver', 'ladder', 'hardware'],
+    'Toys & Games': ['toy', 'game', 'puzzle', 'lego', 'doll', 'action figure', 'board game'],
+    'Travel & Luggage': ['luggage', 'suitcase', 'backpack', 'travel', 'duffel'],
+    'Video Games & Consoles': ['video game', 'nintendo', 'playstation', 'xbox', 'switch', 'controller', 'console'],
+    'Miscellaneous': [] // Fallback
   };
   
   for (const [category, keywords] of Object.entries(categoryKeywords)) {
