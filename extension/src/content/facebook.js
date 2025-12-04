@@ -1184,22 +1184,53 @@ async function handleLocationAndDelivery(data) {
     }
     
     if (locationInput) {
-      const locationValue = data.location || data.city || 'Local area';
-      console.log('Found location input, filling with:', locationValue);
+      // Parse location data
+      let locationToType = data.location || data.city || '94103';
       
-      await simulateTyping(locationInput, locationValue);
-      
-      // Wait for location suggestions to appear
-      await new Promise(r => setTimeout(r, 1500));
-      
-      // Try to click the first suggestion
-      const suggestions = document.querySelectorAll('[role="option"], [role="listitem"], [data-testid*="location"]');
-      if (suggestions.length > 0) {
-        suggestions[0].click();
-        console.log('Selected first location suggestion');
+      // Strategy: Try Zip Code first if available, as it's most precise
+      // Data format is often "City, State, Zip" or just "Zip" or "City"
+      const zipMatch = locationToType.match(/\b\d{5}\b/);
+      if (zipMatch) {
+        locationToType = zipMatch[0]; // Use just the zip code
+      } else if (data.zip) {
+        locationToType = data.zip;
       }
       
-      stepCompletionFlags.locationFilled = true;
+      console.log('Found location input, filling with:', locationToType);
+      
+      // Clear input first
+      locationInput.focus();
+      locationInput.value = '';
+      locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 300));
+      
+      await simulateTyping(locationInput, locationToType);
+      
+      // Wait for location suggestions to appear
+      await new Promise(r => setTimeout(r, 2000));
+      
+      // Try to click the first suggestion - usually the best match for a zip code
+      const suggestions = document.querySelectorAll('[role="option"], [role="listitem"], [data-testid*="location"], li[role="presentation"]');
+      
+      if (suggestions.length > 0) {
+        console.log(`Found ${suggestions.length} location suggestions. Clicking first:`, suggestions[0].textContent);
+        suggestions[0].click();
+        stepCompletionFlags.locationFilled = true;
+      } else {
+        console.warn('No location suggestions found for:', locationToType);
+        // Fallback: try typing "City, State" if Zip failed to produce results
+        if (zipMatch && data.location && data.location !== zipMatch[0]) {
+             console.log('Retrying with full location string...');
+             locationInput.value = '';
+             await simulateTyping(locationInput, data.location.split(',')[0]); // Just City
+             await new Promise(r => setTimeout(r, 2000));
+             const retrySuggestions = document.querySelectorAll('[role="option"], [role="listitem"]');
+             if (retrySuggestions.length > 0) {
+                 retrySuggestions[0].click();
+                 stepCompletionFlags.locationFilled = true;
+             }
+        }
+      }
     } else {
       console.log('Location input not found - may be pre-filled or not required');
     }
@@ -1563,35 +1594,6 @@ async function handleImages(imageUrls) {
     if (dataTransfer.files.length > 0) {
       console.log('Uploading', dataTransfer.files.length, 'images...');
       fileInput.files = dataTransfer.files;
-// Helper to dump debug info to console
-window.__jigglyGetDebugInfo = () => {
-  const buttons = Array.from(document.querySelectorAll('[role="button"], button'))
-    .map(b => ({ 
-      text: b.textContent?.trim().substring(0, 50), 
-      visible: b.offsetParent !== null,
-      ariaLabel: b.getAttribute('aria-label'),
-      classes: b.className
-    }));
-    
-  const inputs = Array.from(document.querySelectorAll('input, textarea'))
-    .map(i => ({
-      type: i.type,
-      placeholder: i.placeholder,
-      value: i.value,
-      id: i.id,
-      ariaLabel: i.getAttribute('aria-label')
-    }));
-    
-  console.log('Jiggly Debug Info:', {
-    workflowState: currentWorkflowStep,
-    flags: stepCompletionFlags,
-    buttons,
-    inputs,
-    url: window.location.href
-  });
-  
-  return { buttons, inputs };
-};
       fileInput.dispatchEvent(new Event('change', { bubbles: true }));
       fileInput.dispatchEvent(new Event('input', { bubbles: true }));
       console.log('Images uploaded');
@@ -1646,5 +1648,35 @@ window.__jigglyGetStatus = () => ({
   formFillAttempted,
   imagesUploaded
 });
+
+// Helper to dump debug info to console
+window.__jigglyGetDebugInfo = () => {
+  const buttons = Array.from(document.querySelectorAll('[role="button"], button'))
+    .map(b => ({
+      text: b.textContent?.trim().substring(0, 50),
+      visible: b.offsetParent !== null,
+      ariaLabel: b.getAttribute('aria-label'),
+      classes: b.className
+    }));
+    
+  const inputs = Array.from(document.querySelectorAll('input, textarea'))
+    .map(i => ({
+      type: i.type,
+      placeholder: i.placeholder,
+      value: i.value,
+      id: i.id,
+      ariaLabel: i.getAttribute('aria-label')
+    }));
+    
+  console.log('Jiggly Debug Info:', {
+    workflowState: currentWorkflowStep,
+    flags: stepCompletionFlags,
+    buttons,
+    inputs,
+    url: window.location.href
+  });
+  
+  return { buttons, inputs };
+};
 
 init();
