@@ -641,13 +641,36 @@ async function selectCategory(data) {
                    text !== 'Add photo' &&
                    text !== 'Add photos' &&
                    text !== 'Edit' &&
+                   text !== 'Learn more' &&
+                   text !== 'Try it' &&
+                   text !== 'Save draft' &&
                    !text.includes('Category') &&
+                   !text.includes('Hide from friends') &&
                    btn.offsetParent !== null; // Visible
           });
         
         if (suggestedButtons.length > 0) {
-          console.log('Found suggested category buttons, clicking first one:', suggestedButtons[0].textContent);
-          suggestedButtons[0].click();
+          // Try to find a button that matches our category or title keywords
+          const keywords = (data.category + ' ' + data.title).toLowerCase().split(/[\s,]+/);
+          
+          let bestMatch = suggestedButtons[0];
+          let bestScore = 0;
+          
+          for (const btn of suggestedButtons) {
+            const btnText = btn.textContent?.toLowerCase() || '';
+            let score = 0;
+            keywords.forEach(kw => {
+              if (kw.length > 2 && btnText.includes(kw)) score++;
+            });
+            
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = btn;
+            }
+          }
+          
+          console.log(`Found suggested category buttons. Best match: "${bestMatch.textContent}" (Score: ${bestScore})`);
+          bestMatch.click();
           stepCompletionFlags.categorySelected = true;
           
           chrome.runtime.sendMessage({
@@ -1540,6 +1563,35 @@ async function handleImages(imageUrls) {
     if (dataTransfer.files.length > 0) {
       console.log('Uploading', dataTransfer.files.length, 'images...');
       fileInput.files = dataTransfer.files;
+// Helper to dump debug info to console
+window.__jigglyGetDebugInfo = () => {
+  const buttons = Array.from(document.querySelectorAll('[role="button"], button'))
+    .map(b => ({ 
+      text: b.textContent?.trim().substring(0, 50), 
+      visible: b.offsetParent !== null,
+      ariaLabel: b.getAttribute('aria-label'),
+      classes: b.className
+    }));
+    
+  const inputs = Array.from(document.querySelectorAll('input, textarea'))
+    .map(i => ({
+      type: i.type,
+      placeholder: i.placeholder,
+      value: i.value,
+      id: i.id,
+      ariaLabel: i.getAttribute('aria-label')
+    }));
+    
+  console.log('Jiggly Debug Info:', {
+    workflowState: currentWorkflowStep,
+    flags: stepCompletionFlags,
+    buttons,
+    inputs,
+    url: window.location.href
+  });
+  
+  return { buttons, inputs };
+};
       fileInput.dispatchEvent(new Event('change', { bubbles: true }));
       fileInput.dispatchEvent(new Event('input', { bubbles: true }));
       console.log('Images uploaded');
