@@ -1151,6 +1151,288 @@ async function clickNextButton(buttonNumber = 1) {
   return true;
 }
 
+// Helper function to select location from dropdown suggestions
+async function selectLocationSuggestion(zipCode, fullLocationString) {
+  console.log('Attempting to select location suggestion for:', zipCode);
+  
+  // Find the listbox (dropdown container)
+  const listbox = document.querySelector('[role="listbox"]');
+  if (!listbox || listbox.offsetParent === null) {
+    console.warn('No visible listbox found');
+    return false;
+  }
+  
+  // Get all options from the listbox
+  const options = listbox.querySelectorAll('[role="option"]');
+  console.log('Found', options.length, 'location options');
+  
+  if (options.length === 0) {
+    // Fallback: look for any clickable items inside the listbox
+    const items = listbox.querySelectorAll('li, div[tabindex], [data-visualcompletion]');
+    console.log('Fallback: Found', items.length, 'items in listbox');
+    
+    if (items.length === 0) {
+      return false;
+    }
+    
+    // Log what we found for debugging
+    items.forEach((item, i) => {
+      console.log(`  Item ${i}:`, item.textContent?.substring(0, 60));
+    });
+    
+    // Try to find the best match
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (const item of items) {
+      const text = item.textContent || '';
+      let score = 0;
+      
+      // Check for zip code match (highest priority)
+      if (text.includes(zipCode)) {
+        score += 10;
+      }
+      
+      // Check for full location match (e.g., "San Francisco, CA 94118")
+      if (fullLocationString) {
+        const parts = fullLocationString.toLowerCase().split(/[,\s]+/).filter(p => p.length > 1);
+        for (const part of parts) {
+          if (text.toLowerCase().includes(part)) {
+            score += 2;
+          }
+        }
+      }
+      
+      // Must be visible
+      if (item.offsetParent === null) {
+        score = 0;
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = item;
+      }
+    }
+    
+    if (bestMatch && bestScore > 0) {
+      console.log('Clicking best match (score:', bestScore, '):', bestMatch.textContent?.substring(0, 60));
+      return await performLocationClick(bestMatch);
+    }
+    
+    // Last resort: click first visible item
+    for (const item of items) {
+      if (item.offsetParent !== null && item.textContent?.trim()) {
+        console.log('Clicking first visible item:', item.textContent?.substring(0, 60));
+        return await performLocationClick(item);
+      }
+    }
+    
+    return false;
+  }
+  
+  // We have [role="option"] elements - process them
+  console.log('Processing location options:');
+  options.forEach((opt, i) => {
+    console.log(`  Option ${i}:`, opt.textContent?.substring(0, 60));
+  });
+  
+  // Try to find the best matching option
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  for (const option of options) {
+    const text = option.textContent || '';
+    const ariaLabel = option.getAttribute('aria-label') || '';
+    const combinedText = `${text} ${ariaLabel}`.toLowerCase();
+    let score = 0;
+    
+    // Zip code match is highest priority
+    if (combinedText.includes(zipCode)) {
+      score += 10;
+    }
+    
+    // Full location string matching
+    if (fullLocationString) {
+      const parts = fullLocationString.toLowerCase().split(/[,\s]+/).filter(p => p.length > 1);
+      for (const part of parts) {
+        if (combinedText.includes(part)) {
+          score += 2;
+        }
+      }
+    }
+    
+    // Check for "San Francisco" specifically as it's the target
+    if (combinedText.includes('san francisco')) {
+      score += 3;
+    }
+    
+    // Must be visible
+    if (option.offsetParent === null) {
+      score = 0;
+    }
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = option;
+    }
+  }
+  
+  // If we found a good match, click it
+  if (bestMatch && bestScore > 0) {
+    console.log('Best location match (score:', bestScore, '):', bestMatch.textContent?.substring(0, 60));
+    return await performLocationClick(bestMatch);
+  }
+  
+  // No good match found, click first visible option
+  for (const option of options) {
+    if (option.offsetParent !== null) {
+      console.log('No match found, clicking first visible option:', option.textContent?.substring(0, 60));
+      return await performLocationClick(option);
+    }
+  }
+  
+  return false;
+}
+
+// Perform a robust click on a location option
+async function performLocationClick(element) {
+  if (!element) return false;
+  
+  console.log('Performing click on location element:', element.textContent?.substring(0, 40));
+  
+  // Scroll element into view if needed
+  element.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+  await new Promise(r => setTimeout(r, 100));
+  
+  // Try multiple click methods
+  
+  // Method 1: Direct click
+  try {
+    element.click();
+    console.log('Direct click executed');
+  } catch (e) {
+    console.warn('Direct click failed:', e.message);
+  }
+  
+  await new Promise(r => setTimeout(r, 100));
+  
+  // Method 2: Dispatch mouse events (for React)
+  try {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    const mousedownEvent = new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: centerX,
+      clientY: centerY
+    });
+    
+    const mouseupEvent = new MouseEvent('mouseup', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: centerX,
+      clientY: centerY
+    });
+    
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: centerX,
+      clientY: centerY
+    });
+    
+    element.dispatchEvent(mousedownEvent);
+    element.dispatchEvent(mouseupEvent);
+    element.dispatchEvent(clickEvent);
+    console.log('Mouse events dispatched');
+  } catch (e) {
+    console.warn('Mouse event dispatch failed:', e.message);
+  }
+  
+  await new Promise(r => setTimeout(r, 100));
+  
+  // Method 3: Focus and trigger via pointer events
+  try {
+    element.focus();
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+    console.log('Pointer events dispatched');
+  } catch (e) {
+    console.warn('Pointer events failed:', e.message);
+  }
+  
+  return true;
+}
+
+// Fallback: Select location using keyboard navigation
+async function selectLocationViaKeyboard(inputElement) {
+  console.log('Attempting location selection via keyboard...');
+  
+  if (!inputElement) return false;
+  
+  try {
+    // Make sure input is focused
+    inputElement.focus();
+    await new Promise(r => setTimeout(r, 200));
+    
+    // Press Down arrow to highlight first suggestion
+    inputElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      code: 'ArrowDown',
+      keyCode: 40,
+      which: 40,
+      bubbles: true,
+      cancelable: true
+    }));
+    
+    await new Promise(r => setTimeout(r, 200));
+    
+    // Press Enter to select the highlighted suggestion
+    inputElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    }));
+    
+    await new Promise(r => setTimeout(r, 300));
+    
+    // Check if dropdown closed (indicating selection was made)
+    const dropdownGone = !document.querySelector('[role="listbox"]') ||
+                          document.querySelector('[role="listbox"]')?.offsetParent === null;
+    
+    if (dropdownGone) {
+      console.log('Keyboard selection successful - dropdown closed');
+      return true;
+    }
+    
+    // Try Tab key as alternative
+    console.log('Enter did not close dropdown, trying Tab...');
+    inputElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Tab',
+      code: 'Tab',
+      keyCode: 9,
+      which: 9,
+      bubbles: true,
+      cancelable: true
+    }));
+    
+    await new Promise(r => setTimeout(r, 300));
+    
+    return true; // Assume it worked
+  } catch (e) {
+    console.warn('Keyboard selection failed:', e.message);
+    return false;
+  }
+}
+
 // Handle Location and Delivery options (second screen)
 async function handleLocationAndDelivery(data) {
   console.log('Handling Location and Delivery options...');
@@ -1184,19 +1466,20 @@ async function handleLocationAndDelivery(data) {
     }
     
     if (locationInput) {
-      // Parse location data
-      let locationToType = data.location || data.city || '94103';
+      // Parse location data - prefer zip code for precise matching
+      let locationToType = data.location || data.city || '94118';
+      let fullLocationString = data.location || '';
       
-      // Strategy: Try Zip Code first if available, as it's most precise
-      // Data format is often "City, State, Zip" or just "Zip" or "City"
+      // Extract zip code if present
       const zipMatch = locationToType.match(/\b\d{5}\b/);
       if (zipMatch) {
-        locationToType = zipMatch[0]; // Use just the zip code
+        locationToType = zipMatch[0]; // Use just the zip code for typing
       } else if (data.zip) {
         locationToType = data.zip;
       }
       
       console.log('Found location input, filling with:', locationToType);
+      console.log('Full location string for matching:', fullLocationString);
       
       // Clear input first
       locationInput.focus();
@@ -1206,61 +1489,50 @@ async function handleLocationAndDelivery(data) {
       
       await simulateTyping(locationInput, locationToType);
       
-      // Wait for location suggestions to appear
-      await new Promise(r => setTimeout(r, 2000));
+      // Wait for location suggestions dropdown to appear
+      console.log('Waiting for location dropdown to appear...');
+      let dropdownFound = false;
+      let attempts = 0;
+      const maxAttempts = 10;
       
-      // Try to click the first suggestion - usually the best match for a zip code
-      // We look for list items that contain the typed zip code to be sure
-      let suggestions = Array.from(document.querySelectorAll('[role="option"], [role="listitem"], [data-testid*="location"], li, div[role="button"]'));
-      
-      // Filter for items that actually look like location suggestions (contain the zip or city)
-      suggestions = suggestions.filter(el => {
-          const text = el.textContent || '';
-          return text.includes(locationToType) && el.offsetParent !== null; // Visible and contains text
-      });
-
-      if (suggestions.length > 0) {
-        console.log(`Found ${suggestions.length} relevant location suggestions. Clicking first:`, suggestions[0].textContent);
-        suggestions[0].click();
+      while (!dropdownFound && attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 300));
+        attempts++;
         
-        // Dispatch explicit click event as backup
-        suggestions[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        
-        stepCompletionFlags.locationFilled = true;
-      } else {
-        console.warn('No specific location suggestions found for:', locationToType);
-        
-        // Fallback: Look for ANY new list container that appeared
-        const listboxes = document.querySelectorAll('[role="listbox"], ul');
-        let fallbackClicked = false;
-        
-        for (const list of listboxes) {
-            if (list.offsetParent !== null && list.textContent.includes(locationToType)) {
-                const firstItem = list.querySelector('li, [role="option"], [role="button"]');
-                if (firstItem) {
-                    console.log('Clicking fallback list item:', firstItem.textContent);
-                    firstItem.click();
-                    firstItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                    fallbackClicked = true;
-                    stepCompletionFlags.locationFilled = true;
-                    break;
-                }
-            }
+        // Look for listbox (Facebook's dropdown container)
+        const listbox = document.querySelector('[role="listbox"]');
+        if (listbox && listbox.offsetParent !== null) {
+          dropdownFound = true;
+          console.log('Location dropdown appeared after', attempts * 300, 'ms');
         }
+      }
+      
+      if (!dropdownFound) {
+        console.warn('Location dropdown did not appear after waiting');
+      }
+      
+      // Give extra time for options to fully render
+      await new Promise(r => setTimeout(r, 500));
+      
+      // Strategy: Find the best matching location suggestion
+      const locationSelected = await selectLocationSuggestion(locationToType, fullLocationString);
+      
+      if (locationSelected) {
+        stepCompletionFlags.locationFilled = true;
+        console.log('Location selection successful');
         
-        if (!fallbackClicked && zipMatch && data.location && data.location !== zipMatch[0]) {
-             console.log('Retrying with full location string...');
-             locationInput.value = '';
-             locationInput.dispatchEvent(new Event('input', { bubbles: true }));
-             await simulateTyping(locationInput, data.location.split(',')[0]); // Just City
-             await new Promise(r => setTimeout(r, 2000));
-             
-             // Retry finding suggestions
-             const retrySuggestions = document.querySelectorAll('[role="option"], [role="listitem"]');
-             if (retrySuggestions.length > 0) {
-                 retrySuggestions[0].click();
-                 stepCompletionFlags.locationFilled = true;
-             }
+        // Verify selection by checking if dropdown closed
+        await new Promise(r => setTimeout(r, 500));
+        const dropdownStillOpen = document.querySelector('[role="listbox"]');
+        if (dropdownStillOpen && dropdownStillOpen.offsetParent !== null) {
+          console.warn('Dropdown still open after selection, trying keyboard fallback');
+          await selectLocationViaKeyboard(locationInput);
+        }
+      } else {
+        console.warn('Could not select location via click, trying keyboard navigation');
+        const keyboardSuccess = await selectLocationViaKeyboard(locationInput);
+        if (keyboardSuccess) {
+          stepCompletionFlags.locationFilled = true;
         }
       }
     } else {
@@ -1270,7 +1542,8 @@ async function handleLocationAndDelivery(data) {
     console.error('Error with location:', e);
   }
   
-  await new Promise(r => setTimeout(r, 1000));
+  // Wait for location selection to settle
+  await new Promise(r => setTimeout(r, 1500));
   
   // Handle Delivery/Meetup options
   try {
