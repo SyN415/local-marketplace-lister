@@ -638,6 +638,9 @@ async function selectCategory(data) {
             return text &&
                    text !== 'Next' &&
                    text !== 'Back' &&
+                   text !== 'Add photo' &&
+                   text !== 'Add photos' &&
+                   text !== 'Edit' &&
                    !text.includes('Category') &&
                    btn.offsetParent !== null; // Visible
           });
@@ -1043,21 +1046,42 @@ async function clickNextButton(buttonNumber = 1) {
     const missingFields = [];
     
     // Check category
-    const categorySection = Array.from(document.querySelectorAll('div')).find(d =>
-      d.textContent?.includes('Category') && d.textContent?.includes('Please select'));
-    if (categorySection) {
-      missingFields.push('Category');
+    // Look for red warning icons or "required" indicators
+    const categoryLabel = Array.from(document.querySelectorAll('label')).find(l => l.textContent === 'Category');
+    if (categoryLabel) {
+        const container = categoryLabel.closest('div').parentElement;
+        if (container && (container.querySelector('[aria-invalid="true"]') || container.textContent.includes('select'))) {
+            missingFields.push('Category');
+        }
     }
     
     // Check condition
-    const conditionSection = Array.from(document.querySelectorAll('div')).find(d =>
-      d.textContent?.includes('Condition') && d.textContent?.includes('Please select'));
-    if (conditionSection) {
-      missingFields.push('Condition');
+    const conditionLabel = Array.from(document.querySelectorAll('label')).find(l => l.textContent === 'Condition');
+    if (conditionLabel) {
+        const container = conditionLabel.closest('div').parentElement;
+        if (container && (container.querySelector('[aria-invalid="true"]') || container.textContent.includes('select'))) {
+            missingFields.push('Condition');
+        }
+    }
+    
+    // General check for aria-invalid
+    if (missingFields.length === 0) {
+        const invalidInputs = document.querySelectorAll('[aria-invalid="true"]');
+        if (invalidInputs.length > 0) {
+            missingFields.push('Some fields invalid');
+        }
     }
     
     const errorMsg = `Next button is disabled. Missing: ${missingFields.join(', ') || 'unknown fields'}`;
     console.error(errorMsg);
+    
+    // DEBUG: Log nearby text to help identify missing fields
+    console.log('Page text snapshot around buttons:',
+        Array.from(document.querySelectorAll('[role="button"]'))
+            .map(b => b.textContent?.substring(0, 20))
+            .join(', ')
+    );
+    
     throw new Error(errorMsg);
   }
   
