@@ -1210,20 +1210,52 @@ async function handleLocationAndDelivery(data) {
       await new Promise(r => setTimeout(r, 2000));
       
       // Try to click the first suggestion - usually the best match for a zip code
-      const suggestions = document.querySelectorAll('[role="option"], [role="listitem"], [data-testid*="location"], li[role="presentation"]');
+      // We look for list items that contain the typed zip code to be sure
+      let suggestions = Array.from(document.querySelectorAll('[role="option"], [role="listitem"], [data-testid*="location"], li, div[role="button"]'));
       
+      // Filter for items that actually look like location suggestions (contain the zip or city)
+      suggestions = suggestions.filter(el => {
+          const text = el.textContent || '';
+          return text.includes(locationToType) && el.offsetParent !== null; // Visible and contains text
+      });
+
       if (suggestions.length > 0) {
-        console.log(`Found ${suggestions.length} location suggestions. Clicking first:`, suggestions[0].textContent);
+        console.log(`Found ${suggestions.length} relevant location suggestions. Clicking first:`, suggestions[0].textContent);
         suggestions[0].click();
+        
+        // Dispatch explicit click event as backup
+        suggestions[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        
         stepCompletionFlags.locationFilled = true;
       } else {
-        console.warn('No location suggestions found for:', locationToType);
-        // Fallback: try typing "City, State" if Zip failed to produce results
-        if (zipMatch && data.location && data.location !== zipMatch[0]) {
+        console.warn('No specific location suggestions found for:', locationToType);
+        
+        // Fallback: Look for ANY new list container that appeared
+        const listboxes = document.querySelectorAll('[role="listbox"], ul');
+        let fallbackClicked = false;
+        
+        for (const list of listboxes) {
+            if (list.offsetParent !== null && list.textContent.includes(locationToType)) {
+                const firstItem = list.querySelector('li, [role="option"], [role="button"]');
+                if (firstItem) {
+                    console.log('Clicking fallback list item:', firstItem.textContent);
+                    firstItem.click();
+                    firstItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    fallbackClicked = true;
+                    stepCompletionFlags.locationFilled = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!fallbackClicked && zipMatch && data.location && data.location !== zipMatch[0]) {
              console.log('Retrying with full location string...');
              locationInput.value = '';
+             locationInput.dispatchEvent(new Event('input', { bubbles: true }));
              await simulateTyping(locationInput, data.location.split(',')[0]); // Just City
              await new Promise(r => setTimeout(r, 2000));
+             
+             // Retry finding suggestions
              const retrySuggestions = document.querySelectorAll('[role="option"], [role="listitem"]');
              if (retrySuggestions.length > 0) {
                  retrySuggestions[0].click();
