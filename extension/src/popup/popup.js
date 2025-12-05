@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const connectionStatus = document.getElementById('connectionStatus');
   const progressSection = document.getElementById('progressSection');
   const progressBar = document.getElementById('progressBar');
+  const progressPercent = document.getElementById('progressPercent');
   const statusText = document.getElementById('statusText');
   
   // Listings elements
@@ -186,11 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show preview
       selectedListingInfo.innerHTML = `
         <div class="preview-title">${escapeHtml(listing.title)}</div>
-        <div class="preview-meta">$${escapeHtml(String(listing.price))} · ${escapeHtml(listing.condition || 'N/A')}</div>
-        ${listing.images && listing.images.length > 0 ? 
-          `<div class="preview-images">${listing.images.length} image(s)</div>` : 
-          '<div class="preview-images">No images</div>'
-        }
+        <div class="preview-meta">
+          <span>$${escapeHtml(String(listing.price))}</span>
+          <span class="separator">•</span>
+          <span>${escapeHtml(listing.condition || 'N/A')}</span>
+        </div>
+        <div class="preview-images">
+          ${listing.images && listing.images.length > 0 ?
+            `📷 ${listing.images.length} image${listing.images.length > 1 ? 's' : ''}` :
+            '📷 No images'
+          }
+        </div>
       `;
       selectedListingPreview.style.display = 'block';
       postBtn.disabled = false;
@@ -222,44 +229,56 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateConnectionStatus(state) {
     const statusMap = {
       'idle': { text: 'Ready', class: '' },
-      'posting': { text: 'Posting...', class: 'active' },
-      'awaiting_login': { text: 'Awaiting Login', class: 'warning' },
-      'completed': { text: 'Completed', class: 'connected' },
+      'posting': { text: 'Posting', class: 'active' },
+      'awaiting_login': { text: 'Login Required', class: 'warning' },
+      'completed': { text: 'Complete', class: 'connected' },
       'error': { text: 'Error', class: 'error' }
     };
     
-    const status = statusMap[state.postingStatus] || { text: 'Idle', class: '' };
+    const status = statusMap[state.postingStatus] || { text: 'Ready', class: '' };
     connectionStatus.textContent = status.text;
-    connectionStatus.className = `connection-status ${status.class}`;
+    connectionStatus.className = `status-badge ${status.class}`;
   }
 
   function updateProgress(state) {
     if (state.postingStatus === 'posting' || state.postingStatus === 'awaiting_login') {
       progressSection.classList.add('active');
-      const percentage = state.progress?.total > 0 
-        ? (state.progress.current / state.progress.total) * 100 
+      const percentage = state.progress?.total > 0
+        ? (state.progress.current / state.progress.total) * 100
         : 1;
       progressBar.style.width = `${percentage}%`;
-      progressBar.style.backgroundColor = '#3b82f6';
+      progressBar.className = 'progress-fill';
+      progressPercent.textContent = `${Math.round(percentage)}%`;
       
       if (state.postingStatus === 'awaiting_login') {
-        statusText.textContent = `Please login to ${state.currentPlatform}...`;
+        statusText.textContent = `Please login to ${formatPlatformName(state.currentPlatform)}...`;
       } else {
-        statusText.textContent = `Posting to ${state.currentPlatform}... ${Math.round(percentage)}%`;
+        statusText.textContent = `Posting to ${formatPlatformName(state.currentPlatform)}...`;
       }
     } else if (state.postingStatus === 'error') {
       progressSection.classList.add('active');
       progressBar.style.width = '100%';
-      progressBar.style.backgroundColor = '#ef4444';
-      statusText.textContent = `Error: ${state.lastError || 'Unknown error'}`;
+      progressBar.className = 'progress-fill error';
+      progressPercent.textContent = '!';
+      statusText.textContent = state.lastError || 'An error occurred';
     } else if (state.postingStatus === 'completed') {
       progressSection.classList.add('active');
       progressBar.style.width = '100%';
-      progressBar.style.backgroundColor = '#22c55e';
-      statusText.textContent = 'Posting completed!';
+      progressBar.className = 'progress-fill success';
+      progressPercent.textContent = '100%';
+      statusText.textContent = 'Successfully posted! 🎉';
     } else {
       progressSection.classList.remove('active');
+      progressPercent.textContent = '0%';
     }
+  }
+
+  function formatPlatformName(platform) {
+    const names = {
+      'facebook': 'Facebook Marketplace',
+      'craigslist': 'Craigslist'
+    };
+    return names[platform] || platform;
   }
 
   function updateControls(state) {
