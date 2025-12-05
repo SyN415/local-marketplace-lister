@@ -27,6 +27,8 @@ let imagesUploaded = false;
 let currentWorkflowStep = WORKFLOW_STEPS.IDLE;
 let stepCompletionFlags = {};
 let listingData = null;
+let workflowAttempts = 0;
+const MAX_WORKFLOW_ATTEMPTS = 3;
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -126,9 +128,9 @@ const updateProgress = (current, total = 100, statusMessage = '') => {
 };
 
 /**
- * Retry wrapper for step execution
+ * Retry wrapper for step execution - with reasonable limits
  */
-const withRetry = async (stepName, fn, maxRetries = 3, delayMs = 1500) => {
+const withRetry = async (stepName, fn, maxRetries = 2, delayMs = 1000) => {
   let lastError;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -144,19 +146,21 @@ const withRetry = async (stepName, fn, maxRetries = 3, delayMs = 1500) => {
       if (attempt < maxRetries) {
         console.log(`Craigslist: Retrying ${stepName} in ${delayMs}ms...`);
         await new Promise(r => setTimeout(r, delayMs));
-        delayMs = Math.min(delayMs * 1.5, 5000);
+        delayMs = Math.min(delayMs * 1.2, 3000);
       }
     }
   }
   
-  console.error(`Craigslist: ${stepName} failed after ${maxRetries} attempts`);
+  console.error(`Craigslist: ${stepName} failed after ${maxRetries} attempts. Stopping automation.`);
+  // Show user notification about the failure
+  showNotification(`❌ ${stepName} failed. Please complete manually.`);
   throw lastError;
 };
 
 /**
- * Soft step execution - continues even if step fails
+ * Soft step execution - continues even if step fails (only 1 retry)
  */
-const withSoftRetry = async (stepName, fn, maxRetries = 2, delayMs = 1000) => {
+const withSoftRetry = async (stepName, fn, maxRetries = 1, delayMs = 800) => {
   try {
     return await withRetry(stepName, fn, maxRetries, delayMs);
   } catch (error) {
@@ -861,26 +865,77 @@ function inferCategoryFromTitle(title, description) {
  */
 async function handleFormFill(data) {
   console.log('Handling main posting form...');
+  console.log('Form data received:', JSON.stringify(data, null, 2));
   await updateWorkflowStep(WORKFLOW_STEPS.FORM_FILL);
   updateProgress(50, 100, 'Filling listing details...');
   
   await sleep(1000);
   
-  // Fill posting title
-  const titleFilled = setField('#PostingTitle', data.title);
-  if (titleFilled) {
-    stepCompletionFlags.titleFilled = true;
-    console.log('Title filled:', data.title);
+  // Debug: Log all form fields found on page
+  const allFields = document.querySelectorAll('input, textarea, select');
+  console.log('Form fields found on page:', allFields.length);
+  allFields.forEach((el, i) => {
+    if (el.name || el.id) {
+      console.log(`  [${i}] ${el.tagName} name="${el.name}" id="${el.id}" type="${el.type}"`);
+    }
+  });
+  
+  // Fill posting title - try multiple selectors
+  const titleSelectors = ['#PostingTitle', 'input[name="PostingTitle"]', 'input[name="title"]'];
+  let titleFilled = false;
+  for (const selector of titleSelectors) {
+    const el = document.querySelector(selector);
+    if (el) {
+      titleFilled = setField(el, data.title);
+      if (titleFilled) {
+        stepCompletionFlags.titleFilled = true;
+        console.log('✓ Title filled with selector:', selector);
+        break;
+      }
+    }
+  }
+  if (!titleFilled) {
+    console.warn('✗ Could not find title field');
   }
   
   updateProgress(55, 100, 'Filling price...');
   await sleep(300);
   
-  // Fill price
-  const priceFilled = setField('#price', data.price);
-  if (priceFilled) {
-    stepCompletionFlags.priceFilled = true;
-    console.log('Price filled:', data.price);
+  // Fill price - IMPORTANT: clean the value first
+  const rawPrice = data.price || '';
+  const priceValue = String(rawPrice).replace(/[$,\s]/g, '').trim();
+  console.log('Attempting to fill price. Raw:', rawPrice, 'Cleaned:', priceValue);
+  
+  const priceSelectors = ['#price', 'input[name="price"]', 'input.price'];
+  let priceFilled = false;
+  for (const selector of priceSelectors) {
+    const el = document.querySelector(selector);
+    if (el) {
+      console.log('Found price field:', selector, 'current value:', el.value);
+      priceFilled = setField(el, priceValue);
+      if (priceFilled) {
+        stepCompletionFlags.priceFilled = true;
+        console.log('✓ Price filled:', priceValue);
+        break;
+      }
+    }
+  }
+  if (!priceFilled) {
+    console.warn('✗ Could not fill price field - trying to find any price input');
+    // Last resort - find any input that might be price
+    const inputs = document.querySelectorAll('input[type="text"], input[type="number"]');
+    for (const input of inputs) {
+      // Look for price-related attributes
+      if (input.name?.includes('price') || input.id?.includes('price') ||
+          input.placeholder?.toLowerCase().includes('price')) {
+        priceFilled = setField(input, priceValue);
+        if (priceFilled) {
+          console.log('✓ Price filled via fallback');
+          stepCompletionFlags.priceFilled = true;
+          break;
+        }
+      }
+    }
   }
   
   updateProgress(60, 100, 'Filling location...');
@@ -888,23 +943,46 @@ async function handleFormFill(data) {
   
   // Fill postal/ZIP code
   const zipCode = data.zipCode || data.zip || extractZipFromLocation(data.location);
+  console.log('Attempting to fill ZIP code:', zipCode);
+  
   if (zipCode) {
-    setField('#postal_code', zipCode);
-    setField('input[name="postal"]', zipCode);
-    stepCompletionFlags.zipFilled = true;
-    console.log('ZIP code filled:', zipCode);
+    const zipSelectors = ['#postal_code', 'input[name="postal"]', 'input[name="postal_code"]', 'input.postal'];
+    let zipFilled = false;
+    for (const selector of zipSelectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        zipFilled = setField(el, zipCode);
+        if (zipFilled) {
+          stepCompletionFlags.zipFilled = true;
+          console.log('✓ ZIP code filled with selector:', selector);
+          break;
+        }
+      }
+    }
+    if (!zipFilled) {
+      console.warn('✗ Could not fill ZIP field');
+    }
   }
   
   updateProgress(65, 100, 'Filling description...');
   await sleep(300);
   
-  // Fill description
-  const descFilled = setField('#PostingBody', data.description) || 
-                     setField('textarea[name="PostingBody"]', data.description) ||
-                     setField('#postingBody', data.description);
-  if (descFilled) {
-    stepCompletionFlags.descriptionFilled = true;
-    console.log('Description filled');
+  // Fill description - try multiple selectors
+  const descSelectors = ['#PostingBody', 'textarea[name="PostingBody"]', '#postingBody', 'textarea.posting-body', 'textarea'];
+  let descFilled = false;
+  for (const selector of descSelectors) {
+    const el = document.querySelector(selector);
+    if (el && el.tagName === 'TEXTAREA') {
+      descFilled = setField(el, data.description);
+      if (descFilled) {
+        stepCompletionFlags.descriptionFilled = true;
+        console.log('✓ Description filled');
+        break;
+      }
+    }
+  }
+  if (!descFilled) {
+    console.warn('✗ Could not fill description');
   }
   
   updateProgress(70, 100, 'Filling additional details...');
@@ -914,53 +992,202 @@ async function handleFormFill(data) {
   
   // Make/Manufacturer
   if (data.make || data.brand) {
-    setField('input[name="FromManufacturer"]', data.make || data.brand);
+    const makeSelectors = ['input[name="FromManufacturer"]', 'input[name="make"]', '#make'];
+    for (const selector of makeSelectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        setField(el, data.make || data.brand);
+        console.log('✓ Make/Manufacturer filled');
+        break;
+      }
+    }
   }
   
   // Model
   if (data.model) {
-    setField('input[name="ModelName"]', data.model);
+    const modelSelectors = ['input[name="ModelName"]', 'input[name="model"]', '#model'];
+    for (const selector of modelSelectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        setField(el, data.model);
+        console.log('✓ Model filled');
+        break;
+      }
+    }
   }
   
   // Size/Dimensions
   if (data.size || data.dimensions) {
-    setField('input[name="FromSize"]', data.size || data.dimensions);
+    const sizeSelectors = ['input[name="FromSize"]', 'input[name="size"]', '#size'];
+    for (const selector of sizeSelectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        setField(el, data.size || data.dimensions);
+        console.log('✓ Size filled');
+        break;
+      }
+    }
   }
   
-  // Condition dropdown
+  // Condition dropdown - IMPORTANT
   await handleConditionDropdown(data);
   
-  // Language (default English)
-  const languageSelect = document.querySelector('select[name="language"]');
-  if (languageSelect && languageSelect.value !== 'english') {
-    languageSelect.value = 'english';
-    languageSelect.dispatchEvent(new Event('change', { bubbles: true }));
-  }
+  // Language dropdown - CRITICAL (required field!)
+  await handleLanguageDropdown();
   
   // Handle checkboxes
-  // "include more ads by this user" - usually leave unchecked
-  // "cryptocurrency ok" - usually leave unchecked
-  // "delivery available" - check if data specifies
   if (data.deliveryAvailable) {
     const deliveryCheckbox = document.querySelector('input[name="sale_conditions[]"][value="delivery"]') ||
                              document.querySelector('input[id*="delivery"]');
     if (deliveryCheckbox && !deliveryCheckbox.checked) {
       deliveryCheckbox.click();
+      console.log('✓ Delivery checkbox checked');
     }
   }
   
-  updateProgress(75, 100, 'Form filled, continuing...');
+  updateProgress(75, 100, 'Form filled, reviewing...');
   await sleep(500);
   
-  // Scroll to bottom to show user the form is complete
-  window.scrollTo(0, document.body.scrollHeight);
+  // Scroll to top first to check for errors
+  window.scrollTo(0, 0);
+  await sleep(300);
   
-  // Don't auto-submit the main form - let it continue to next step naturally
-  // or user can click continue
-  await clickContinueButton();
+  // Check for validation errors on the page
+  const errorMessages = document.querySelectorAll('.err, .error, [class*="error"]');
+  const visibleErrors = Array.from(errorMessages).filter(el => {
+    const text = el.textContent?.trim();
+    return text && text.length > 0 && el.offsetParent !== null;
+  });
+  
+  if (visibleErrors.length > 0) {
+    const errorText = visibleErrors.map(el => el.textContent.trim()).join('; ');
+    console.warn('⚠ Form has validation errors:', errorText);
+    showNotification(`⚠️ Form errors: ${errorText.substring(0, 80)}`);
+  }
+  
+  // Scroll to bottom to show completion
+  window.scrollTo(0, document.body.scrollHeight);
+  await sleep(300);
+  
+  // Try to click continue - but don't fail if button not found
+  const continueClicked = await clickContinueButton();
+  
+  if (!continueClicked) {
+    showNotification('ℹ️ Please review the form and click Continue when ready');
+  }
   
   stepCompletionFlags.formFilled = true;
+  console.log('Form fill completed. Flags:', stepCompletionFlags);
   return true;
+}
+
+/**
+ * Handle language dropdown - CRITICAL REQUIRED FIELD
+ */
+async function handleLanguageDropdown() {
+  console.log('Setting language dropdown...');
+  
+  // Try multiple selectors for language dropdown
+  const languageSelectors = [
+    'select[name="language"]',
+    'select#language',
+    'select.language',
+    'select[id*="language"]',
+    'select[name*="language"]'
+  ];
+  
+  let languageSelect = null;
+  for (const selector of languageSelectors) {
+    languageSelect = document.querySelector(selector);
+    if (languageSelect) {
+      console.log('Found language dropdown with selector:', selector);
+      break;
+    }
+  }
+  
+  if (!languageSelect) {
+    // Try to find by looking at all selects
+    const allSelects = document.querySelectorAll('select');
+    for (const select of allSelects) {
+      const options = select.querySelectorAll('option');
+      const optionTexts = Array.from(options).map(o => o.textContent.toLowerCase());
+      if (optionTexts.some(t => t.includes('english') || t.includes('español') || t.includes('français'))) {
+        languageSelect = select;
+        console.log('Found language select by option content');
+        break;
+      }
+    }
+  }
+  
+  if (!languageSelect) {
+    console.warn('✗ Language dropdown not found - this may cause form validation error');
+    return false;
+  }
+  
+  // Log current state and options
+  const options = languageSelect.querySelectorAll('option');
+  console.log('Language current value:', languageSelect.value);
+  console.log('Language options:', Array.from(options).map(o => `"${o.value}": "${o.textContent}"`).join(', '));
+  
+  // Check if already set to a valid value
+  if (languageSelect.value && languageSelect.value !== '' && languageSelect.value !== '-') {
+    console.log('✓ Language already set to:', languageSelect.value);
+    stepCompletionFlags.languageSet = true;
+    return true;
+  }
+  
+  // Try to select English
+  const englishPatterns = ['en', 'english', 'eng', '5', '1'];
+  let found = false;
+  
+  // First try to find by value
+  for (const val of englishPatterns) {
+    const option = languageSelect.querySelector(`option[value="${val}"]`);
+    if (option) {
+      languageSelect.value = val;
+      languageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      console.log('✓ Language set to value:', val);
+      found = true;
+      stepCompletionFlags.languageSet = true;
+      break;
+    }
+  }
+  
+  // If not found by value, try by text content
+  if (!found) {
+    for (const option of options) {
+      const text = option.textContent.toLowerCase();
+      if (text.includes('english')) {
+        languageSelect.value = option.value;
+        languageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        console.log('✓ Language set by text to:', option.value, option.textContent);
+        found = true;
+        stepCompletionFlags.languageSet = true;
+        break;
+      }
+    }
+  }
+  
+  // If still not found, select first non-empty option
+  if (!found) {
+    for (const option of options) {
+      if (option.value && option.value !== '' && option.value !== '-') {
+        languageSelect.value = option.value;
+        languageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        console.log('✓ Language set to first valid option:', option.value, option.textContent);
+        found = true;
+        stepCompletionFlags.languageSet = true;
+        break;
+      }
+    }
+  }
+  
+  if (!found) {
+    console.warn('✗ Could not set language - form may fail validation');
+    showNotification('⚠️ Please select a language manually');
+  }
+  
+  return found;
 }
 
 /**
@@ -1278,6 +1505,15 @@ async function checkForSuccess() {
 async function runFullPostingWorkflow(data) {
   console.log('Starting full Craigslist posting workflow');
   console.log('Data:', JSON.stringify(data, null, 2));
+  console.log('Workflow attempt:', workflowAttempts, 'of', MAX_WORKFLOW_ATTEMPTS);
+  
+  // Check attempt limit
+  if (workflowAttempts > MAX_WORKFLOW_ATTEMPTS) {
+    console.error('Exceeded maximum workflow attempts');
+    showNotification('❌ Maximum attempts exceeded. Please complete manually.');
+    await updateWorkflowStep(WORKFLOW_STEPS.ERROR, { error: 'Maximum attempts exceeded' });
+    return;
+  }
   
   listingData = data;
   
@@ -1286,7 +1522,7 @@ async function runFullPostingWorkflow(data) {
     let currentStep = detectCurrentStep();
     console.log('Detected current step:', currentStep);
     
-    // Execute based on current step
+    // Execute based on current step - NO recursive retry for unknown steps
     switch (currentStep) {
       case WORKFLOW_STEPS.INITIAL_PAGE:
         await withRetry('Initial Page', () => handleInitialPage(data), 2, 1000);
@@ -1297,7 +1533,7 @@ async function runFullPostingWorkflow(data) {
         break;
         
       case WORKFLOW_STEPS.HOOD_SELECTION:
-        await withSoftRetry('Hood Selection', () => handleHoodSelection(data), 2, 1000);
+        await withSoftRetry('Hood Selection', () => handleHoodSelection(data), 1, 800);
         break;
         
       case WORKFLOW_STEPS.TYPE_SELECTION:
@@ -1309,31 +1545,28 @@ async function runFullPostingWorkflow(data) {
         break;
         
       case WORKFLOW_STEPS.FORM_FILL:
-        await withRetry('Form Fill', () => handleFormFill(data), 2, 1000);
+        // Form fill is critical - but only try once per page load
+        await handleFormFill(data);
         break;
         
       case WORKFLOW_STEPS.IMAGE_UPLOAD:
         if (!imagesUploaded) {
-          await withSoftRetry('Image Upload', () => handleImageUpload(data), 2, 1500);
+          await withSoftRetry('Image Upload', () => handleImageUpload(data), 1, 1000);
         }
         break;
         
       case WORKFLOW_STEPS.MAP_LOCATION:
-        await withSoftRetry('Map Location', () => handleMapLocation(data), 2, 1000);
+        await withSoftRetry('Map Location', () => handleMapLocation(data), 1, 800);
         break;
         
       case WORKFLOW_STEPS.PREVIEW:
-        await withRetry('Preview', () => handlePreview(data), 2, 1000);
+        await withSoftRetry('Preview', () => handlePreview(data), 1, 1000);
         break;
         
       default:
-        console.log('Unknown step, waiting for page to load...');
-        await sleep(2000);
-        // Re-detect and try again
-        currentStep = detectCurrentStep();
-        if (currentStep !== WORKFLOW_STEPS.IDLE) {
-          return runFullPostingWorkflow(data);
-        }
+        console.log('Unknown step or idle, showing notification to user');
+        showNotification('ℹ️ Please continue with the form manually if needed');
+        // Do NOT recurse - this was causing infinite loops
     }
     
   } catch (error) {
@@ -1346,8 +1579,8 @@ async function runFullPostingWorkflow(data) {
       platform: 'craigslist'
     });
     
-    showNotification(`⚠️ ${error.message}. Please complete manually.`);
-    throw error;
+    showNotification(`❌ ${error.message}. Please complete manually.`);
+    // Don't re-throw - let user complete manually
   }
 }
 
@@ -1423,31 +1656,73 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 function checkForPendingWork() {
   console.log('Checking for pending Craigslist work...');
+  console.log('formFillAttempted:', formFillAttempted, 'workflowAttempts:', workflowAttempts);
   
-  chrome.runtime.sendMessage({ action: 'check_pending_work' }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.warn('Could not check pending work:', chrome.runtime.lastError);
+  // First check if we've exceeded max attempts
+  if (workflowAttempts >= MAX_WORKFLOW_ATTEMPTS) {
+    console.log('Max workflow attempts reached, stopping automation');
+    showNotification('⚠️ Maximum attempts reached. Please complete the form manually.');
+    return;
+  }
+  
+  // Check storage directly first - this is more reliable
+  chrome.storage.local.get(['currentListingData', 'currentPlatform', 'postingStatus'], (stored) => {
+    console.log('Storage check:', {
+      hasData: !!stored.currentListingData,
+      platform: stored.currentPlatform,
+      status: stored.postingStatus,
+      formFillAttempted
+    });
+    
+    // If we have listing data for Craigslist and haven't tried yet, go!
+    if (stored.currentListingData && stored.currentPlatform === 'craigslist' && !formFillAttempted) {
+      console.log('✓ Found listing data in storage, starting workflow...');
+      formFillAttempted = true;
+      workflowAttempts++;
+      
+      setTimeout(() => {
+        runFullPostingWorkflow(stored.currentListingData)
+          .then(() => {
+            console.log('Workflow step completed');
+          })
+          .catch((err) => {
+            console.error('Workflow failed:', err);
+            updateWorkflowStep(WORKFLOW_STEPS.ERROR, { error: err.message });
+            showNotification(`❌ ${err.message}. Please complete manually.`);
+          });
+      }, 1000);
       return;
     }
     
-    console.log('Pending work response:', response);
-    
-    if (response && response.shouldAutomate && response.data && 
-        response.platform === 'craigslist' && !formFillAttempted) {
-      console.log('Found pending Craigslist work, starting workflow...');
-      formFillAttempted = true;
+    // Fallback: check via message (in case storage wasn't populated yet)
+    chrome.runtime.sendMessage({ action: 'check_pending_work' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Could not check pending work:', chrome.runtime.lastError);
+        return;
+      }
       
-      setTimeout(() => {
-        runFullPostingWorkflow(response.data)
-          .then(() => {
-            console.log('Automatic workflow step completed');
-          })
-          .catch((err) => {
-            console.error('Automatic workflow failed:', err);
-            updateWorkflowStep(WORKFLOW_STEPS.ERROR, { error: err.message });
-          });
-      }, 1500);
-    }
+      console.log('Pending work response:', response);
+      
+      const hasData = response && response.data;
+      const isCraigslist = response && response.platform === 'craigslist';
+      
+      if (hasData && isCraigslist && !formFillAttempted) {
+        console.log('✓ Found pending work via message, starting workflow...');
+        formFillAttempted = true;
+        workflowAttempts++;
+        
+        setTimeout(() => {
+          runFullPostingWorkflow(response.data)
+            .then(() => console.log('Workflow completed'))
+            .catch((err) => {
+              console.error('Workflow failed:', err);
+              showNotification(`❌ ${err.message}. Please complete manually.`);
+            });
+        }, 1000);
+      } else if (!formFillAttempted) {
+        console.log('No pending work found or not for Craigslist. hasData:', hasData, 'isCraigslist:', isCraigslist);
+      }
+    });
   });
 }
 
