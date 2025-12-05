@@ -25,6 +25,23 @@ const FB_WORKFLOW_STEPS = {
   ERROR: 'error'
 };
 
+// Craigslist workflow steps (mirrored from content script)
+const CL_WORKFLOW_STEPS = {
+  IDLE: 'idle',
+  INITIAL_PAGE: 'initial_page',
+  SUBAREA_SELECTION: 'subarea_selection',
+  HOOD_SELECTION: 'hood_selection',
+  TYPE_SELECTION: 'type_selection',
+  CATEGORY_SELECTION: 'category_selection',
+  FORM_FILL: 'form_fill',
+  IMAGE_UPLOAD: 'image_upload',
+  MAP_LOCATION: 'map_location',
+  PREVIEW: 'preview',
+  PUBLISHING: 'publishing',
+  COMPLETED: 'completed',
+  ERROR: 'error'
+};
+
 // API Configuration - matches frontend API URL
 const API_BASE_URL = 'https://local-marketplace-backend-wr5e.onrender.com';
 
@@ -48,7 +65,10 @@ function resetState() {
     // Auth and listings cache
     authToken: null,
     userListings: [],
-    listingsLastFetched: null
+    listingsLastFetched: null,
+    // Workflow steps
+    facebookWorkflowStep: FB_WORKFLOW_STEPS.IDLE,
+    craigslistWorkflowStep: CL_WORKFLOW_STEPS.IDLE
   };
   chrome.storage.local.set(initialState);
 }
@@ -205,6 +225,7 @@ async function handleMessage(request, sender) {
       case 'reset_workflow': {
         await storageSet({
           facebookWorkflowStep: FB_WORKFLOW_STEPS.IDLE,
+          craigslistWorkflowStep: CL_WORKFLOW_STEPS.IDLE,
           postingStatus: STATE.IDLE,
           lastError: null
         });
@@ -232,11 +253,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 async function handleTabUpdate(tabId, tab) {
   const state = await storageGet(['postingStatus', 'currentPlatform', 'pendingTabId']);
   
+  const url = tab.url || '';
+  
   // Check if this is a pending Facebook tab
   if (state.currentPlatform === 'facebook' &&
       (state.postingStatus === STATE.POSTING || state.postingStatus === STATE.AWAITING_LOGIN)) {
-    
-    const url = tab.url || '';
     
     // If we're on the marketplace create item page, just log it
     // The content script will handle form filling via check_pending_work
@@ -248,6 +269,22 @@ async function handleTabUpdate(tabId, tab) {
     // If user is on login page, update status
     if (url.includes('facebook.com/login') || url.includes('facebook.com/?next=')) {
       await updateStatus({ postingStatus: STATE.AWAITING_LOGIN });
+    }
+  }
+  
+  // Check if this is a pending Craigslist tab
+  if (state.currentPlatform === 'craigslist' &&
+      (state.postingStatus === STATE.POSTING || state.postingStatus === STATE.AWAITING_LOGIN)) {
+    
+    if (url.includes('craigslist.org')) {
+      console.log('Craigslist page detected:', url);
+      await addLog('Craigslist page loaded - content script will handle form fill');
+    }
+    
+    // If user needs to log in to Craigslist
+    if (url.includes('accounts.craigslist.org') || url.includes('/login')) {
+      await updateStatus({ postingStatus: STATE.AWAITING_LOGIN });
+      await addLog('Craigslist login required');
     }
   }
 }
@@ -387,14 +424,8 @@ async function handleWorkflowStepChanged(request) {
   
   await addLog(`${platform} workflow step: ${step}${error ? ` (error: ${error})` : ''}`);
   
-  // Update storage with current workflow step
-  await updateStatus({
-    facebookWorkflowStep: step,
-    ...(error && { lastError: error })
-  });
-  
-  // Calculate progress percentage based on step
-  const stepProgressMap = {
+  // Progress mapping for each platform
+  const fbProgressMap = {
     [FB_WORKFLOW_STEPS.IDLE]: 0,
     [FB_WORKFLOW_STEPS.UPLOADING_IMAGES]: 15,
     [FB_WORKFLOW_STEPS.FORM_FILL]: 30,
@@ -409,15 +440,49 @@ async function handleWorkflowStepChanged(request) {
     [FB_WORKFLOW_STEPS.ERROR]: -1
   };
   
-  const progress = stepProgressMap[step] ?? 0;
+  const clProgressMap = {
+    [CL_WORKFLOW_STEPS.IDLE]: 0,
+    [CL_WORKFLOW_STEPS.INITIAL_PAGE]: 5,
+    [CL_WORKFLOW_STEPS.SUBAREA_SELECTION]: 10,
+    [CL_WORKFLOW_STEPS.HOOD_SELECTION]: 20,
+    [CL_WORKFLOW_STEPS.TYPE_SELECTION]: 30,
+    [CL_WORKFLOW_STEPS.CATEGORY_SELECTION]: 40,
+    [CL_WORKFLOW_STEPS.FORM_FILL]: 55,
+    [CL_WORKFLOW_STEPS.IMAGE_UPLOAD]: 75,
+    [CL_WORKFLOW_STEPS.MAP_LOCATION]: 85,
+    [CL_WORKFLOW_STEPS.PREVIEW]: 92,
+    [CL_WORKFLOW_STEPS.PUBLISHING]: 95,
+    [CL_WORKFLOW_STEPS.COMPLETED]: 100,
+    [CL_WORKFLOW_STEPS.ERROR]: -1
+  };
   
-  if (step === FB_WORKFLOW_STEPS.COMPLETED) {
+  // Update storage with current workflow step based on platform
+  if (platform === 'facebook') {
+    await updateStatus({
+      facebookWorkflowStep: step,
+      ...(error && { lastError: error })
+    });
+  } else if (platform === 'craigslist') {
+    await updateStatus({
+      craigslistWorkflowStep: step,
+      ...(error && { lastError: error })
+    });
+  }
+  
+  // Calculate progress percentage based on step and platform
+  const progressMap = platform === 'craigslist' ? clProgressMap : fbProgressMap;
+  const completedStep = platform === 'craigslist' ? CL_WORKFLOW_STEPS.COMPLETED : FB_WORKFLOW_STEPS.COMPLETED;
+  const errorStep = platform === 'craigslist' ? CL_WORKFLOW_STEPS.ERROR : FB_WORKFLOW_STEPS.ERROR;
+  
+  const progress = progressMap[step] ?? 0;
+  
+  if (step === completedStep) {
     await updateStatus({
       postingStatus: STATE.COMPLETED,
       progress: { current: 100, total: 100 }
     });
     await addLog(`${platform} listing posted successfully!`);
-  } else if (step === FB_WORKFLOW_STEPS.ERROR) {
+  } else if (step === errorStep) {
     await updateStatus({
       postingStatus: STATE.ERROR,
       lastError: error || 'Unknown error during posting'
@@ -438,14 +503,22 @@ async function getWorkflowStatus() {
     'currentPlatform',
     'currentListingData',
     'facebookWorkflowStep',
+    'craigslistWorkflowStep',
     'progress',
     'lastError'
   ]);
   
+  // Return appropriate workflow step based on platform
+  const workflowStep = state.currentPlatform === 'craigslist'
+    ? state.craigslistWorkflowStep
+    : state.facebookWorkflowStep;
+  
   return {
     postingStatus: state.postingStatus,
     platform: state.currentPlatform,
-    workflowStep: state.facebookWorkflowStep,
+    workflowStep,
+    facebookWorkflowStep: state.facebookWorkflowStep,
+    craigslistWorkflowStep: state.craigslistWorkflowStep,
     progress: state.progress,
     lastError: state.lastError,
     hasListingData: !!state.currentListingData

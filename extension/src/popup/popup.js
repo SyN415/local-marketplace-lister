@@ -167,6 +167,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const listing = userListings[parseInt(index)];
     if (listing) {
+      // Extract zip code from location if present
+      const locationStr = listing.location_address || listing.location || '';
+      const zipMatch = locationStr.match(/\b\d{5}\b/);
+      const zipCode = zipMatch ? zipMatch[0] : listing.zip_code || listing.zipCode || '';
+      
+      // Extract city from location
+      const cityMatch = locationStr.match(/^([^,]+)/);
+      const city = cityMatch ? cityMatch[1].trim() : listing.city || '';
+      
       // Transform to the format expected by content scripts
       currentListing = {
         title: listing.title,
@@ -175,7 +184,17 @@ document.addEventListener('DOMContentLoaded', () => {
         condition: listing.condition || 'good',
         category: listing.category || 'general',
         images: listing.images || [],
-        location: listing.location_address || listing.location || 'Local'
+        location: locationStr || 'Local',
+        // Additional fields for Craigslist
+        zipCode: zipCode,
+        zip: zipCode,
+        city: city,
+        neighborhood: listing.neighborhood || '',
+        // Optional fields
+        make: listing.make || listing.brand || '',
+        model: listing.model || '',
+        size: listing.size || listing.dimensions || '',
+        deliveryAvailable: listing.delivery_available || listing.deliveryAvailable || false
       };
       
       // Save selection to storage
