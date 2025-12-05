@@ -8,13 +8,16 @@ console.log('Marketplace Lister: Craigslist content script loaded on', window.lo
 const WORKFLOW_STEPS = {
   IDLE: 'idle',
   INITIAL_PAGE: 'initial_page',
-  SUBAREA_SELECTION: 'subarea_selection',  // ?s=subarea - Region selection 
+  SUBAREA_SELECTION: 'subarea_selection',  // ?s=subarea - Region selection
   HOOD_SELECTION: 'hood_selection',        // ?s=hood - Neighborhood selection
   TYPE_SELECTION: 'type_selection',        // ?s=type - Posting type (for sale by owner, etc.)
   CATEGORY_SELECTION: 'category_selection', // ?s=cat - Category selection
   FORM_FILL: 'form_fill',                  // ?s=edit - Main edit form
   IMAGE_UPLOAD: 'image_upload',            // Image upload page
   MAP_LOCATION: 'map_location',            // Map/geolocation step
+  MAP_CONFIRMATION: 'map_confirmation',    // Map location confirmation (extra step)
+  TERMS_AGREEMENT: 'terms_agreement',      // Terms of service agreement
+  REUSE_PROMPT: 'reuse_prompt',            // Prompt to reuse previous details
   PREVIEW: 'preview',                      // Preview before publishing
   PUBLISHING: 'publishing',                // Final submission
   COMPLETED: 'completed',
@@ -375,8 +378,49 @@ function detectCurrentStep() {
       if (document.querySelector('form.picker')) {
         return WORKFLOW_STEPS.TYPE_SELECTION;
       }
+      // Additional page detection
+      if (isMapConfirmationPage()) {
+        return WORKFLOW_STEPS.MAP_CONFIRMATION;
+      }
+      if (isTermsAgreementPage()) {
+        return WORKFLOW_STEPS.TERMS_AGREEMENT;
+      }
+      if (isReusePromptPage()) {
+        return WORKFLOW_STEPS.REUSE_PROMPT;
+      }
       return WORKFLOW_STEPS.IDLE;
   }
+}
+
+// Helper functions for detecting additional pages
+function isMapConfirmationPage() {
+  // Check for map element and continue button
+  const mapEl = document.querySelector('#map, .leaflet-container, .map-container, .map');
+  const continueBtn = Array.from(document.querySelectorAll('button, input[type="submit"]')).find(el => {
+    const text = (el.textContent || el.value || '').toLowerCase();
+    return text.includes('continue') || text.includes('confirm location');
+  });
+  return !!mapEl && !!continueBtn;
+}
+
+function isTermsAgreementPage() {
+  const pageText = document.body.textContent.toLowerCase();
+  const hasTermsText = pageText.includes('terms of use') || pageText.includes('user agreement') || pageText.includes('terms and conditions');
+  const agreeBtn = Array.from(document.querySelectorAll('button, input[type="submit"]')).find(el => {
+    const text = (el.textContent || el.value || '').toLowerCase();
+    return text.includes('i agree') || text.includes('agree') || text.includes('accept');
+  });
+  return hasTermsText && !!agreeBtn;
+}
+
+function isReusePromptPage() {
+  const pageText = document.body.textContent.toLowerCase();
+  const hasReuseText = pageText.includes('reuse your region, location, and category');
+  const skipBtn = Array.from(document.querySelectorAll('button, input[type="submit"], a')).find(el => {
+    const text = (el.textContent || el.value || '').toLowerCase();
+    return text.includes('skip') || text.includes('no thanks');
+  });
+  return hasReuseText && !!skipBtn;
 }
 
 // ============================================================================
@@ -1544,6 +1588,10 @@ async function runFullPostingWorkflow(data) {
         await withRetry('Category Selection', () => handleCategorySelection(data), 2, 1000);
         break;
         
+      case WORKFLOW_STEPS.MAP_CONFIRMATION:
+        await withSoftRetry('Map Confirmation', () => handleMapConfirmation(), 1, 800);
+        break;
+        
       case WORKFLOW_STEPS.FORM_FILL:
         // Form fill is critical - but only try once per page load
         await handleFormFill(data);
@@ -1557,6 +1605,14 @@ async function runFullPostingWorkflow(data) {
         
       case WORKFLOW_STEPS.MAP_LOCATION:
         await withSoftRetry('Map Location', () => handleMapLocation(data), 1, 800);
+        break;
+        
+      case WORKFLOW_STEPS.TERMS_AGREEMENT:
+        await withSoftRetry('Terms Agreement', () => handleTermsAgreement(), 1, 800);
+        break;
+        
+      case WORKFLOW_STEPS.REUSE_PROMPT:
+        await withSoftRetry('Reuse Prompt', () => handleReusePrompt(), 1, 800);
         break;
         
       case WORKFLOW_STEPS.PREVIEW:
