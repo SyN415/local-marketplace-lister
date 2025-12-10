@@ -4,7 +4,7 @@ import {
   Button, TextField, Switch, Chip,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
-  FormControlLabel, Checkbox, Slider, Alert, Snackbar
+  FormControlLabel, Checkbox, Slider, Alert, Snackbar, CircularProgress
 } from '@mui/material';
 import { Add, Delete, Edit } from '@mui/icons-material';
 import { scoutAPI } from '../services/api';
@@ -200,79 +200,93 @@ export default function WatchlistPage() {
       </Alert>
 
       <Card>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Keywords</TableCell>
-              <TableCell>Platforms</TableCell>
-              <TableCell>Price Range</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Matches</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {watchlists.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <div className="font-medium">{item.keywords}</div>
-                  <div className="text-sm text-gray-500">
-                    Every {item.checkIntervalMinutes} min
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {item.platforms.map(p => (
-                    <Chip key={p} label={p} size="small" className="mr-1" />
-                  ))}
-                </TableCell>
-                <TableCell>
-                  {item.minPrice || item.maxPrice ? (
-                    <span>
-                      ${item.minPrice || 0} - ${item.maxPrice || '∞'}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">Any</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Switch 
-                    checked={item.isActive}
-                    onChange={() => handleToggleActive(item)}
-                    color="primary"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={item.totalMatches} 
-                    color={item.totalMatches > 0 ? 'success' : 'default'}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <IconButton onClick={() => {
-                    setEditItem(item);
-                    setFormData({
-                      keywords: item.keywords,
-                      platforms: item.platforms,
-                      maxPrice: item.maxPrice?.toString() || '',
-                      minPrice: item.minPrice?.toString() || '',
-                      location: item.location || '',
-                      radiusMiles: item.radiusMiles,
-                      checkIntervalMinutes: item.checkIntervalMinutes,
-                      notificationEnabled: item.notificationEnabled
-                    });
-                    setDialogOpen(true);
-                  }}>
-                    <Edit />
-                  </IconButton>
-                  <IconButton onClick={() => handleDelete(item.id)} color="error">
-                    <Delete />
-                  </IconButton>
-                </TableCell>
+        {loading ? (
+          <div className="p-8 text-center">
+            <CircularProgress />
+          </div>
+        ) : (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Keywords</TableCell>
+                <TableCell>Platforms</TableCell>
+                <TableCell>Price Range</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Matches</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {watchlists.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    No watchlists found. Create one to get started!
+                  </TableCell>
+                </TableRow>
+              ) : (
+                watchlists.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <div className="font-medium">{item.keywords}</div>
+                      <div className="text-sm text-gray-500">
+                        Every {item.checkIntervalMinutes} min
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.platforms.map(p => (
+                        <Chip key={p} label={p} size="small" className="mr-1" />
+                      ))}
+                    </TableCell>
+                    <TableCell>
+                      {item.minPrice || item.maxPrice ? (
+                        <span>
+                          ${item.minPrice || 0} - ${item.maxPrice || '∞'}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">Any</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={item.isActive}
+                        onChange={() => handleToggleActive(item)}
+                        color="primary"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={item.totalMatches}
+                        color={item.totalMatches > 0 ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <IconButton onClick={() => {
+                        setEditItem(item);
+                        setFormData({
+                          keywords: item.keywords,
+                          platforms: item.platforms,
+                          maxPrice: item.maxPrice?.toString() || '',
+                          minPrice: item.minPrice?.toString() || '',
+                          location: item.location || '',
+                          radiusMiles: item.radiusMiles,
+                          checkIntervalMinutes: item.checkIntervalMinutes,
+                          notificationEnabled: item.notificationEnabled
+                        });
+                        setDialogOpen(true);
+                      }}>
+                        <Edit />
+                      </IconButton>
+                      <IconButton onClick={() => handleDelete(item.id)} color="error">
+                        <Delete />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
 
       {/* Add/Edit Dialog */}
