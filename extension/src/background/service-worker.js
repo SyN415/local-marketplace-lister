@@ -1,6 +1,7 @@
 // Background script to handle navigation, state, and cross-posting logic
-import { getPriceIntelligence } from './ebay-api.js';
+import { getPriceIntelligence, isAuthenticated, clearPriceCache } from './ebay-api.js';
 import { initWatchlistAlarms, handleWatchlistAlarm } from './watchlist-manager.js';
+import { getBackendUrl, getFrontendUrl, config } from '../config.js';
 
 // State constants
 const STATE = {
@@ -44,8 +45,6 @@ const CL_WORKFLOW_STEPS = {
   ERROR: 'error'
 };
 
-// API Configuration - matches frontend API URL
-const API_BASE_URL = 'https://local-marketplace-backend-wr5e.onrender.com';
 
 // Initialize state on installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -244,9 +243,23 @@ async function handleMessage(request, sender) {
         return { success: true };
       }
 
-      case 'GET_PRICE_INTELLIGENCE':
+      case 'GET_PRICE_INTELLIGENCE': {
         const { authToken: token } = await storageGet(['authToken']);
-        return await getPriceIntelligence(request.query, token);
+        const result = await getPriceIntelligence(request.query, token);
+        // Pass back additional context for content scripts
+        if (result.requiresAuth) {
+          // Try to notify user if not authenticated
+          await addLog('Price intelligence requires authentication', 'warn');
+        }
+        return result;
+      }
+      
+      case 'CLEAR_PRICE_CACHE':
+        await clearPriceCache(request.query);
+        return { success: true };
+        
+      case 'CHECK_AUTH':
+        return { authenticated: await isAuthenticated() };
 
       case 'SYNC_WATCHLIST':
         // Frontend calls this after adding/removing items to update local storage
@@ -401,7 +414,8 @@ async function handleFetchListings() {
   try {
     await addLog('Fetching listings from backend...');
     
-    const response = await fetch(`${API_BASE_URL}/api/listings`, {
+    const backendUrl = await getBackendUrl();
+    const response = await fetch(`${backendUrl}/api/listings`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${authToken}`,

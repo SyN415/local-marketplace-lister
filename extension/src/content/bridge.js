@@ -27,12 +27,33 @@ function syncAuthToken(retryCount = 0) {
           }
         } else {
           console.log('Bridge: Token synced successfully');
+          // Also dispatch event to notify React app
+          window.postMessage({
+            type: 'EXTENSION_EVENT',
+            event: 'AUTH_SYNCED',
+            data: { success: true }
+          }, '*');
         }
       });
     } catch (e) {
       console.warn('Bridge: Error sending message:', e);
     }
+  } else {
+    // No token - clear extension auth
+    try {
+      chrome.storage.local.remove(['authToken'], () => {
+        console.log('Bridge: Cleared extension auth (no token in localStorage)');
+      });
+    } catch (e) {
+      // Ignore
+    }
   }
+}
+
+// Check if user is logged in and notify extension
+function checkAuthStatus() {
+  const token = localStorage.getItem('auth_token');
+  return !!token;
 }
 
 // Run token sync after a short delay to let service worker initialize
@@ -123,7 +144,43 @@ localStorage.setItem = function(key, value) {
   if (key === 'auth_token') {
     console.log('Bridge: Auth token changed, syncing to extension');
     setTimeout(syncAuthToken, 100);
+    
+    // Notify React app that token was updated
+    window.postMessage({
+      type: 'EXTENSION_EVENT',
+      event: 'TOKEN_CHANGED',
+      data: { hasToken: !!value }
+    }, '*');
   }
 };
+
+// Also intercept removeItem for logout detection
+const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+localStorage.removeItem = function(key) {
+  originalRemoveItem(key);
+  if (key === 'auth_token') {
+    console.log('Bridge: Auth token removed (logout), clearing extension auth');
+    try {
+      chrome.storage.local.remove(['authToken'], () => {
+        console.log('Bridge: Extension auth cleared');
+      });
+    } catch (e) {
+      // Ignore
+    }
+    
+    // Notify React app
+    window.postMessage({
+      type: 'EXTENSION_EVENT',
+      event: 'TOKEN_REMOVED',
+      data: { hasToken: false }
+    }, '*');
+  }
+};
+
+// Initialize: Check if already logged in on page load
+if (checkAuthStatus()) {
+  console.log('Bridge: User appears to be logged in, syncing token');
+  syncAuthToken();
+}
 
 console.log('Marketplace Lister Bridge fully initialized');

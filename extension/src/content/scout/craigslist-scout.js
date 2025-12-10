@@ -5,21 +5,43 @@
     'use strict';
   
     const SCOUT_CONTAINER_ID = 'smart-scout-overlay';
+    const APP_URL = 'https://local-marketplace-backend-wr5e.onrender.com';
+    
     let currentListingData = null;
     let overlayElement = null;
+
+    // Logging helper with prefix
+    function log(message, level = 'info') {
+      const prefix = '[SmartScout CL]';
+      if (level === 'error') {
+        console.error(prefix, message);
+      } else if (level === 'warn') {
+        console.warn(prefix, message);
+      } else {
+        console.log(prefix, message);
+      }
+    }
   
     // Initialize on page load
     function init() {
+      log('Initializing...');
+      
       // Check if we're on a marketplace listing page (Craigslist uses /.../d/...)
       if (!isListingPage()) {
+        log('Not on a listing page, skipping');
         return;
       }
   
+      log('On listing page, extracting data');
+      
       // Extract data immediately as CL is static HTML
       const listingData = extractListingData();
       if (listingData && listingData.title) {
+        log('Listing data found:', listingData.title);
         currentListingData = listingData;
         requestPriceIntelligence(listingData);
+      } else {
+        log('Could not extract listing data', 'warn');
       }
 
       injectQuickReplyChips();
@@ -36,8 +58,15 @@
       
       if (!titleEl) return null;
   
+      const title = titleEl.textContent.trim();
+      
+      // Skip if title is too generic or short
+      if (title.length < 3) {
+        return null;
+      }
+  
       return {
-        title: titleEl.textContent.trim(),
+        title: title,
         price: priceEl ? parsePrice(priceEl.textContent) : null,
         url: window.location.href,
         platform: 'craigslist'
@@ -51,6 +80,11 @@
     }
   
     function requestPriceIntelligence(listingData) {
+      log('Requesting price intelligence for:', listingData.title);
+      
+      // Show loading state
+      renderLoadingOverlay(listingData);
+      
       // Send to service worker for eBay API lookup
       chrome.runtime.sendMessage({
         action: 'GET_PRICE_INTELLIGENCE',
@@ -58,17 +92,30 @@
         currentPrice: listingData.price
       }, (response) => {
         if (chrome.runtime.lastError) {
-          console.warn('Scout: Error getting price intelligence:', chrome.runtime.lastError);
+          log('Error getting price intelligence: ' + chrome.runtime.lastError.message, 'error');
+          renderErrorOverlay(listingData, 'Connection error. Please try again.');
           return;
         }
         
-        if (response && response.found) {
+        log('Price intelligence response:', response);
+        
+        if (response && response.requiresAuth) {
+          // User needs to authenticate
+          renderAuthRequiredOverlay(listingData, response.message);
+        } else if (response && response.found) {
+          // Success - render the price comparison
           renderOverlay(listingData, response);
+        } else if (response && response.error) {
+          // Error occurred
+          renderErrorOverlay(listingData, response.error);
+        } else {
+          // No data found
+          renderNoDataOverlay(listingData);
         }
       });
     }
-  
-    function renderOverlay(listing, priceData) {
+
+    function createOverlayContainer() {
       // Remove existing overlay if any
       if (overlayElement) {
         overlayElement.remove();
@@ -85,6 +132,303 @@
       `;
   
       const shadow = container.attachShadow({ mode: 'open' });
+      document.body.appendChild(container);
+      overlayElement = container;
+      
+      return shadow;
+    }
+
+    function getBaseStyles() {
+      return `
+        .scout-card {
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+          border-radius: 16px;
+          padding: 16px 20px;
+          min-width: 280px;
+          max-width: 320px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          position: relative;
+        }
+        .scout-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 12px;
+          font-size: 12px;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .scout-header svg {
+          width: 16px;
+          height: 16px;
+        }
+        .price-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .price-label {
+          color: #94a3b8;
+          font-size: 13px;
+          width: 100px;
+        }
+        .price-value {
+          font-size: 18px;
+          font-weight: 600;
+        }
+        .ebay-price {
+          color: #60a5fa;
+        }
+        .spread-positive {
+          color: #4ade80;
+        }
+        .spread-negative {
+          color: #f87171;
+        }
+        .deal-meter {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .meter-bar {
+          height: 6px;
+          background: #374151;
+          border-radius: 3px;
+          overflow: hidden;
+          position: relative;
+        }
+        .meter-fill {
+          height: 100%;
+          border-radius: 3px;
+          transition: width 0.3s ease;
+        }
+        .meter-fill.good { background: linear-gradient(90deg, #4ade80, #22c55e); }
+        .meter-fill.okay { background: linear-gradient(90deg, #facc15, #eab308); }
+        .meter-fill.poor { background: linear-gradient(90deg, #f87171, #ef4444); }
+        .deal-label {
+          font-size: 12px;
+          color: #94a3b8;
+          margin-top: 6px;
+          text-align: center;
+        }
+        .scout-link {
+          display: block;
+          text-align: center;
+          margin-top: 12px;
+          color: #60a5fa;
+          font-size: 12px;
+          text-decoration: none;
+          opacity: 0.8;
+          transition: opacity 0.2s;
+        }
+        .scout-link:hover {
+          opacity: 1;
+          text-decoration: underline;
+        }
+        .close-btn {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          background: none;
+          border: none;
+          color: #64748b;
+          cursor: pointer;
+          padding: 4px;
+          font-size: 18px;
+          line-height: 1;
+        }
+        .close-btn:hover {
+          color: #94a3b8;
+        }
+        .scout-message {
+          text-align: center;
+          padding: 8px 0;
+          color: #94a3b8;
+          font-size: 13px;
+        }
+        .scout-btn {
+          display: block;
+          width: 100%;
+          padding: 10px 16px;
+          margin-top: 12px;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          text-align: center;
+          text-decoration: none;
+          transition: background 0.2s;
+        }
+        .scout-btn:hover {
+          background: #2563eb;
+        }
+        .scout-btn-secondary {
+          background: transparent;
+          border: 1px solid #64748b;
+          color: #94a3b8;
+        }
+        .scout-btn-secondary:hover {
+          background: rgba(100, 116, 139, 0.2);
+        }
+        .loading-spinner {
+          display: flex;
+          justify-content: center;
+          padding: 20px;
+        }
+        .spinner {
+          width: 24px;
+          height: 24px;
+          border: 2px solid #374151;
+          border-top-color: #60a5fa;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `;
+    }
+
+    function renderLoadingOverlay(listing) {
+      const shadow = createOverlayContainer();
+      
+      shadow.innerHTML = `
+        <style>${getBaseStyles()}</style>
+        <div class="scout-card">
+          <button class="close-btn" title="Close">&times;</button>
+          <div class="scout-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            Smart Scout
+          </div>
+          <div class="loading-spinner">
+            <div class="spinner"></div>
+          </div>
+          <div class="scout-message">Checking eBay prices...</div>
+        </div>
+      `;
+
+      shadow.querySelector('.close-btn').addEventListener('click', () => {
+        overlayElement.remove();
+        overlayElement = null;
+      });
+    }
+
+    function renderAuthRequiredOverlay(listing, message) {
+      const shadow = createOverlayContainer();
+      
+      shadow.innerHTML = `
+        <style>${getBaseStyles()}</style>
+        <div class="scout-card">
+          <button class="close-btn" title="Close">&times;</button>
+          <div class="scout-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            Smart Scout
+          </div>
+          <div class="scout-message">
+            🔐 ${message || 'Please log in to view price comparisons'}
+          </div>
+          <a href="${APP_URL}/login" target="_blank" class="scout-btn">
+            Log In to Smart Scout
+          </a>
+          <a class="scout-link" 
+             href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1" 
+             target="_blank">
+            Search eBay manually →
+          </a>
+        </div>
+      `;
+
+      shadow.querySelector('.close-btn').addEventListener('click', () => {
+        overlayElement.remove();
+        overlayElement = null;
+      });
+    }
+
+    function renderErrorOverlay(listing, errorMessage) {
+      const shadow = createOverlayContainer();
+      
+      shadow.innerHTML = `
+        <style>${getBaseStyles()}</style>
+        <div class="scout-card">
+          <button class="close-btn" title="Close">&times;</button>
+          <div class="scout-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            Smart Scout
+          </div>
+          <div class="scout-message">
+            ⚠️ ${errorMessage || 'Unable to fetch price data'}
+          </div>
+          <button class="scout-btn scout-btn-secondary" id="retry-btn">
+            Try Again
+          </button>
+          <a class="scout-link" 
+             href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1" 
+             target="_blank">
+            Search eBay manually →
+          </a>
+        </div>
+      `;
+
+      shadow.querySelector('.close-btn').addEventListener('click', () => {
+        overlayElement.remove();
+        overlayElement = null;
+      });
+      
+      shadow.querySelector('#retry-btn').addEventListener('click', () => {
+        requestPriceIntelligence(listing);
+      });
+    }
+
+    function renderNoDataOverlay(listing) {
+      const shadow = createOverlayContainer();
+      
+      shadow.innerHTML = `
+        <style>${getBaseStyles()}</style>
+        <div class="scout-card">
+          <button class="close-btn" title="Close">&times;</button>
+          <div class="scout-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            Smart Scout
+          </div>
+          <div class="scout-message">
+            No comparable eBay listings found
+          </div>
+          <a class="scout-link" 
+             href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1" 
+             target="_blank">
+            Try searching eBay directly →
+          </a>
+        </div>
+      `;
+
+      shadow.querySelector('.close-btn').addEventListener('click', () => {
+        overlayElement.remove();
+        overlayElement = null;
+      });
+    }
+  
+    function renderOverlay(listing, priceData) {
+      const shadow = createOverlayContainer();
       
       // Calculate deal metrics
       const spread = listing.price ? (priceData.avgPrice - listing.price) : null;
@@ -93,113 +437,9 @@
   
       // Render card
       shadow.innerHTML = `
-        <style>
-          .scout-card {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 16px;
-            padding: 16px 20px;
-            min-width: 280px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-          }
-          .scout-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            font-size: 12px;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .scout-header svg {
-            width: 16px;
-            height: 16px;
-          }
-          .price-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-          }
-          .price-label {
-            color: #94a3b8;
-            font-size: 13px;
-            width: 100px;
-          }
-          .price-value {
-            font-size: 18px;
-            font-weight: 600;
-          }
-          .ebay-price {
-            color: #60a5fa;
-          }
-          .spread-positive {
-            color: #4ade80;
-          }
-          .spread-negative {
-            color: #f87171;
-          }
-          .deal-meter {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-          }
-          .meter-bar {
-            height: 6px;
-            background: #374151;
-            border-radius: 3px;
-            overflow: hidden;
-            position: relative;
-          }
-          .meter-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-          }
-          .meter-fill.good { background: linear-gradient(90deg, #4ade80, #22c55e); }
-          .meter-fill.okay { background: linear-gradient(90deg, #facc15, #eab308); }
-          .meter-fill.poor { background: linear-gradient(90deg, #f87171, #ef4444); }
-          .deal-label {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-top: 6px;
-            text-align: center;
-          }
-          .scout-link {
-            display: block;
-            text-align: center;
-            margin-top: 12px;
-            color: #60a5fa;
-            font-size: 12px;
-            text-decoration: none;
-            opacity: 0.8;
-            transition: opacity 0.2s;
-          }
-          .scout-link:hover {
-            opacity: 1;
-            text-decoration: underline;
-          }
-          .close-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: none;
-            border: none;
-            color: #64748b;
-            cursor: pointer;
-            padding: 4px;
-            font-size: 18px;
-            line-height: 1;
-          }
-          .close-btn:hover {
-            color: #94a3b8;
-          }
-        </style>
+        <style>${getBaseStyles()}</style>
         
-        <div class="scout-card" style="position: relative;">
+        <div class="scout-card">
           <button class="close-btn" title="Close">&times;</button>
           
           <div class="scout-header">
@@ -208,6 +448,7 @@
               <path d="M21 21l-4.35-4.35"/>
             </svg>
             Smart Scout Price Check
+            ${priceData.stale ? '<span style="color: #facc15; font-size: 10px;">(cached)</span>' : ''}
           </div>
           
           <div class="price-row">
@@ -252,11 +493,9 @@
   
       // Add close button handler
       shadow.querySelector('.close-btn').addEventListener('click', () => {
-        container.remove();
+        overlayElement.remove();
+        overlayElement = null;
       });
-  
-      document.body.appendChild(container);
-      overlayElement = container;
     }
   
     function calculateDealRating(askingPrice, priceData) {
@@ -330,7 +569,9 @@
     helper.style.cssText = 'font-size: 10px; color: #666; margin-top: 4px; width: 100%;';
     chipContainer.appendChild(helper);
 
-    replyButton.parentElement.insertBefore(chipContainer, replyButton.nextSibling);
+    if (replyButton.parentElement) {
+      replyButton.parentElement.insertBefore(chipContainer, replyButton.nextSibling);
+    }
   }
   
     // Initialize

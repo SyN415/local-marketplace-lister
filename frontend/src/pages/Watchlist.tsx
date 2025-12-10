@@ -4,7 +4,7 @@ import {
   Button, TextField, Switch, Chip,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
-  FormControlLabel, Checkbox, Slider, Alert
+  FormControlLabel, Checkbox, Slider, Alert, Snackbar
 } from '@mui/material';
 import { Add, Delete, Edit } from '@mui/icons-material';
 import { scoutAPI } from '../services/api';
@@ -33,9 +33,15 @@ interface WatchlistItem {
 
 export default function WatchlistPage() {
   const [watchlists, setWatchlists] = useState<WatchlistItem[]>([]);
-  // const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<WatchlistItem | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
   const [formData, setFormData] = useState({
     keywords: '',
     platforms: ['facebook', 'craigslist'],
@@ -52,34 +58,89 @@ export default function WatchlistPage() {
   }, []);
 
   const fetchWatchlists = async () => {
+    setLoading(true);
     try {
       const data = await scoutAPI.getWatchlists();
-      setWatchlists(data);
+      // Transform data to match expected interface (snake_case to camelCase)
+      const transformedData = data.map((item: any) => ({
+        id: item.id,
+        keywords: item.keywords,
+        platforms: item.platforms || ['facebook', 'craigslist'],
+        maxPrice: item.max_price,
+        minPrice: item.min_price,
+        location: item.location,
+        radiusMiles: item.radius_miles || 25,
+        isActive: item.is_active ?? true,
+        notificationEnabled: item.notification_enabled ?? true,
+        checkIntervalMinutes: item.check_interval_minutes || 30,
+        totalMatches: item.total_matches || 0,
+        lastCheckedAt: item.last_checked_at,
+        createdAt: item.created_at
+      }));
+      setWatchlists(transformedData);
+      
       // Sync with extension
       if (typeof window.chrome !== 'undefined' && window.chrome.runtime) {
-        window.chrome.runtime.sendMessage({
-            action: 'SYNC_WATCHLIST',
-            items: data
-        });
+        try {
+          window.chrome.runtime.sendMessage({
+              action: 'SYNC_WATCHLIST',
+              items: transformedData
+          });
+        } catch (e) {
+          // Extension might not be installed
+          console.log('Extension not available for sync');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch watchlists:', err);
+      setSnackbar({ open: true, message: 'Failed to fetch watchlists', severity: 'error' });
     } finally {
-      // setLoading(false);
+      setLoading(false);
     }
   };
 
   const handleSave = async () => {
+    if (!formData.keywords.trim()) {
+      setSnackbar({ open: true, message: 'Keywords are required', severity: 'error' });
+      return;
+    }
+    
+    if (formData.platforms.length === 0) {
+      setSnackbar({ open: true, message: 'Select at least one platform', severity: 'error' });
+      return;
+    }
+    
+    setSaving(true);
     try {
+      // Convert form data to API format (camelCase to snake_case and proper types)
+      const payload = {
+        keywords: formData.keywords.trim(),
+        platforms: formData.platforms,
+        maxPrice: formData.maxPrice ? parseFloat(formData.maxPrice) : null,
+        minPrice: formData.minPrice ? parseFloat(formData.minPrice) : null,
+        location: formData.location || null,
+        radiusMiles: formData.radiusMiles,
+        checkInterval: formData.checkIntervalMinutes,
+        notificationEnabled: formData.notificationEnabled
+      };
+      
+      console.log('Saving watchlist with payload:', payload);
+      
       if (editItem) {
-        await scoutAPI.updateWatchlist(editItem.id, formData);
+        await scoutAPI.updateWatchlist(editItem.id, payload);
+        setSnackbar({ open: true, message: 'Watchlist updated successfully!', severity: 'success' });
       } else {
-        await scoutAPI.createWatchlist(formData);
+        await scoutAPI.createWatchlist(payload);
+        setSnackbar({ open: true, message: 'Watchlist created successfully!', severity: 'success' });
       }
       setDialogOpen(false);
       fetchWatchlists();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save watchlist:', err);
+      const message = err?.response?.data?.error || err.message || 'Failed to save watchlist';
+      setSnackbar({ open: true, message, severity: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -307,12 +368,32 @@ export default function WatchlistPage() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSave} disabled={!formData.keywords}>
-            {editItem ? 'Update' : 'Create'}
+          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={!formData.keywords.trim() || saving}
+          >
+            {saving ? 'Saving...' : (editItem ? 'Update' : 'Create')}
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 }

@@ -1,3 +1,6 @@
+// Dashboard and App URLs
+const APP_URL = 'https://local-marketplace-backend-wr5e.onrender.com';
+
 document.addEventListener('DOMContentLoaded', () => {
   // Tab Switching
   const tabs = document.querySelectorAll('.tab-btn');
@@ -82,16 +85,16 @@ document.addEventListener('DOMContentLoaded', () => {
     listingsSelect.addEventListener('change', handleListingSelection);
     
     openDashboard.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://local-marketplace-backend-wr5e.onrender.com/dashboard' });
+      chrome.tabs.create({ url: `${APP_URL}/dashboard` });
     });
     
     loginLink.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://local-marketplace-backend-wr5e.onrender.com/login' });
+      chrome.tabs.create({ url: `${APP_URL}/login` });
     });
 
     if (openWatchlistBtn) {
         openWatchlistBtn.addEventListener('click', () => {
-            chrome.tabs.create({ url: 'https://local-marketplace-backend-wr5e.onrender.com/watchlist' });
+            chrome.tabs.create({ url: `${APP_URL}/watchlist` });
         });
     }
     
