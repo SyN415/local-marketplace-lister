@@ -28,22 +28,178 @@
     log('Initializing...');
     
     // Check if we're on a marketplace listing page
-    if (!isMarketplaceListingPage()) {
-      log('Not on a marketplace listing page, skipping');
-      return;
+    if (isMarketplaceListingPage()) {
+      log('On marketplace listing page, starting observation');
+      // Wait for listing content to load
+      observeListingContent();
+      // Inject quick reply chips (separate observer)
+      injectQuickReplyChips();
+    } else {
+      log('Not on a listing page, initializing search scanner');
+      initSearchScanner();
     }
-
-    log('On marketplace listing page, starting observation');
     
-    // Wait for listing content to load
-    observeListingContent();
-    
-    // Inject quick reply chips (separate observer)
-    injectQuickReplyChips();
+    // Listen for watchlist check messages from background script
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'WATCHLIST_CHECK') {
+        handleWatchlistCheck(request.watchlist);
+      }
+    });
   }
 
   function isMarketplaceListingPage() {
     return window.location.href.includes('/marketplace/item/');
+  }
+
+  // Active Search Scanner
+  function initSearchScanner() {
+    // Check if we have active watchlists
+    chrome.storage.local.get(['watchlistItems'], (result) => {
+      const items = result.watchlistItems || [];
+      const activeWatchlists = items.filter(w => w.isActive);
+      
+      if (activeWatchlists.length > 0) {
+        log(`Found ${activeWatchlists.length} active watchlists, starting scanner`);
+        
+        // Initial scan
+        scanPageForWatchlists(activeWatchlists);
+        
+        // Watch for new content (infinite scroll)
+        let timeout;
+        const observer = new MutationObserver(() => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            scanPageForWatchlists(activeWatchlists);
+          }, 1000);
+        });
+        
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      } else {
+        log('No active watchlists found');
+      }
+    });
+  }
+
+  function scanPageForWatchlists(watchlists) {
+    watchlists.forEach(watchlist => {
+      const matches = scanForMatches(watchlist);
+      if (matches.length > 0) {
+        log(`Found ${matches.length} matches for "${watchlist.keywords}"`);
+        matches.forEach(match => highlightMatch(match.element, watchlist));
+      }
+    });
+  }
+
+  function handleWatchlistCheck(watchlist) {
+    log('Received watchlist check request for:', watchlist.keywords);
+    
+    // Scan the current page for matches
+    const matches = scanForMatches(watchlist);
+    
+    if (matches.length > 0) {
+      log(`Found ${matches.length} matches for ${watchlist.keywords}`);
+      // Highlight matches or notify background
+      matches.forEach(match => {
+        highlightMatch(match.element, watchlist);
+      });
+      
+      // We could also report back to background here if needed
+    } else {
+      log('No matches found on current page');
+    }
+  }
+
+  function scanForMatches(watchlist) {
+    const matches = [];
+    const keywords = watchlist.keywords.toLowerCase().split(' ').filter(k => k.length > 0);
+    const maxPrice = watchlist.max_price || watchlist.maxPrice || Infinity;
+    const minPrice = watchlist.min_price || watchlist.minPrice || 0;
+    
+    // Find all listing items on the page (grid items)
+    // Facebook marketplace grid items usually have specific structure
+    // We look for links containing '/marketplace/item/'
+    const listingLinks = document.querySelectorAll('a[href*="/marketplace/item/"]');
+    
+    listingLinks.forEach(link => {
+      // Navigate up to find the container card
+      // Usually the link is inside the card or wraps the image
+      // We want the text content of the card
+      
+      // Get title and price from the card
+      // Title is usually bold text or inside span/div
+      // Price is usually starts with $ or currency symbol
+      
+      // Simple heuristic: extract all text from the link's container
+      let container = link;
+      // Go up a few levels to find the card container
+      for (let i = 0; i < 5; i++) {
+        if (container.parentElement && container.parentElement.innerText.length > 50) {
+          container = container.parentElement;
+        } else {
+          break;
+        }
+      }
+      
+      const text = container.innerText.toLowerCase();
+      
+      // Try to find the title more specifically
+      // FB often uses span with style "-webkit-line-clamp" for titles
+      const titleElement = container.querySelector('span[style*="-webkit-line-clamp"]');
+      const title = titleElement ? titleElement.innerText.toLowerCase() : text;
+      
+      // Check keywords
+      // All keywords must be present in the title or text
+      const matchesKeywords = keywords.every(k => title.includes(k) || text.includes(k));
+      
+      if (matchesKeywords) {
+        // Check price
+        // Extract price from text (look for $1,234)
+        const priceMatch = text.match(/\$[\d,]+/);
+        if (priceMatch) {
+          const price = parsePrice(priceMatch[0]);
+          if (price !== null && price >= minPrice && price <= maxPrice) {
+            matches.push({
+              element: container,
+              title: title,
+              price: price,
+              link: link.href
+            });
+          }
+        }
+      }
+    });
+    
+    return matches;
+  }
+
+  function highlightMatch(element, watchlist) {
+    if (element.dataset.scoutHighlighted) return;
+    
+    element.dataset.scoutHighlighted = 'true';
+    element.style.border = '3px solid #4ade80';
+    element.style.boxSizing = 'border-box';
+    element.style.position = 'relative';
+    
+    const badge = document.createElement('div');
+    badge.textContent = `🎯 Match: ${watchlist.keywords}`;
+    badge.style.cssText = `
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #4ade80;
+      color: #064e3b;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      z-index: 100;
+      pointer-events: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    `;
+    element.appendChild(badge);
   }
 
   function observeListingContent() {

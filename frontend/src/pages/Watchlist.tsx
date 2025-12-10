@@ -79,18 +79,12 @@ export default function WatchlistPage() {
       }));
       setWatchlists(transformedData);
       
-      // Sync with extension
-      if (typeof window.chrome !== 'undefined' && window.chrome.runtime) {
-        try {
-          window.chrome.runtime.sendMessage({
-              action: 'SYNC_WATCHLIST',
-              items: transformedData
-          });
-        } catch (e) {
-          // Extension might not be installed
-          console.log('Extension not available for sync');
-        }
-      }
+      // Sync with extension via bridge
+      window.postMessage({
+        type: 'EXTENSION_COMMAND',
+        command: 'SYNC_WATCHLIST',
+        payload: { items: transformedData }
+      }, '*');
     } catch (err) {
       console.error('Failed to fetch watchlists:', err);
       setSnackbar({ open: true, message: 'Failed to fetch watchlists', severity: 'error' });

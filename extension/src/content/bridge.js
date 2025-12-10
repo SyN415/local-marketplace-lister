@@ -106,6 +106,20 @@ window.addEventListener('message', (event) => {
         }, '*');
       });
     }
+
+    else if (message.command === 'SYNC_WATCHLIST') {
+      // Forward watchlist items to extension storage
+      chrome.runtime.sendMessage({
+        action: 'SYNC_WATCHLIST',
+        items: message.payload.items
+      }, (response) => {
+        window.postMessage({
+          type: 'EXTENSION_RESPONSE',
+          command: 'SYNC_WATCHLIST',
+          result: response
+        }, '*');
+      });
+    }
   }
 });
 
