@@ -161,6 +161,51 @@ body {
   50% { opacity: 0.7; }
 }
 
+/* ===== Tabs ===== */
+.tabs {
+  display: flex;
+  background-color: var(--color-white);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-500);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn:hover {
+  color: var(--color-primary);
+  background-color: var(--color-gray-50);
+}
+
+.tab-btn.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.tab-content {
+  display: none;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.tab-content.active {
+  display: flex;
+}
+
 /* ===== Main Content ===== */
 .popup-main {
   flex: 1;
@@ -210,6 +255,50 @@ body {
 .card-icon {
   color: var(--color-primary);
   flex-shrink: 0;
+}
+
+/* ===== Scout Stats ===== */
+.scout-status p {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-600);
+  margin-bottom: var(--spacing-md);
+  line-height: 1.4;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-sm);
+  background-color: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-gray-200);
+}
+
+.stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.activity-log {
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 /* ===== Button Icon ===== */
@@ -575,6 +664,17 @@ body {
   background: var(--color-primary-muted);
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.btn-secondary {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-gray-300);
+  color: var(--color-gray-700);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-gray-50);
+  border-color: var(--color-gray-400);
 }
 
 .btn-danger {

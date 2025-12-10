@@ -1,4 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Tab Switching
+  const tabs = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remove active class from all tabs and contents
+      tabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(c => c.classList.remove('active'));
+
+      // Add active class to clicked tab and corresponding content
+      tab.classList.add('active');
+      const tabId = tab.dataset.tab;
+      document.getElementById(`${tabId}Tab`).classList.add('active');
+    });
+  });
+
   // UI Elements
   const connectionStatus = document.getElementById('connectionStatus');
   const progressSection = document.getElementById('progressSection');
@@ -23,11 +40,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const clCheckbox = document.getElementById('clCheckbox');
   const openDashboard = document.getElementById('openDashboard');
   const viewLogs = document.getElementById('viewLogs');
+  const openWatchlistBtn = document.getElementById('openWatchlistBtn');
   
   // Modal elements
   const logsModal = document.getElementById('logsModal');
   const logsContainer = document.getElementById('logsContainer');
   const closeLogsBtn = document.getElementById('closeLogsBtn');
+
+  // Scout Stats
+  const watchlistStats = document.getElementById('watchlistStats');
 
   let currentListing = null;
   let userListings = [];
@@ -36,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function init() {
     refreshState();
     loadListings();
+    loadScoutStats();
     
     // Listen for storage changes to update UI in real-time
     chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -45,6 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // If listings were updated, refresh the dropdown
         if (changes.userListings) {
           populateListingsDropdown(changes.userListings.newValue || []);
+        }
+
+        if (changes.watchlistItems) {
+            loadScoutStats();
         }
       }
     });
@@ -62,10 +88,38 @@ document.addEventListener('DOMContentLoaded', () => {
     loginLink.addEventListener('click', () => {
       chrome.tabs.create({ url: 'https://local-marketplace-backend-wr5e.onrender.com/login' });
     });
+
+    if (openWatchlistBtn) {
+        openWatchlistBtn.addEventListener('click', () => {
+            chrome.tabs.create({ url: 'https://local-marketplace-backend-wr5e.onrender.com/watchlist' });
+        });
+    }
     
     viewLogs.addEventListener('click', showLogsModal);
     closeLogsBtn.addEventListener('click', () => {
       logsModal.style.display = 'none';
+    });
+  }
+
+  // Scout Stats Logic
+  function loadScoutStats() {
+    chrome.storage.local.get(['watchlistItems'], (result) => {
+        const items = result.watchlistItems || [];
+        const activeCount = items.filter(i => i.isActive).length;
+        const matches = items.reduce((sum, item) => sum + (item.totalMatches || 0), 0);
+
+        if (watchlistStats) {
+            watchlistStats.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-value">${activeCount}</span>
+                    <span class="stat-label">Active Watchlists</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">${matches}</span>
+                    <span class="stat-label">Total Matches</span>
+                </div>
+            `;
+        }
     });
   }
 

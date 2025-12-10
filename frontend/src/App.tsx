@@ -18,6 +18,8 @@ import EditListing from './pages/EditListing';
 import ListingDetails from './pages/ListingDetails';
 import Listings from './pages/Listings';
 import Pricing from './pages/Pricing';
+import Watchlist from './pages/Watchlist';
+import Deals from './pages/Deals';
 import Success from './pages/payment/Success';
 import Cancel from './pages/payment/Cancel';
 
@@ -78,6 +80,24 @@ const AppRouter: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Jobs />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/watchlist"
+            element={
+              <ProtectedRoute>
+                <Watchlist />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/deals"
+            element={
+              <ProtectedRoute>
+                <Deals />
               </ProtectedRoute>
             }
           />

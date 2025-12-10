@@ -27,6 +27,7 @@ import {
   Package,
   CreditCard,
   ChevronDown,
+  Search,
 } from 'lucide-react';
 import logo from '../../assets/jp1.jpg';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -61,6 +62,7 @@ const navItems: NavItem[] = [
 
 const authNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-4 h-4" />, authRequired: true },
+  { label: 'Watchlist', href: '/watchlist', icon: <Search className="w-4 h-4" />, authRequired: true },
   { label: 'My Listings', href: '/listings', icon: <Package className="w-4 h-4" />, authRequired: true },
   { label: 'Sell', href: '/create-listing', icon: <PlusCircle className="w-4 h-4" />, authRequired: true, highlight: true },
 ];

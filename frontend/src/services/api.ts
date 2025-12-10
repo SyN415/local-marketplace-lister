@@ -470,6 +470,50 @@ export const connectionsAPI = {
 };
 
 /**
+ * Scout API functions
+ */
+export const scoutAPI = {
+  getWatchlists: async (): Promise<any[]> => {
+    const response = await api.get<ApiResponse<any[]>>('/api/scout/watchlist');
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch watchlists');
+    }
+    return response.data.data;
+  },
+
+  createWatchlist: async (data: any): Promise<any> => {
+    const response = await api.post<ApiResponse<any>>('/api/scout/watchlist', data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create watchlist');
+    }
+    return response.data.data;
+  },
+
+  updateWatchlist: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<ApiResponse<any>>(`/api/scout/watchlist/${id}`, data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to update watchlist');
+    }
+    return response.data.data;
+  },
+
+  deleteWatchlist: async (id: string): Promise<void> => {
+    const response = await api.delete<ApiResponse>(`/api/scout/watchlist/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to delete watchlist');
+    }
+  },
+
+  getComparisons: async (): Promise<any[]> => {
+    const response = await api.get<ApiResponse<any[]>>('/api/scout/comparisons');
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch comparisons');
+    }
+    return response.data.data;
+  }
+};
+
+/**
  * Postings API functions
  */
 export const postingsAPI = {

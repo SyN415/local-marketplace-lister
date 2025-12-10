@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cross-Lister</title>
+  <title>Cross-Lister & Smart Scout</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -18,118 +18,177 @@
       <div id="connectionStatus" class="status-badge">Ready</div>
     </header>
 
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="posting">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+        Posting
+      </button>
+      <button class="tab-btn" data-tab="scout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        Smart Scout
+      </button>
+    </div>
+
     <main class="popup-main">
-      <!-- Listings Section -->
-      <section class="card">
-        <div class="card-header">
+      <!-- POSTING TAB -->
+      <div id="postingTab" class="tab-content active">
+        <!-- Listings Section -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg class="card-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+              Your Listings
+            </h2>
+            <button id="refreshListingsBtn" class="btn-icon" title="Refresh listings" aria-label="Refresh listings">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 4v6h-6"/>
+                <path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/>
+                <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div id="listingsContainer" class="listings-container">
+            <div id="listingsLoading" class="state-message loading" style="display: none;">
+              <div class="spinner"></div>
+              <span>Loading listings...</span>
+            </div>
+            <div id="listingsError" class="state-message error" style="display: none;"></div>
+            
+            <div class="select-wrapper">
+              <select id="listingsSelect" class="select-input" disabled>
+                <option value="">Select a listing...</option>
+              </select>
+              <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+            
+            <div id="selectedListingPreview" class="listing-preview" style="display: none;">
+              <div id="selectedListingInfo"></div>
+            </div>
+          </div>
+          
+          <div id="noAuthMessage" class="state-message info" style="display: none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>Please <a id="loginLink" class="text-link">login to the dashboard</a> to see your listings.</span>
+          </div>
+        </section>
+
+        <!-- Platform Selection -->
+        <section class="card">
           <h2 class="card-title">
             <svg class="card-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
             </svg>
-            Your Listings
+            Target Platforms
           </h2>
-          <button id="refreshListingsBtn" class="btn-icon" title="Refresh listings" aria-label="Refresh listings">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 4v6h-6"/>
-              <path d="M1 20v-6h6"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/>
-              <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/>
+          <div class="platform-list">
+            <label class="platform-option">
+              <input type="checkbox" id="fbCheckbox" value="facebook" checked>
+              <span class="checkbox-custom"></span>
+              <span class="platform-info">
+                <svg class="platform-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Facebook Marketplace
+              </span>
+            </label>
+            <label class="platform-option">
+              <input type="checkbox" id="clCheckbox" value="craigslist" checked>
+              <span class="checkbox-custom"></span>
+              <span class="platform-info">
+                <svg class="platform-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-15h2v6h-2zm0 8h2v2h-2z"/>
+                </svg>
+                Craigslist
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Progress Section -->
+        <section id="progressSection" class="card progress-card">
+          <div class="progress-header">
+            <span id="progressLabel" class="progress-label">Progress</span>
+            <span id="progressPercent" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progressBar" class="progress-fill"></div>
+          </div>
+          <p id="statusText" class="status-text">Ready to post</p>
+        </section>
+
+        <!-- Actions -->
+        <div class="actions-container">
+          <button id="postBtn" class="btn btn-primary" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
+            Start Posting
+          </button>
+          <button id="stopBtn" class="btn btn-danger">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            </svg>
+            Stop
           </button>
         </div>
-        
-        <div id="listingsContainer" class="listings-container">
-          <div id="listingsLoading" class="state-message loading" style="display: none;">
-            <div class="spinner"></div>
-            <span>Loading listings...</span>
-          </div>
-          <div id="listingsError" class="state-message error" style="display: none;"></div>
-          
-          <div class="select-wrapper">
-            <select id="listingsSelect" class="select-input" disabled>
-              <option value="">Select a listing...</option>
-            </select>
-            <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-          
-          <div id="selectedListingPreview" class="listing-preview" style="display: none;">
-            <div id="selectedListingInfo"></div>
-          </div>
-        </div>
-        
-        <div id="noAuthMessage" class="state-message info" style="display: none;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="16" x2="12" y2="12"/>
-            <line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          <span>Please <a id="loginLink" class="text-link">login to the dashboard</a> to see your listings.</span>
-        </div>
-      </section>
+      </div>
 
-      <!-- Platform Selection -->
-      <section class="card">
-        <h2 class="card-title">
-          <svg class="card-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-          Target Platforms
-        </h2>
-        <div class="platform-list">
-          <label class="platform-option">
-            <input type="checkbox" id="fbCheckbox" value="facebook" checked>
-            <span class="checkbox-custom"></span>
-            <span class="platform-info">
-              <svg class="platform-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      <!-- SCOUT TAB -->
+      <div id="scoutTab" class="tab-content">
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg class="card-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"></path>
+                <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
               </svg>
-              Facebook Marketplace
-            </span>
-          </label>
-          <label class="platform-option">
-            <input type="checkbox" id="clCheckbox" value="craigslist" checked>
-            <span class="checkbox-custom"></span>
-            <span class="platform-info">
-              <svg class="platform-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-15h2v6h-2zm0 8h2v2h-2z"/>
-              </svg>
-              Craigslist
-            </span>
-          </label>
-        </div>
-      </section>
+              Watchlist Monitoring
+            </h2>
+          </div>
+          <div class="scout-status">
+            <p>Smart Scout is actively monitoring marketplaces for your watchlisted items.</p>
+            <div id="watchlistStats" class="stats-grid">
+              <!-- Populated by JS -->
+              <div class="stat-item">
+                <span class="stat-value">--</span>
+                <span class="stat-label">Active Watchlists</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value">--</span>
+                <span class="stat-label">Recent Matches</span>
+              </div>
+            </div>
+          </div>
+          <button id="openWatchlistBtn" class="btn btn-secondary" style="margin-top: 12px; width: 100%;">
+            Manage Watchlists
+          </button>
+        </section>
 
-      <!-- Progress Section -->
-      <section id="progressSection" class="card progress-card">
-        <div class="progress-header">
-          <span id="progressLabel" class="progress-label">Progress</span>
-          <span id="progressPercent" class="progress-percent">0%</span>
-        </div>
-        <div class="progress-track">
-          <div id="progressBar" class="progress-fill"></div>
-        </div>
-        <p id="statusText" class="status-text">Ready to post</p>
-      </section>
-
-      <!-- Actions -->
-      <div class="actions-container">
-        <button id="postBtn" class="btn btn-primary" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-          </svg>
-          Start Posting
-        </button>
-        <button id="stopBtn" class="btn btn-danger">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          </svg>
-          Stop
-        </button>
+        <section class="card" style="margin-top: 12px;">
+          <h2 class="card-title">Recent Activity</h2>
+          <div id="scoutActivityLog" class="activity-log">
+            <div class="empty-state">No recent activity</div>
+          </div>
+        </section>
       </div>
 
       <!-- Footer Links -->

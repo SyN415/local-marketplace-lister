@@ -1,35 +1,56 @@
 {
   "manifest_version": 3,
   "name": "Local Marketplace Lister",
-  "version": "1.2",
-  "description": "Cross-list your items to Craigslist, Facebook Marketplace, and OfferUp.",
+  "version": "2.0.0",
+  "description": "Cross-list your items AND discover deals with real-time price intelligence.",
   "permissions": [
     "scripting",
     "activeTab",
     "storage",
     "unlimitedStorage",
-    "tabs"
+    "tabs",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "*://*.facebook.com/*",
     "*://*.craigslist.org/*",
     "*://*.offerup.com/*",
     "*://*.supabase.co/*",
-    "*://*.onrender.com/*"
+    "*://*.onrender.com/*",
+    "*://api.ebay.com/*",
+    "*://api.sandbox.ebay.com/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html"
   },
   "background": {
-    "service_worker": "src/background/service-worker.js"
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content/scout/overlay-component.js",
+        "assets/*"
+      ],
+      "matches": [
+        "*://*.facebook.com/*",
+        "*://*.craigslist.org/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [
         "*://*.craigslist.org/*"
       ],
       "js": [
-        "src/content/craigslist.js"
+        "src/content/craigslist.js",
+        "src/content/scout/craigslist-scout.js"
+      ],
+      "css": [
+        "src/content/scout/overlay.css"
       ]
     },
     {
@@ -37,7 +58,11 @@
         "*://*.facebook.com/*"
       ],
       "js": [
-        "src/content/facebook.js"
+        "src/content/facebook.js",
+        "src/content/scout/facebook-scout.js"
+      ],
+      "css": [
+        "src/content/scout/overlay.css"
       ]
     },
     {

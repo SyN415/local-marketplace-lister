@@ -1,4 +1,6 @@
 // Background script to handle navigation, state, and cross-posting logic
+import { getPriceIntelligence } from './ebay-api.js';
+import { initWatchlistAlarms, handleWatchlistAlarm } from './watchlist-manager.js';
 
 // State constants
 const STATE = {
@@ -49,6 +51,13 @@ const API_BASE_URL = 'https://local-marketplace-backend-wr5e.onrender.com';
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Local Marketplace Lister extension installed');
   resetState();
+});
+
+// Listen for alarms
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith('watchlist_check_')) {
+    handleWatchlistAlarm(alarm.name);
+  }
 });
 
 // Helper to reset application state
@@ -202,6 +211,8 @@ async function handleMessage(request, sender) {
       case 'set_auth_token':
         await storageSet({ authToken: request.token });
         await addLog('Auth token saved');
+        // Initialize watchlist alarms when authenticated
+        await initWatchlistAlarms();
         return { success: true };
 
       case 'fetch_listings':
@@ -232,6 +243,16 @@ async function handleMessage(request, sender) {
         await addLog('Workflow reset');
         return { success: true };
       }
+
+      case 'GET_PRICE_INTELLIGENCE':
+        const { authToken: token } = await storageGet(['authToken']);
+        return await getPriceIntelligence(request.query, token);
+
+      case 'SYNC_WATCHLIST':
+        // Frontend calls this after adding/removing items to update local storage
+        await storageSet({ watchlistItems: request.items });
+        await initWatchlistAlarms();
+        return { success: true };
         
       default:
         console.warn('Unknown action:', request.action);
