@@ -105,6 +105,7 @@
         } else if (response && response.found) {
           // Success - render the price comparison
           renderOverlay(listingData, response);
+          notifyMatch(listingData, null); // Notify HUD
         } else if (response && response.error) {
           // Error occurred
           renderErrorOverlay(listingData, response.error);
@@ -115,6 +116,17 @@
       });
     }
 
+    // New helper to dispatch match events for the HUD
+    function notifyMatch(listing, watchlist) {
+        document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
+            detail: {
+                title: listing.title,
+                price: listing.price,
+                link: listing.url
+            }
+        }));
+    }
+  
     function createOverlayContainer() {
       // Remove existing overlay if any
       if (overlayElement) {
@@ -341,11 +353,14 @@
           <div class="scout-message">
             🔐 ${message || 'Please log in to view price comparisons'}
           </div>
+          <div class="scout-message" style="font-size: 11px; margin-top: -8px; opacity: 0.8;">
+            (Open the dashboard to sync your login)
+          </div>
           <a href="${APP_URL}/login" target="_blank" class="scout-btn">
-            Log In to Smart Scout
+            Log In / Open Dashboard
           </a>
-          <a class="scout-link" 
-             href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1" 
+          <a class="scout-link"
+             href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1"
              target="_blank">
             Search eBay manually →
           </a>

@@ -89,6 +89,15 @@ export async function getPriceIntelligence(query, userToken) {
     const json = await response.json();
     
     if (json.success && json.data) {
+      // Respect the found flag from backend
+      if (json.data.found === false) {
+        return {
+          found: false,
+          error: json.data.error,
+          message: json.data.message || 'No price data available'
+        };
+      }
+
       const priceData = {
         found: true,
         avgPrice: json.data.avgPrice,

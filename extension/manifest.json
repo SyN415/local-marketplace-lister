@@ -32,6 +32,7 @@
     {
       "resources": [
         "src/content/scout/overlay-component.js",
+        "src/content/scout/hud.css",
         "assets/*"
       ],
       "matches": [
@@ -47,7 +48,8 @@
       ],
       "js": [
         "src/content/craigslist.js",
-        "src/content/scout/craigslist-scout.js"
+        "src/content/scout/craigslist-scout.js",
+        "src/content/scout/hud.js"
       ],
       "css": [
         "src/content/scout/overlay.css"
@@ -59,7 +61,8 @@
       ],
       "js": [
         "src/content/facebook.js",
-        "src/content/scout/facebook-scout.js"
+        "src/content/scout/facebook-scout.js",
+        "src/content/scout/hud.js"
       ],
       "css": [
         "src/content/scout/overlay.css"

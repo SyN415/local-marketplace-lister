@@ -200,6 +200,19 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     `;
     element.appendChild(badge);
+
+    // Notify HUD
+    const priceText = element.innerText.match(/\$[\d,]+/);
+    const titleElement = element.querySelector('span[style*="-webkit-line-clamp"]');
+    const title = titleElement ? titleElement.innerText : 'Unknown Item';
+
+    document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
+      detail: {
+        title: title,
+        price: priceText ? priceText[0] : '???',
+        link: element.querySelector('a')?.href || '#'
+      }
+    }));
   }
 
   function observeListingContent() {
