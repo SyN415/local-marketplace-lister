@@ -1,5 +1,6 @@
 // Cyberpunk HUD Overlay
 // Provides persistent "active assistant" monitoring UI
+// Profit Analyzer (HUD-only): computes ROI score + resale suggestion using eBay comps when available
 
 (function() {
   'use strict';
@@ -70,6 +71,10 @@
           <div class="stat-item matches">
             <span class="stat-value" id="hud-match-count">--</span>
             <span class="stat-label">Matches</span>
+          </div>
+          <div class="stat-item roi">
+            <span class="stat-value" id="hud-roi-score">--</span>
+            <span class="stat-label">ROI Score</span>
           </div>
         </div>
 
@@ -164,8 +169,14 @@
   }
 
   function loadStats() {
-    chrome.storage.local.get(['watchlistItems'], (result) => {
+    chrome.storage.local.get(['watchlistItems', 'lastProfitAnalysis'], (result) => {
       updateStatsUI(result.watchlistItems || []);
+      if (result.lastProfitAnalysis) {
+        const el = shadowRoot?.getElementById('hud-roi-score');
+        if (el && Number.isFinite(result.lastProfitAnalysis.roiScore)) {
+          el.textContent = result.lastProfitAnalysis.roiScore;
+        }
+      }
     });
   }
 
@@ -195,8 +206,18 @@
   function setupEventListeners() {
     // Listen for storage changes
     chrome.storage.onChanged.addListener((changes, namespace) => {
-      if (namespace === 'local' && changes.watchlistItems) {
+      if (namespace !== 'local') return;
+
+      if (changes.watchlistItems) {
         updateStatsUI(changes.watchlistItems.newValue);
+      }
+
+      if (changes.lastProfitAnalysis) {
+        const next = changes.lastProfitAnalysis.newValue;
+        const el = shadowRoot?.getElementById('hud-roi-score');
+        if (el && next && Number.isFinite(next.roiScore)) {
+          el.textContent = next.roiScore;
+        }
       }
     });
 
@@ -204,30 +225,164 @@
     document.addEventListener('SMART_SCOUT_MATCH_FOUND', (e) => {
       triggerRadarPing();
       updateFeed(e.detail);
+      updateRoiScore(e.detail);
     });
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function parseMaybeNumber(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    if (typeof v === 'string') {
+      const m = v.match(/[\d,.]+/);
+      if (!m) return null;
+      const n = parseFloat(m[0].replace(/,/g, ''));
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+
+  // Profit Analyzer (client-only heuristic)
+  // Uses eBay sold comps when available (avgPrice/lowPrice/highPrice) + conservative fees.
+  function analyzeProfit(match) {
+    const asking = parseMaybeNumber(match.price);
+    const avg = parseMaybeNumber(match.avgPrice);
+    const low = parseMaybeNumber(match.lowPrice);
+    const high = parseMaybeNumber(match.highPrice);
+
+    // Demand proxy: number of comps (0..50) boosts confidence
+    const comps = parseMaybeNumber(match.compsCount);
+    const demandScore = comps !== null ? clamp((comps / 50) * 100, 0, 100) : 50;
+
+    // Competitor pressure proxy: wide range = more volatility
+    let competitorScore = 50;
+    if (low !== null && high !== null && avg !== null && avg > 0) {
+      const spread = (high - low) / avg; // 0..?
+      competitorScore = clamp(100 - spread * 120, 0, 100);
+    }
+
+    // Choose target resale price: lean below avg for speed, above for margin based on demand.
+    let suggestedResale = avg;
+    if (avg !== null) {
+      const demandBoost = (demandScore - 50) / 100; // -0.5..0.5
+      // Base: 92% of avg; add up to +6% if demand strong, down to -6% if weak
+      suggestedResale = avg * (0.92 + demandBoost * 0.12);
+      // Clamp to within low/high if present
+      if (low !== null && high !== null) {
+        suggestedResale = clamp(suggestedResale, low, high);
+      }
+    }
+
+    // Fees: ~13% marketplace fees + $8 shipping/handling buffer (tunable)
+    const feeRate = 0.13;
+    const handling = 8;
+
+    let expectedProfit = null;
+    let roiPct = null;
+    if (asking !== null && suggestedResale !== null) {
+      const proceeds = suggestedResale * (1 - feeRate) - handling;
+      expectedProfit = proceeds - asking;
+      roiPct = asking > 0 ? (expectedProfit / asking) * 100 : null;
+    }
+
+    // Historical trend proxy: if avg is present but low is close to avg, trend stable.
+    let trendScore = 50;
+    if (avg !== null && low !== null && avg > 0) {
+      const discount = (avg - low) / avg;
+      trendScore = clamp(70 - discount * 80, 0, 100);
+    }
+
+    // Composite ROI score (0..100)
+    // Profitability drives most; then demand, competitor stability, and trend.
+    let profitScore = 50;
+    if (roiPct !== null) {
+      // Map ROI%: -20% => 0, 0% => 40, 30% => 75, 60% => 95
+      if (roiPct <= -20) profitScore = 0;
+      else if (roiPct <= 0) profitScore = 20 + (roiPct + 20) * 1; // -20..0 => 20..40
+      else if (roiPct <= 30) profitScore = 40 + roiPct * 1.1667; // 0..30 => 40..75
+      else if (roiPct <= 60) profitScore = 75 + (roiPct - 30) * 0.6667; // 30..60 => 75..95
+      else profitScore = 95;
+      profitScore = clamp(profitScore, 0, 100);
+    }
+
+    const roiScore = Math.round(
+      profitScore * 0.55 +
+      demandScore * 0.20 +
+      competitorScore * 0.15 +
+      trendScore * 0.10
+    );
+
+    // Underpriced / flip potential heuristic
+    const flipPotential = expectedProfit !== null && expectedProfit >= 40 && roiScore >= 70;
+
+    return {
+      roiScore,
+      suggestedResale: suggestedResale !== null ? Math.round(suggestedResale) : null,
+      expectedProfit: expectedProfit !== null ? Math.round(expectedProfit) : null,
+      roiPct: roiPct !== null ? Math.round(roiPct) : null,
+      flipPotential,
+      demandScore: Math.round(demandScore),
+      competitorScore: Math.round(competitorScore),
+      trendScore: Math.round(trendScore)
+    };
+  }
+
+  function updateRoiScore(match) {
+    if (!shadowRoot) return;
+    const el = shadowRoot.getElementById('hud-roi-score');
+    if (!el) return;
+
+    const analysis = analyzeProfit(match);
+    el.textContent = Number.isFinite(analysis.roiScore) ? analysis.roiScore : '--';
   }
 
   function updateFeed(match) {
     if (!shadowRoot) return;
     const feed = shadowRoot.getElementById('hud-feed');
-    
+
     // Remove empty state if present
     const emptyState = feed.querySelector('div[style*="opacity: 0.5"]');
     if (emptyState) emptyState.remove();
-    
+
+    const analysis = analyzeProfit(match);
+    const roiClass = analysis.roiScore >= 75 ? 'good' : analysis.roiScore >= 50 ? 'warn' : 'bad';
+
     // Add new item
     const item = document.createElement('a');
     item.className = 'feed-item';
     item.href = match.link;
     item.target = '_blank';
-    item.innerHTML = `<span class="feed-price">$${match.price}</span> ${match.title}`;
-    
+
+    const priceStr = match.price ?? '???';
+    const roiStr = Number.isFinite(analysis.roiScore) ? `${analysis.roiScore}` : '--';
+    const suggestedStr = analysis.suggestedResale !== null ? `$${analysis.suggestedResale}` : '--';
+    const profitStr = analysis.expectedProfit !== null ? `$${analysis.expectedProfit}` : '--';
+
+    item.innerHTML = `
+      <div class="feed-line-1">
+        <span class="feed-price">$${priceStr}</span>
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${match.title}</span>
+        <span class="roi-pill ${roiClass}">ROI ${roiStr}</span>
+        ${analysis.flipPotential ? '<span class="flip-badge">Flip Potential</span>' : ''}
+      </div>
+      <div class="feed-line-2">
+        <span class="feed-metric">Resale: ${suggestedStr}</span>
+        <span class="feed-metric">Profit: ${profitStr}</span>
+      </div>
+    `;
+
     feed.insertBefore(item, feed.firstChild);
-    
+
     // Limit to 5 items
     while (feed.children.length > 5) {
       feed.removeChild(feed.lastChild);
     }
+
+    // Persist last analysis for context switching
+    chrome.storage.local.set({ lastProfitAnalysis: { ...analysis, title: match.title, link: match.link, ts: Date.now() } });
   }
 
   function triggerRadarPing() {

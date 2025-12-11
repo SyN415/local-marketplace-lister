@@ -25,32 +25,235 @@
     // Initialize on page load
     function init() {
       log('Initializing...');
-      
-      // Check if we're on a marketplace listing page (Craigslist uses /.../d/...)
-      if (!isListingPage()) {
-        log('Not on a listing page, skipping');
+
+      // Listing page: run price intelligence overlay logic
+      if (isListingPage()) {
+        log('On listing page, extracting data');
+
+        // Extract data immediately as CL is mostly static HTML
+        const listingData = extractListingData();
+        if (listingData && listingData.title) {
+          log('Listing data found:', listingData.title);
+          currentListingData = listingData;
+          requestPriceIntelligence(listingData);
+        } else {
+          log('Could not extract listing data', 'warn');
+        }
+
+        injectQuickReplyChips();
         return;
       }
-  
-      log('On listing page, extracting data');
-      
-      // Extract data immediately as CL is static HTML
-      const listingData = extractListingData();
-      if (listingData && listingData.title) {
-        log('Listing data found:', listingData.title);
-        currentListingData = listingData;
-        requestPriceIntelligence(listingData);
-      } else {
-        log('Could not extract listing data', 'warn');
-      }
 
-      injectQuickReplyChips();
+      // Non-listing pages: enable active scanning like Facebook Marketplace
+      log('Not on a listing page, initializing search scanner');
+      initSearchScanner();
+
+      // Listen for watchlist check messages from background script
+      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'WATCHLIST_CHECK') {
+          handleWatchlistCheck(request.watchlist);
+        }
+      });
     }
   
     function isListingPage() {
       // CL listings are typically /d/title/id.html
       return /\/d\/.*\/(\d+)\.html$/.test(window.location.href);
     }
+
+    function isSearchOrCategoryPage() {
+      // Search results: /search/..., category pages: /search/sss, /d/ can appear in links but not the page.
+      return window.location.pathname.includes('/search/') || document.querySelector('ol.cl-static-search-results, ul.rows, .cl-search-result, li.result-row');
+    }
+
+    // Active Search Scanner (mirrors FB behavior)
+    function initSearchScanner() {
+      if (!isSearchOrCategoryPage()) {
+        log('Not a search/category page; scanner idle');
+        return;
+      }
+
+      chrome.storage.local.get(['watchlistItems'], (result) => {
+        const items = result.watchlistItems || [];
+        const activeWatchlists = items.filter(w => w.isActive && (w.platforms || []).includes('craigslist'));
+
+        if (activeWatchlists.length === 0) {
+          log('No active Craigslist watchlists found');
+          return;
+        }
+
+        log(`Found ${activeWatchlists.length} active watchlists, starting scanner`);
+
+        // Initial scan
+        scanPageForWatchlists(activeWatchlists);
+
+        // Watch for new content (pagination/infinite scroll)
+        let timeout;
+        const observer = new MutationObserver(() => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            scanPageForWatchlists(activeWatchlists);
+          }, 750);
+        });
+
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      });
+    }
+
+    function scanPageForWatchlists(watchlists) {
+      watchlists.forEach((watchlist) => {
+        const matches = scanForMatches(watchlist);
+        if (matches.length > 0) {
+          log(`Found ${matches.length} matches for "${watchlist.keywords}"`);
+          matches.forEach((match) => highlightMatch(match.element, watchlist, match));
+        }
+      });
+    }
+
+    function handleWatchlistCheck(watchlist) {
+      log('Received watchlist check request for:', watchlist?.keywords);
+      const matches = scanForMatches(watchlist);
+      if (matches.length > 0) {
+        log(`Found ${matches.length} matches for ${watchlist.keywords}`);
+        matches.forEach((match) => highlightMatch(match.element, watchlist, match));
+      } else {
+        log('No matches found on current page');
+      }
+    }
+
+    const seenListingKeys = new Set();
+
+    function scanForMatches(watchlist) {
+      const matches = [];
+      if (!watchlist || !watchlist.keywords) return matches;
+
+      const keywords = watchlist.keywords.toLowerCase().split(' ').filter(k => k.length > 0);
+      const maxPrice = watchlist.max_price || watchlist.maxPrice || Infinity;
+      const minPrice = watchlist.min_price || watchlist.minPrice || 0;
+
+      // Craigslist result rows can appear in multiple layouts.
+      // Old: li.result-row
+      // New: li.cl-static-search-result
+      const resultEls = document.querySelectorAll(
+        'li.cl-static-search-result, li.result-row, .cl-search-result'
+      );
+
+      resultEls.forEach((el) => {
+        // Link
+        const linkEl = el.querySelector('a.posting-title, a.result-title, a.cl-app-anchor') || el.querySelector('a[href*="/d/"]');
+        const href = linkEl?.href;
+        if (!href) return;
+
+        // Dedupe across rescans
+        const key = href.split('#')[0];
+        if (seenListingKeys.has(key)) return;
+
+        // Title
+        const titleText = (linkEl.textContent || el.querySelector('.result-title')?.textContent || '').trim();
+        if (!titleText) return;
+
+        // Price
+        const priceText = (el.querySelector('.priceinfo .price, .result-price, .price')?.textContent || '').trim();
+        const price = priceText ? parsePrice(priceText) : null;
+
+        const searchable = (titleText + ' ' + (el.textContent || '')).toLowerCase();
+        const matchesKeywords = keywords.every(k => searchable.includes(k));
+
+        if (!matchesKeywords) return;
+
+        if (price !== null) {
+          if (price < minPrice || price > maxPrice) return;
+        }
+
+        // Mark seen only when it matches; we want rescans to still consider non-matches after keyword edits.
+        seenListingKeys.add(key);
+
+        matches.push({
+          element: el,
+          title: titleText,
+          price,
+          link: href
+        });
+      });
+
+      return matches;
+    }
+
+    function highlightMatch(element, watchlist, match) {
+      if (!element || element.dataset.scoutHighlighted) return;
+
+      element.dataset.scoutHighlighted = 'true';
+      element.style.outline = '3px solid #4ade80';
+      element.style.outlineOffset = '2px';
+      element.style.position = element.style.position || 'relative';
+
+      const badge = document.createElement('div');
+      badge.textContent = `🎯 Match: ${watchlist.keywords}`;
+      badge.style.cssText = `
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        background: #4ade80;
+        color: #064e3b;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        z-index: 100;
+        pointer-events: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      `;
+
+      // Try to place badge inside a visible container
+      const target = element.querySelector('.result-info, .cl-static-search-result') || element;
+      target.appendChild(badge);
+
+      // If we have a price + title, try to enrich with sold comps for Profit Analyzer
+      // but dispatch immediately first to keep the HUD real-time.
+      recordMatchAndNotify(match || {
+        title: badge.textContent,
+        price: null,
+        link: window.location.href
+      }, watchlist);
+
+      if (match?.title) {
+        chrome.runtime.sendMessage({
+          action: 'GET_PRICE_INTELLIGENCE',
+          query: match.title,
+          currentPrice: match.price
+        }, (response) => {
+          if (chrome.runtime.lastError) return;
+          if (!response || !response.found) return;
+
+          recordMatchAndNotify({
+            ...match,
+            avgPrice: response.avgPrice,
+            lowPrice: response.lowPrice,
+            highPrice: response.highPrice,
+            compsCount: response.count,
+            stale: response.stale || response.cached || false
+          }, watchlist);
+        });
+      }
+    }
+
+    // Handle SPA-style navigation and back/forward for CL (rare, but safe)
+    let lastUrl = location.href;
+    new MutationObserver(() => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        // Reset overlay + listing
+        if (overlayElement) {
+          overlayElement.remove();
+          overlayElement = null;
+        }
+        currentListingData = null;
+        init();
+      }
+    }).observe(document, { subtree: true, childList: true });
   
     function extractListingData() {
       const titleEl = document.getElementById('titletextonly');
@@ -105,7 +308,18 @@
         } else if (response && response.found) {
           // Success - render the price comparison
           renderOverlay(listingData, response);
-          notifyMatch(listingData, null); // Notify HUD
+
+          // Notify HUD with enriched analyzer inputs
+          recordMatchAndNotify({
+            title: listingData.title,
+            price: listingData.price,
+            link: listingData.url,
+            avgPrice: response.avgPrice,
+            lowPrice: response.lowPrice,
+            highPrice: response.highPrice,
+            compsCount: response.count,
+            stale: response.stale || response.cached || false
+          }, null);
         } else if (response && response.error) {
           // Error occurred
           renderErrorOverlay(listingData, response.error);
@@ -116,15 +330,44 @@
       });
     }
 
-    // New helper to dispatch match events for the HUD
-    function notifyMatch(listing, watchlist) {
+    // Match bookkeeping + HUD event dispatch
+    function recordMatchAndNotify(match, watchlist) {
+      try {
+        // Increment total matches in storage for the watchlist (drives HUD stats)
+        if (watchlist?.id) {
+          chrome.storage.local.get(['watchlistItems'], (result) => {
+            const items = result.watchlistItems || [];
+            const next = items.map((w) => {
+              if (w.id !== watchlist.id) return w;
+              const current = typeof w.totalMatches === 'number' ? w.totalMatches : 0;
+              return { ...w, totalMatches: current + 1, lastMatchAt: new Date().toISOString() };
+            });
+            chrome.storage.local.set({ watchlistItems: next });
+          });
+        }
+
+        // Dispatch event for HUD
         document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
-            detail: {
-                title: listing.title,
-                price: listing.price,
-                link: listing.url
-            }
+          detail: {
+            title: match?.title || watchlist?.keywords || 'Match',
+            price: match?.price ?? '???',
+            link: match?.link || window.location.href,
+            platform: 'craigslist',
+            watchlistId: watchlist?.id,
+            watchlistKeywords: watchlist?.keywords
+          }
         }));
+      } catch (e) {
+        log('Failed to record/notify match: ' + e.message, 'warn');
+      }
+    }
+
+    // Backwards-compatible helper used by listing overlay flow
+    function notifyMatch(listing, watchlist) {
+      recordMatchAndNotify(
+        { title: listing.title, price: listing.price, link: listing.url },
+        watchlist
+      );
     }
   
     function createOverlayContainer() {

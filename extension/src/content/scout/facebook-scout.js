@@ -206,13 +206,41 @@
     const titleElement = element.querySelector('span[style*="-webkit-line-clamp"]');
     const title = titleElement ? titleElement.innerText : 'Unknown Item';
 
+    // Best-effort enrich for Profit Analyzer (async)
+    const baseMatch = {
+      title: title,
+      price: priceText ? priceText[0] : '???',
+      link: element.querySelector('a')?.href || '#',
+      platform: 'facebook',
+      watchlistId: watchlist?.id,
+      watchlistKeywords: watchlist?.keywords
+    };
+
+    // Fire immediate event so HUD stays responsive
     document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
-      detail: {
-        title: title,
-        price: priceText ? priceText[0] : '???',
-        link: element.querySelector('a')?.href || '#'
-      }
+      detail: baseMatch
     }));
+
+    // Try to fetch sold comps in background and re-emit enriched event
+    chrome.runtime.sendMessage({
+      action: 'GET_PRICE_INTELLIGENCE',
+      query: title,
+      currentPrice: parsePrice(priceText ? priceText[0] : null)
+    }, (response) => {
+      if (chrome.runtime.lastError) return;
+      if (!response || !response.found) return;
+
+      document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
+        detail: {
+          ...baseMatch,
+          avgPrice: response.avgPrice,
+          lowPrice: response.lowPrice,
+          highPrice: response.highPrice,
+          compsCount: response.count,
+          stale: response.stale || response.cached || false
+        }
+      }));
+    });
   }
 
   function observeListingContent() {
