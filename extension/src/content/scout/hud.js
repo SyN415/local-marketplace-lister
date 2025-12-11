@@ -233,12 +233,37 @@
       updateRoiScore(e.detail);
     });
 
+    // Listen for enrichment updates (same-tab via EnrichmentBridge)
+    window.addEventListener('enrichment:priceUpdated', (e) => {
+      const detail = e?.detail;
+      const patch = detail?.patch;
+      const match = detail?.originalMatch || {};
+
+      // Apply enrichment patch for ROI calc (avgPrice/lowPrice/highPrice/compsCount)
+      const updated = { ...match, ...(patch || {}) };
+
+      triggerRadarPing();
+      updateFeed(updated);
+      updateRoiScore(updated);
+    });
+
     // Listen for cross-tab broadcasts
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg?.action === 'SCOUT_MATCH_BROADCAST' && msg.match) {
         triggerRadarPing();
         updateFeed(msg.match);
         updateRoiScore(msg.match);
+      }
+
+      // Back-compat: allow service worker to send enrichment updates directly
+      if (msg?.action === 'ENRICHMENT_UPDATE' && msg.payload) {
+        const payload = msg.payload;
+        if (payload.type === 'price_intelligence_enriched') {
+          const updated = { ...(payload.originalMatch || {}), ...(payload.patch || {}) };
+          triggerRadarPing();
+          updateFeed(updated);
+          updateRoiScore(updated);
+        }
       }
     });
   }
@@ -484,10 +509,14 @@
     const suggestedStr = analysis.suggestedResale !== null ? `$${analysis.suggestedResale}` : '--';
     const profitStr = analysis.expectedProfit !== null ? `$${analysis.expectedProfit}` : '--';
 
+    // Enrichment UI fallback indicator
+    const staleBadge = match?.stale ? '<span class="roi-pill warn" style="min-width:64px; text-align:center;">STALE</span>' : '';
+
     item.innerHTML = `
       <div class="feed-line-1">
         <span class="feed-price">$${priceStr}</span>
         <span class="roi-pill ${roiClass}" style="min-width:52px; text-align:center;">${platformBadge}</span>
+        ${staleBadge}
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${match.title}</span>
         <span class="roi-pill ${roiClass}">ROI ${roiStr}</span>
         ${analysis.flipPotential ? '<span class="flip-badge">Flip Potential</span>' : ''}

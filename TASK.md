@@ -10,6 +10,7 @@ This document tracks the progress of upgrading the Chrome Extension from a PoC t
 | **Phase 2** | **Driver Implementation** (Facebook & Craigslist DOM Automation) | 🟢 **Completed** |
 | **Phase 3** | **Frontend Integration** (React Hooks, Message Passing, UI) | 🟡 **In Progress** (Extension Side Done) |
 | **Phase 4** | **Backend Cleanup** (Deprecate legacy adapters) | 🔴 **Pending** |
+| **Phase 5** | **Bright Data Enrichment Consumer** (Event-driven enrichment, cross-tab sync, rollout flags) | 🟢 **Completed** |
 
 ## Work Log
 
@@ -180,3 +181,44 @@ The Client-Side Extension Upgrade is now fully complete. All phases from core re
 
 **Changes Implemented:**
 *   **Build Fixes:** Resolved TypeScript errors in `frontend/src/components/connections/forms/FacebookOfferUpForm.tsx` by removing unused imports (`useState`, `CloudUpload`, `Description`) left over from the legacy cleanup.
+
+---
+
+### 2025-12-11: Phase 10 - Bright Data Enrichment Integration (Event-Driven, Non-Blocking)
+
+**Goal:** Add Bright Data-powered competitor price enrichment without impacting core scanning during outages.
+
+**Changes Implemented (Extension):**
+*   **Bright Data Client:** Added [`BrightDataClient`](extension/src/background/brightdata-client.js:1) with Bearer token auth and exponential backoff retry on `429/503/504`.
+*   **Enrichment Consumer:** Added [`EnrichmentWorker`](extension/src/background/enrichment-worker.js:1) implementing:
+    *   Concurrency limit (max 5 concurrent Bright Data requests)
+    *   Circuit breaker (10 consecutive failures → 60s pause)
+    *   Deduplication window (60s) to prevent redundant scrapes
+    *   Smart batching hook (micro-batch queueing) + selective enrichment via flags
+*   **Caching:** Added 24h competitor price caching in [`enrichment-cache.js`](extension/src/background/enrichment-cache.js:1).
+*   **Observability:** Added metrics tracking in [`enrichment-metrics.js`](extension/src/background/enrichment-metrics.js:1) (success/failure rates, latency, request usage, circuit trips).
+*   **Rollout Strategy:** Added feature flags + sampling controls in [`feature-flags.js`](extension/src/background/feature-flags.js:1) (supports 10% → 50% → 100% + rollback).
+*   **Service Worker Wiring:** Integrated enrichment into the existing relay path in [`service-worker.js`](extension/src/background/service-worker.js:1). Enrichment is always best-effort and never blocks core match broadcast.
+*   **Cross-Tab Sync:** Implemented `BroadcastChannel('marketplace_enrichment')` in [`enrichment-bridge.js`](extension/src/content/enrichment-bridge.js:1) and wired it into [`manifest.json`](extension/manifest.json:44).
+*   **HUD Updates:** HUD listens for `enrichment:priceUpdated` and re-runs ROI analysis on the patched match fields in [`hud.js`](extension/src/content/scout/hud.js:206). Added STALE indicator when enrichment is cached.
+
+**Validation / Smoke Testing:**
+*   Added smoke test: [`extension/test/enrichment_smoke_test.js`](extension/test/enrichment_smoke_test.js:1)
+
+**Known Issues / Unfinished Items Observed in Logs (not caused by Bright Data integration):**
+*   Backend dev process repeatedly failing with `EADDRINUSE` on port `3000` (another process already bound). See [`backend.log`](backend.log:13).
+*   Missing optional API keys:
+    *   `OPENROUTER_API_KEY` missing (AI features disabled)
+    *   Stripe keys missing (payments disabled)
+*   Email service running in mock/simulated mode due to missing SMTP/IMAP creds.
+*   Node warning: `MaxListenersExceededWarning` (investigate event bus listener accumulation).
+
+**Next Steps (Operational):**
+*   Add a small dashboard UI page to configure Bright Data credentials + flags (currently configurable via SW messages / storage).
+*   Run full browser manual validation with the extension loaded unpacked:
+    *   Cross-tab sync (two marketplace tabs)
+    *   Service worker restart resilience
+    *   Graceful degradation (disable creds or force failures)
+
+**Docs:**
+*   Added usage guide: [`docs/bright-data-integration-guide.md`](docs/bright-data-integration-guide.md:1)

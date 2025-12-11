@@ -3,6 +3,13 @@ import { getPriceIntelligence, isAuthenticated, clearPriceCache } from './ebay-a
 import { initWatchlistAlarms, handleWatchlistAlarm } from './watchlist-manager.js';
 import { getBackendUrl, getFrontendUrl, config } from '../config.js';
 
+// Bright Data enrichment (decoupled consumer)
+import { BrightDataClient } from './brightdata-client.js';
+import { EnrichmentWorker } from './enrichment-worker.js';
+import { getEnrichmentFlags, setEnrichmentFlags } from './feature-flags.js';
+import { getMetrics, resetMetrics } from './enrichment-metrics.js';
+import { clearCachedEnrichmentByPrefix } from './enrichment-cache.js';
+
 // State constants
 const STATE = {
   IDLE: 'idle',
@@ -46,10 +53,88 @@ const CL_WORKFLOW_STEPS = {
 };
 
 
+// ==============================
+// Bright Data Enrichment bootstrap
+// ==============================
+
+let enrichmentWorker = null;
+let brightDataClient = null;
+
+async function initEnrichmentWorker() {
+  if (enrichmentWorker) return enrichmentWorker;
+
+  try {
+    // Secrets/credentials are stored in chrome.storage.local to avoid bundling.
+    // NOTE: apiToken is sensitive; user must configure it via dashboard/console or dev tooling.
+    const creds = await storageGet([
+      'brightDataApiToken',
+      'brightDataWebUnlockerZone',
+      'brightDataBrowserZone',
+      'brightDataResidentialZone',
+      'brightDataCustomerId',
+      'brightDataBrowserPassword',
+      'brightDataProxyPassword'
+    ]);
+
+    const apiToken = creds.brightDataApiToken;
+    const webUnlockerZone = creds.brightDataWebUnlockerZone;
+    const browserZone = creds.brightDataBrowserZone;
+
+    if (!apiToken || !webUnlockerZone || !browserZone) {
+      console.warn('[Enrichment] Bright Data credentials not configured; enrichment disabled');
+      enrichmentWorker = null;
+      brightDataClient = null;
+      return null;
+    }
+
+    brightDataClient = new BrightDataClient({
+      apiToken,
+      webUnlockerZone,
+      browserZone,
+      residentialProxyZone: creds.brightDataResidentialZone,
+      customerId: creds.brightDataCustomerId,
+      browserPassword: creds.brightDataBrowserPassword,
+      proxyPassword: creds.brightDataProxyPassword
+    });
+
+    enrichmentWorker = new EnrichmentWorker(brightDataClient, {
+      maxConcurrentRequests: 5,
+      deduplicationWindowMs: 60_000,
+      circuitBreakerThreshold: 10,
+      circuitBreakerResetMs: 60_000
+    });
+
+    // Forward enrichment events to tabs (graceful degradation: if this fails, core scanning still works)
+    enrichmentWorker.onEnriched = (payload) => broadcastToMarketplaceTabs({ action: 'ENRICHMENT_UPDATE', payload });
+    enrichmentWorker.onFailed = (payload) => broadcastToMarketplaceTabs({ action: 'ENRICHMENT_UPDATE', payload });
+    enrichmentWorker.onThrottled = (payload) => broadcastToMarketplaceTabs({ action: 'ENRICHMENT_UPDATE', payload });
+
+    console.log('[Enrichment] EnrichmentWorker initialized');
+    return enrichmentWorker;
+  } catch (e) {
+    console.warn('[Enrichment] init failed; continuing without enrichment', e);
+    enrichmentWorker = null;
+    brightDataClient = null;
+    return null;
+  }
+}
+
+async function broadcastToMarketplaceTabs(message) {
+  const tabs = await chrome.tabs.query({ url: ['*://*.facebook.com/*', '*://*.craigslist.org/*'] });
+  await Promise.all(
+    tabs.map((t) => new Promise((resolve) => {
+      chrome.tabs.sendMessage(t.id, message, () => resolve());
+    }))
+  );
+}
+
 // Initialize state on installation
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Local Marketplace Lister extension installed');
   resetState();
+
+  // Ensure flags exist in storage (defaults)
+  getEnrichmentFlags().catch(() => {});
 });
 
 // Listen for alarms
@@ -58,6 +143,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     handleWatchlistAlarm(alarm.name);
   }
 });
+
+// Background SW "activation": MV3 service worker has no persistent activate event.
+// Best-effort initialize enrichment in the background at startup (non-fatal).
+setTimeout(() => {
+  initEnrichmentWorker().catch(() => {});
+}, 0);
 
 // Helper to reset application state
 function resetState() {
@@ -253,6 +344,21 @@ async function handleMessage(request, sender) {
         }
         return result;
       }
+
+      // Optional: allow bridge to explicitly request enrichment without relying on SCOUT_MATCH_FOUND
+      case 'ENRICH_MATCH': {
+        const match = request.match;
+        if (!match || !match.title) return { success: false, error: 'Invalid match payload' };
+
+        try {
+          const worker = await initEnrichmentWorker();
+          if (!worker) return { success: true, skipped: true, reason: 'not_configured' };
+          worker.enqueueMatch(match).catch(() => {});
+          return { success: true, enqueued: true };
+        } catch (e) {
+          return { success: true, enqueued: false, error: String(e?.message || e) };
+        }
+      }
       
       case 'CLEAR_PRICE_CACHE':
         await clearPriceCache(request.query);
@@ -300,13 +406,68 @@ async function handleMessage(request, sender) {
         const next = [match, ...existing.filter((m) => (m?.id || m?.link) !== (match.id || match.link))].slice(0, 50);
         await storageSet({ recentMatches: next });
 
-        // Broadcast to all relevant tabs
-        const tabs = await chrome.tabs.query({ url: ['*://*.facebook.com/*', '*://*.craigslist.org/*'] });
-        await Promise.all(
-          tabs.map((t) => new Promise((resolve) => {
-            chrome.tabs.sendMessage(t.id, { action: 'SCOUT_MATCH_BROADCAST', match }, () => resolve());
-          }))
-        );
+        // Broadcast to all relevant tabs (core behavior)
+        await broadcastToMarketplaceTabs({ action: 'SCOUT_MATCH_BROADCAST', match });
+
+        // Enrichment: decoupled consumer (never blocks broadcast)
+        try {
+          const worker = await initEnrichmentWorker();
+          if (worker) {
+            // Enqueue non-blocking; worker itself applies flags/dedupe/concurrency/circuit breaker
+            worker.enqueueMatch(match).catch(() => {});
+          }
+        } catch {
+          // swallow - core scanning must remain unaffected
+        }
+
+        return { success: true };
+      }
+
+      // --- Enrichment control plane (feature flags + monitoring) ---
+      case 'ENRICHMENT_GET_FLAGS': {
+        const flags = await getEnrichmentFlags();
+        return { success: true, flags };
+      }
+
+      case 'ENRICHMENT_SET_FLAGS': {
+        const next = await setEnrichmentFlags(request.flags || {});
+        return { success: true, flags: next };
+      }
+
+      case 'ENRICHMENT_GET_METRICS': {
+        const metrics = await getMetrics();
+        return { success: true, metrics };
+      }
+
+      case 'ENRICHMENT_RESET_METRICS': {
+        const metrics = await resetMetrics();
+        return { success: true, metrics };
+      }
+
+      case 'ENRICHMENT_CLEAR_CACHE': {
+        const n = await clearCachedEnrichmentByPrefix();
+        return { success: true, cleared: n };
+      }
+
+      case 'ENRICHMENT_SET_CREDENTIALS': {
+        // Allows dashboard/dev to set credentials (stored locally)
+        const updates = {
+          brightDataApiToken: request.apiToken,
+          brightDataWebUnlockerZone: request.webUnlockerZone,
+          brightDataBrowserZone: request.browserZone,
+          brightDataResidentialZone: request.residentialProxyZone,
+          brightDataCustomerId: request.customerId,
+          brightDataBrowserPassword: request.browserPassword,
+          brightDataProxyPassword: request.proxyPassword
+        };
+        // Remove undefined keys to avoid overwriting existing values unintentionally
+        Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
+        await storageSet(updates);
+
+        // Re-init
+        enrichmentWorker = null;
+        brightDataClient = null;
+        await initEnrichmentWorker();
 
         return { success: true };
       }
