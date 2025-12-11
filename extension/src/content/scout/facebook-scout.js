@@ -57,22 +57,34 @@
     chrome.storage.local.get(['watchlistItems'], (result) => {
       const items = result.watchlistItems || [];
       const activeWatchlists = items.filter(w => w.isActive);
-      
+
       if (activeWatchlists.length > 0) {
         log(`Found ${activeWatchlists.length} active watchlists, starting scanner`);
-        
-        // Initial scan
-        scanPageForWatchlists(activeWatchlists);
-        
-        // Watch for new content (infinite scroll)
-        let timeout;
-        const observer = new MutationObserver(() => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => {
+
+        let scanDebounce;
+        let lastScanAt = 0;
+        const COOLDOWN_MS = 200;
+
+        const scheduleScan = () => {
+          clearTimeout(scanDebounce);
+          scanDebounce = setTimeout(() => {
+            const now = Date.now();
+            if (now - lastScanAt < COOLDOWN_MS) {
+              return;
+            }
+            lastScanAt = now;
             scanPageForWatchlists(activeWatchlists);
-          }, 1000);
+          }, 250);
+        };
+
+        // Initial scan
+        scheduleScan();
+
+        // Watch for new content (infinite scroll)
+        const observer = new MutationObserver(() => {
+          scheduleScan();
         });
-        
+
         observer.observe(document.body, {
           childList: true,
           subtree: true
@@ -217,9 +229,17 @@
     };
 
     // Fire immediate event so HUD stays responsive
+    const initialPayload = {
+      ...baseMatch,
+      id: `${baseMatch.link}::${watchlist?.id || 'na'}`,
+      ts: Date.now()
+    };
+
     document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
-      detail: baseMatch
+      detail: initialPayload
     }));
+
+    chrome.runtime.sendMessage({ action: 'SCOUT_MATCH_FOUND', match: initialPayload }, () => {});
 
     // Try to fetch sold comps in background and re-emit enriched event
     chrome.runtime.sendMessage({
@@ -230,16 +250,20 @@
       if (chrome.runtime.lastError) return;
       if (!response || !response.found) return;
 
+      const enriched = {
+        ...initialPayload,
+        avgPrice: response.avgPrice,
+        lowPrice: response.lowPrice,
+        highPrice: response.highPrice,
+        compsCount: response.count,
+        stale: response.stale || response.cached || false
+      };
+
       document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
-        detail: {
-          ...baseMatch,
-          avgPrice: response.avgPrice,
-          lowPrice: response.lowPrice,
-          highPrice: response.highPrice,
-          compsCount: response.count,
-          stale: response.stale || response.cached || false
-        }
+        detail: enriched
       }));
+
+      chrome.runtime.sendMessage({ action: 'SCOUT_MATCH_FOUND', match: enriched }, () => {});
     });
   }
 

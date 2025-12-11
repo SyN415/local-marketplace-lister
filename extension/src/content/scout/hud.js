@@ -219,13 +219,44 @@
           el.textContent = next.roiScore;
         }
       }
+
+      // Unified cross-tab match feed
+      if (changes.recentMatches) {
+        renderRecentMatches(changes.recentMatches.newValue || []);
+      }
     });
 
-    // Listen for match events from other content scripts
+    // Listen for match events from other content scripts (same-tab)
     document.addEventListener('SMART_SCOUT_MATCH_FOUND', (e) => {
       triggerRadarPing();
       updateFeed(e.detail);
       updateRoiScore(e.detail);
+    });
+
+    // Listen for cross-tab broadcasts
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg?.action === 'SCOUT_MATCH_BROADCAST' && msg.match) {
+        triggerRadarPing();
+        updateFeed(msg.match);
+        updateRoiScore(msg.match);
+      }
+    });
+  }
+
+  function renderRecentMatches(matches) {
+    if (!shadowRoot) return;
+    const feed = shadowRoot.getElementById('hud-feed');
+    if (!feed) return;
+    feed.innerHTML = '';
+
+    if (!Array.isArray(matches) || matches.length === 0) {
+      feed.innerHTML = '<div style="text-align: center; opacity: 0.5; font-size: 10px;">No recent matches</div>';
+      return;
+    }
+
+    // Render newest first
+    matches.slice(0, 5).forEach((m) => {
+      updateFeed(m);
     });
   }
 
@@ -245,89 +276,180 @@
     return null;
   }
 
-  // Profit Analyzer (client-only heuristic)
-  // Uses eBay sold comps when available (avgPrice/lowPrice/highPrice) + conservative fees.
-  function analyzeProfit(match) {
+  // Profit Analyzer (robust ROI model)
+  // - Integrates comps when available
+  // - Weighted scoring: profit, condition, category trends, sales velocity
+  // - Tiered fallback (0..100) when comps are unavailable
+  // - Error boundary ensures no silent failures
+
+  function inferCondition(match) {
+    const t = (match?.title || '').toLowerCase();
+    const c = (match?.condition || '').toLowerCase();
+    const text = `${t} ${c}`;
+
+    if (text.includes('new in box') || text.includes('nib')) return { label: 'new', score: 95 };
+    if (text.includes('brand new') || text.includes('new')) return { label: 'new', score: 90 };
+    if (text.includes('like new') || text.includes('excellent')) return { label: 'like_new', score: 80 };
+    if (text.includes('good')) return { label: 'good', score: 65 };
+    if (text.includes('fair')) return { label: 'fair', score: 50 };
+    if (text.includes('parts') || text.includes('broken') || text.includes('repair')) return { label: 'parts', score: 20 };
+
+    return { label: 'unknown', score: 55 };
+  }
+
+  function inferCategory(match) {
+    const t = (match?.title || '').toLowerCase();
+    if (/(aeron|chair|desk|furniture)/.test(t)) return { label: 'furniture', trendScore: 70 };
+    if (/(iphone|ipad|macbook|laptop|ps5|xbox|gpu|rtx)/.test(t)) return { label: 'electronics', trendScore: 75 };
+    if (/(bike|bicycle|mtb)/.test(t)) return { label: 'bikes', trendScore: 65 };
+    return { label: 'general', trendScore: 60 };
+  }
+
+  function tieredFallbackScore(match) {
     const asking = parseMaybeNumber(match.price);
-    const avg = parseMaybeNumber(match.avgPrice);
-    const low = parseMaybeNumber(match.lowPrice);
-    const high = parseMaybeNumber(match.highPrice);
+    if (asking === null) return { roiScore: 35, rationale: 'no_price' };
 
-    // Demand proxy: number of comps (0..50) boosts confidence
-    const comps = parseMaybeNumber(match.compsCount);
-    const demandScore = comps !== null ? clamp((comps / 50) * 100, 0, 100) : 50;
+    // Tiered fallback: clearer thresholds 0..100
+    let base;
+    if (asking <= 25) base = 80;
+    else if (asking <= 50) base = 70;
+    else if (asking <= 100) base = 60;
+    else if (asking <= 200) base = 45;
+    else if (asking <= 400) base = 35;
+    else base = 25;
 
-    // Competitor pressure proxy: wide range = more volatility
-    let competitorScore = 50;
-    if (low !== null && high !== null && avg !== null && avg > 0) {
-      const spread = (high - low) / avg; // 0..?
-      competitorScore = clamp(100 - spread * 120, 0, 100);
-    }
+    const cond = inferCondition(match);
+    const category = inferCategory(match);
 
-    // Choose target resale price: lean below avg for speed, above for margin based on demand.
-    let suggestedResale = avg;
-    if (avg !== null) {
-      const demandBoost = (demandScore - 50) / 100; // -0.5..0.5
-      // Base: 92% of avg; add up to +6% if demand strong, down to -6% if weak
-      suggestedResale = avg * (0.92 + demandBoost * 0.12);
-      // Clamp to within low/high if present
+    const roiScore = clamp(Math.round(base * 0.55 + cond.score * 0.25 + category.trendScore * 0.20), 0, 100);
+    return { roiScore, rationale: 'tiered_fallback', base, cond: cond.label, category: category.label };
+  }
+
+  function analyzeProfit(match) {
+    try {
+      const asking = parseMaybeNumber(match.price);
+      const avg = parseMaybeNumber(match.avgPrice);
+      const low = parseMaybeNumber(match.lowPrice);
+      const high = parseMaybeNumber(match.highPrice);
+      const comps = parseMaybeNumber(match.compsCount);
+
+      const condition = inferCondition(match);
+      const category = inferCategory(match);
+
+      // Historical sales velocity proxy (compsCount ~ last N days), 0..60 => 0..100
+      const velocityScore = comps !== null ? clamp((comps / 60) * 100, 0, 100) : 50;
+
+      // Competitor volatility: wide comps range => lower score
+      let competitorScore = 50;
+      if (low !== null && high !== null && avg !== null && avg > 0) {
+        const spread = (high - low) / avg;
+        competitorScore = clamp(100 - spread * 120, 0, 100);
+      }
+
+      // No comps => tiered fallback
+      if (avg === null || !Number.isFinite(avg)) {
+        const fallback = tieredFallbackScore(match);
+        return {
+          roiScore: fallback.roiScore,
+          suggestedResale: null,
+          expectedProfit: null,
+          roiPct: null,
+          flipPotential: false,
+          demandScore: Math.round(velocityScore),
+          competitorScore: Math.round(competitorScore),
+          trendScore: category.trendScore,
+          velocityScore: Math.round(velocityScore),
+          condition: condition.label,
+          category: category.label,
+          method: 'fallback',
+          meta: { ...fallback }
+        };
+      }
+
+      // Comps-based resale estimate
+      const conditionMultiplier = condition.label === 'new' ? 1.02 : condition.label === 'like_new' ? 1.00 : condition.label === 'good' ? 0.95 : 0.90;
+      const trendAggression = (category.trendScore - 50) / 100; // 0..0.5
+
+      let suggestedResale = avg * (0.92 + trendAggression * 0.10) * conditionMultiplier;
       if (low !== null && high !== null) {
         suggestedResale = clamp(suggestedResale, low, high);
       }
-    }
 
-    // Fees: ~13% marketplace fees + $8 shipping/handling buffer (tunable)
-    const feeRate = 0.13;
-    const handling = 8;
+      // Fees assumptions
+      const feeRate = 0.13;
+      const handling = 8;
 
-    let expectedProfit = null;
-    let roiPct = null;
-    if (asking !== null && suggestedResale !== null) {
-      const proceeds = suggestedResale * (1 - feeRate) - handling;
-      expectedProfit = proceeds - asking;
-      roiPct = asking > 0 ? (expectedProfit / asking) * 100 : null;
-    }
+      let expectedProfit = null;
+      let roiPct = null;
+      if (asking !== null && Number.isFinite(asking)) {
+        const proceeds = suggestedResale * (1 - feeRate) - handling;
+        expectedProfit = proceeds - asking;
+        roiPct = asking > 0 ? (expectedProfit / asking) * 100 : null;
+      }
 
-    // Historical trend proxy: if avg is present but low is close to avg, trend stable.
-    let trendScore = 50;
-    if (avg !== null && low !== null && avg > 0) {
-      const discount = (avg - low) / avg;
-      trendScore = clamp(70 - discount * 80, 0, 100);
-    }
-
-    // Composite ROI score (0..100)
-    // Profitability drives most; then demand, competitor stability, and trend.
-    let profitScore = 50;
-    if (roiPct !== null) {
-      // Map ROI%: -20% => 0, 0% => 40, 30% => 75, 60% => 95
-      if (roiPct <= -20) profitScore = 0;
-      else if (roiPct <= 0) profitScore = 20 + (roiPct + 20) * 1; // -20..0 => 20..40
-      else if (roiPct <= 30) profitScore = 40 + roiPct * 1.1667; // 0..30 => 40..75
-      else if (roiPct <= 60) profitScore = 75 + (roiPct - 30) * 0.6667; // 30..60 => 75..95
+      // Profit score mapping (0..100)
+      let profitScore = 0;
+      if (roiPct === null) profitScore = 35;
+      else if (roiPct <= -20) profitScore = 0;
+      else if (roiPct <= 0) profitScore = 20 + (roiPct + 20) * 1;
+      else if (roiPct <= 30) profitScore = 40 + roiPct * 1.1667;
+      else if (roiPct <= 60) profitScore = 75 + (roiPct - 30) * 0.6667;
       else profitScore = 95;
       profitScore = clamp(profitScore, 0, 100);
+
+      // Composite weighted ROI score
+      const roiScore = clamp(Math.round(
+        profitScore * 0.50 +
+        condition.score * 0.15 +
+        category.trendScore * 0.15 +
+        velocityScore * 0.15 +
+        competitorScore * 0.05
+      ), 0, 100);
+
+      const flipPotential = expectedProfit !== null && expectedProfit >= 40 && roiScore >= 70;
+
+      return {
+        roiScore,
+        suggestedResale: Math.round(suggestedResale),
+        expectedProfit: expectedProfit !== null ? Math.round(expectedProfit) : null,
+        roiPct: roiPct !== null ? Math.round(roiPct) : null,
+        flipPotential,
+        demandScore: Math.round(velocityScore),
+        competitorScore: Math.round(competitorScore),
+        trendScore: category.trendScore,
+        velocityScore: Math.round(velocityScore),
+        condition: condition.label,
+        category: category.label,
+        method: 'comps',
+        meta: {
+          inputs: { asking, avg, low, high, comps, feeRate, handling },
+          scores: {
+            profitScore: Math.round(profitScore),
+            conditionScore: condition.score,
+            trendScore: category.trendScore,
+            velocityScore: Math.round(velocityScore),
+            competitorScore: Math.round(competitorScore)
+          },
+          multipliers: { conditionMultiplier, trendAggression }
+        }
+      };
+    } catch (err) {
+      return {
+        roiScore: 0,
+        suggestedResale: null,
+        expectedProfit: null,
+        roiPct: null,
+        flipPotential: false,
+        demandScore: 0,
+        competitorScore: 0,
+        trendScore: 0,
+        velocityScore: 0,
+        condition: 'error',
+        category: 'error',
+        method: 'error',
+        meta: { error: String(err?.message || err) }
+      };
     }
-
-    const roiScore = Math.round(
-      profitScore * 0.55 +
-      demandScore * 0.20 +
-      competitorScore * 0.15 +
-      trendScore * 0.10
-    );
-
-    // Underpriced / flip potential heuristic
-    const flipPotential = expectedProfit !== null && expectedProfit >= 40 && roiScore >= 70;
-
-    return {
-      roiScore,
-      suggestedResale: suggestedResale !== null ? Math.round(suggestedResale) : null,
-      expectedProfit: expectedProfit !== null ? Math.round(expectedProfit) : null,
-      roiPct: roiPct !== null ? Math.round(roiPct) : null,
-      flipPotential,
-      demandScore: Math.round(demandScore),
-      competitorScore: Math.round(competitorScore),
-      trendScore: Math.round(trendScore)
-    };
   }
 
   function updateRoiScore(match) {
@@ -357,6 +479,7 @@
     item.target = '_blank';
 
     const priceStr = match.price ?? '???';
+    const platformBadge = match.platform === 'facebook' ? 'FB' : match.platform === 'craigslist' ? 'CL' : '??';
     const roiStr = Number.isFinite(analysis.roiScore) ? `${analysis.roiScore}` : '--';
     const suggestedStr = analysis.suggestedResale !== null ? `$${analysis.suggestedResale}` : '--';
     const profitStr = analysis.expectedProfit !== null ? `$${analysis.expectedProfit}` : '--';
@@ -364,6 +487,7 @@
     item.innerHTML = `
       <div class="feed-line-1">
         <span class="feed-price">$${priceStr}</span>
+        <span class="roi-pill ${roiClass}" style="min-width:52px; text-align:center;">${platformBadge}</span>
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${match.title}</span>
         <span class="roi-pill ${roiClass}">ROI ${roiStr}</span>
         ${analysis.flipPotential ? '<span class="flip-badge">Flip Potential</span>' : ''}
@@ -381,8 +505,31 @@
       feed.removeChild(feed.lastChild);
     }
 
-    // Persist last analysis for context switching
-    chrome.storage.local.set({ lastProfitAnalysis: { ...analysis, title: match.title, link: match.link, ts: Date.now() } });
+    // Persist last analysis with metadata for debugging + transparency
+    chrome.storage.local.set({
+      lastProfitAnalysis: {
+        ...analysis,
+        title: match.title,
+        link: match.link,
+        platform: match.platform,
+        matchId: match.id,
+        ts: Date.now()
+      }
+    });
+
+    // Maintain a unified recentMatches list (storage-driven sidebar feed)
+    chrome.storage.local.get(['recentMatches'], (res) => {
+      const existing = Array.isArray(res.recentMatches) ? res.recentMatches : [];
+      const next = [
+        {
+          ...match,
+          analysis,
+          ts: match.ts || Date.now()
+        },
+        ...existing.filter((m) => (m?.id || m?.link) !== (match.id || match.link))
+      ].slice(0, 50);
+      chrome.storage.local.set({ recentMatches: next });
+    });
   }
 
   function triggerRadarPing() {

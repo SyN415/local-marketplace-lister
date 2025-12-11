@@ -261,11 +261,55 @@ async function handleMessage(request, sender) {
       case 'CHECK_AUTH':
         return { authenticated: await isAuthenticated() };
 
-      case 'SYNC_WATCHLIST':
+      case 'SYNC_WATCHLIST': {
         // Frontend calls this after adding/removing items to update local storage
+        // Guard against circular references (can cause memory leaks / storage failures)
+        const safeStringify = (obj) => {
+          const seen = new WeakSet();
+          return JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) {
+                throw new Error('Circular reference detected in watchlist payload');
+              }
+              seen.add(value);
+            }
+            return value;
+          });
+        };
+
+        try {
+          safeStringify(request.items);
+        } catch (e) {
+          await addLog(`Watchlist sync rejected: ${e.message}`, 'error');
+          return { success: false, error: e.message };
+        }
+
         await storageSet({ watchlistItems: request.items });
         await initWatchlistAlarms();
         return { success: true };
+      }
+
+      case 'SCOUT_MATCH_FOUND': {
+        // Relay match to all marketplace tabs + maintain unified recentMatches store
+        const match = request.match;
+        if (!match || !match.link) return { success: false, error: 'Invalid match payload' };
+
+        // Update storage list
+        const current = await storageGet(['recentMatches']);
+        const existing = Array.isArray(current.recentMatches) ? current.recentMatches : [];
+        const next = [match, ...existing.filter((m) => (m?.id || m?.link) !== (match.id || match.link))].slice(0, 50);
+        await storageSet({ recentMatches: next });
+
+        // Broadcast to all relevant tabs
+        const tabs = await chrome.tabs.query({ url: ['*://*.facebook.com/*', '*://*.craigslist.org/*'] });
+        await Promise.all(
+          tabs.map((t) => new Promise((resolve) => {
+            chrome.tabs.sendMessage(t.id, { action: 'SCOUT_MATCH_BROADCAST', match }, () => resolve());
+          }))
+        );
+
+        return { success: true };
+      }
         
       default:
         console.warn('Unknown action:', request.action);

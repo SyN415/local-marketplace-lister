@@ -84,16 +84,29 @@
 
         log(`Found ${activeWatchlists.length} active watchlists, starting scanner`);
 
+        let scanDebounce;
+        let lastScanAt = 0;
+        const COOLDOWN_MS = 200;
+
+        const scheduleScan = () => {
+          clearTimeout(scanDebounce);
+          scanDebounce = setTimeout(() => {
+            const now = Date.now();
+            if (now - lastScanAt < COOLDOWN_MS) {
+              // enforce 200ms cooldown between scan cycles
+              return;
+            }
+            lastScanAt = now;
+            scanPageForWatchlists(activeWatchlists);
+          }, 250);
+        };
+
         // Initial scan
-        scanPageForWatchlists(activeWatchlists);
+        scheduleScan();
 
         // Watch for new content (pagination/infinite scroll)
-        let timeout;
         const observer = new MutationObserver(() => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => {
-            scanPageForWatchlists(activeWatchlists);
-          }, 750);
+          scheduleScan();
         });
 
         observer.observe(document.body, {
@@ -182,8 +195,29 @@
       return matches;
     }
 
+    function shouldSuppressByBudget(watchlist, match) {
+      const maxPrice = watchlist?.max_price ?? watchlist?.maxPrice;
+      if (maxPrice === undefined || maxPrice === null || maxPrice === Infinity) return false;
+
+      const parsedMax = typeof maxPrice === 'string' ? parsePrice(maxPrice) : Number(maxPrice);
+      if (!Number.isFinite(parsedMax)) return false;
+
+      // STRICT budget compliance:
+      // - If listing price is missing/unparseable, suppress (avoid false positives)
+      // - If listing price exceeds budget, suppress regardless of keyword match
+      const p = match?.price;
+      if (p === null || p === undefined) return true;
+      if (!Number.isFinite(p)) return true;
+      return p > parsedMax;
+    }
+
     function highlightMatch(element, watchlist, match) {
       if (!element || element.dataset.scoutHighlighted) return;
+
+      // Secondary strict budget validation layer (pre-processing) to prevent badge rendering false positives
+      if (shouldSuppressByBudget(watchlist, match)) {
+        return;
+      }
 
       element.dataset.scoutHighlighted = 'true';
       element.style.outline = '3px solid #4ade80';
@@ -333,6 +367,22 @@
     // Match bookkeeping + HUD event dispatch
     function recordMatchAndNotify(match, watchlist) {
       try {
+        const payload = {
+          id: match?.id || `${match?.link || window.location.href}::${watchlist?.id || 'na'}`,
+          ts: Date.now(),
+          title: match?.title || watchlist?.keywords || 'Match',
+          price: match?.price ?? '???',
+          link: match?.link || window.location.href,
+          platform: 'craigslist',
+          watchlistId: watchlist?.id,
+          watchlistKeywords: watchlist?.keywords,
+          avgPrice: match?.avgPrice,
+          lowPrice: match?.lowPrice,
+          highPrice: match?.highPrice,
+          compsCount: match?.compsCount,
+          stale: match?.stale
+        };
+
         // Increment total matches in storage for the watchlist (drives HUD stats)
         if (watchlist?.id) {
           chrome.storage.local.get(['watchlistItems'], (result) => {
@@ -348,15 +398,11 @@
 
         // Dispatch event for HUD
         document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
-          detail: {
-            title: match?.title || watchlist?.keywords || 'Match',
-            price: match?.price ?? '???',
-            link: match?.link || window.location.href,
-            platform: 'craigslist',
-            watchlistId: watchlist?.id,
-            watchlistKeywords: watchlist?.keywords
-          }
+          detail: payload
         }));
+
+        // Broadcast to background for cross-tab synchronization
+        chrome.runtime.sendMessage({ action: 'SCOUT_MATCH_FOUND', match: payload }, () => {});
       } catch (e) {
         log('Failed to record/notify match: ' + e.message, 'warn');
       }
