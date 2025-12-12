@@ -76,4 +76,48 @@ router.post('/comparisons', authMiddleware, async (req, res, next) => {
   }
 });
 
+// eBay Notification Endpoint
+router.get('/ebay-notifications', async (req, res) => {
+  try {
+    const challengeCode = req.query.challenge_code as string;
+    // eBay sends the verification token as a query parameter in the GET request?
+    // Documentation says: "When you save your settings, eBay sends a GET request to your endpoint with a challenge_code parameter."
+    // It doesn't explicitly mention the verification token being sent back, but we need it to verify the hash.
+    // Actually, we use our STORED verification token to hash the challenge code.
+    
+    // We also need the verification token to validate the request is from eBay if possible, but the challenge response proves ownership.
+    
+    if (!challengeCode) {
+        return res.status(400).send('Missing challenge_code');
+    }
+
+    // We need to use the token we configured in the eBay developer portal
+    const verificationToken = process.env.EBAY_VERIFICATION_TOKEN;
+    
+    if (!verificationToken) {
+        console.error('EBAY_VERIFICATION_TOKEN not configured on server');
+        return res.status(500).send('Server misconfiguration');
+    }
+
+    const challengeResponse = scoutService.verifyEbayNotification(challengeCode, verificationToken);
+    
+    if (!challengeResponse) {
+        return res.status(500).send('Failed to generate challenge response');
+    }
+
+    res.json({ challengeResponse });
+  } catch (error) {
+    console.error('eBay notification verification error:', error);
+    res.status(500).send('Error processing verification');
+  }
+});
+
+// Handle incoming notifications (POST)
+router.post('/ebay-notifications', async (req, res) => {
+    // Determine if we need to process this notification
+    // For now, just acknowledge receipt
+    console.log('Received eBay notification:', JSON.stringify(req.body, null, 2));
+    res.sendStatus(200);
+});
+
 export default router;

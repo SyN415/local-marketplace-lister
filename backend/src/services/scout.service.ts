@@ -389,4 +389,45 @@ export class ScoutService {
     if (ratio <= 1.3) return 20;
     return 10;
   }
+
+  // eBay Notification Verification
+  verifyEbayNotification(challengeCode: string, verificationToken: string): string | null {
+    // In a real implementation, you should verify the token matches your stored verification token
+    // For this implementation, we assume the token is correct if it matches the configured token
+    
+    // Check if verification token matches configured token
+    // Note: We need to add EBAY_VERIFICATION_TOKEN to .env
+    const configuredToken = process.env.EBAY_VERIFICATION_TOKEN;
+    
+    if (!configuredToken) {
+      console.warn('EBAY_VERIFICATION_TOKEN not configured');
+      return null;
+    }
+
+    if (verificationToken !== configuredToken) {
+      console.warn('Invalid verification token received from eBay');
+      return null;
+    }
+
+    // Hash the challenge code, endpoint URL, and verification token
+    // eBay requirement:
+    // response = hash(challengeCode + verificationToken + endpointUrl)
+    // However, for the initial verification (Get), eBay just expects a hash of the challenge code
+    // actually, for the initial verification, we just need to echo the challenge code if we trust the source?
+    // Wait, eBay documentation says:
+    // "Your endpoint must support HTTPS. When you save your settings, eBay sends a GET request to your endpoint with a challenge_code parameter.
+    // Your endpoint must respond with a JSON object containing a challengeResponse field.
+    // The value of the challengeResponse field must be the challenge_code hashed with the verification token and the endpoint URL."
+    
+    // Let's implement the hashing logic
+    const crypto = require('crypto');
+    const endpointUrl = `${process.env.BACKEND_URL}/api/scout/ebay-notifications`; // Verify this matches your actual endpoint URL
+    
+    const hash = crypto.createHash('sha256');
+    hash.update(challengeCode);
+    hash.update(verificationToken);
+    hash.update(endpointUrl);
+    
+    return hash.digest('hex');
+  }
 }
