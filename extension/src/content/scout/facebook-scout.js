@@ -11,6 +11,18 @@
   let overlayElement = null;
   let observerActive = false;
 
+  // Keep references so we can disconnect on SPA navigation
+  let listingObserver = null;
+  let listingObserverTimeout = null;
+  let scannerObserver = null;
+  let quickReplyObserver = null;
+  let messageListenerRegistered = false;
+
+  // Avoid duplicate work + reduce DOM churn
+  const processedMarketplaceCardKeys = new Set();
+  let activeWatchlists = [];
+  let storageListenerRegistered = false;
+
   // Logging helper with prefix
   function log(message, level = 'info') {
     const prefix = '[SmartScout FB]';
@@ -23,9 +35,54 @@
     }
   }
 
+  function isExtensionContextValid() {
+    try {
+      // When an extension reloads, content script context can be invalidated and
+      // *any* access to chrome.runtime APIs may throw.
+      return !!(chrome && chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function safeSendMessage(payload, callback) {
+    if (!isExtensionContextValid()) {
+      // Avoid throwing errors that show up in chrome://extensions/?errors
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(payload, (response) => {
+        // Accessing chrome.runtime.lastError is safe only inside callback.
+        if (chrome.runtime.lastError) {
+          // Swallow; caller will handle missing response.
+          return;
+        }
+        callback && callback(response);
+      });
+    } catch (e) {
+      // Most common: "Extension context invalidated."
+      // Swallow to prevent persistent settings/errors page noise.
+      log(`sendMessage failed: ${e?.message || e}`, 'warn');
+    }
+  }
+
   // Initialize on page load
   function init() {
     log('Initializing...');
+
+    // Prevent duplicate listeners/observers when Facebook SPA navigates.
+    if (!messageListenerRegistered && isExtensionContextValid()) {
+      try {
+        chrome.runtime.onMessage.addListener((request) => {
+          if (request.action === 'WATCHLIST_CHECK') {
+            handleWatchlistCheck(request.watchlist);
+          }
+        });
+        messageListenerRegistered = true;
+      } catch {
+        // ignore
+      }
+    }
     
     // Check if we're on a marketplace listing page
     if (isMarketplaceListingPage()) {
@@ -38,13 +95,6 @@
       log('Not on a listing page, initializing search scanner');
       initSearchScanner();
     }
-    
-    // Listen for watchlist check messages from background script
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.action === 'WATCHLIST_CHECK') {
-        handleWatchlistCheck(request.watchlist);
-      }
-    });
   }
 
   function isMarketplaceListingPage() {
@@ -53,45 +103,124 @@
 
   // Active Search Scanner
   function initSearchScanner() {
-    // Check if we have active watchlists
-    chrome.storage.local.get(['watchlistItems'], (result) => {
-      const items = result.watchlistItems || [];
-      const activeWatchlists = items.filter(w => w.isActive);
+    if (!isExtensionContextValid()) return;
 
-      if (activeWatchlists.length > 0) {
-        log(`Found ${activeWatchlists.length} active watchlists, starting scanner`);
+    const hydrateWatchlists = () => {
+      chrome.storage.local.get(['watchlistItems'], (result) => {
+        const items = result.watchlistItems || [];
+        activeWatchlists = items.filter(w => w.isActive && (w.platforms || []).includes('facebook'));
+        processedMarketplaceCardKeys.clear();
+        log(`Scanner watchlists hydrated: ${activeWatchlists.length}`);
+        // Process whatever is already on the page
+        processMarketplaceLinks(document);
+      });
+    };
 
-        let scanDebounce;
-        let lastScanAt = 0;
-        const COOLDOWN_MS = 200;
+    hydrateWatchlists();
 
-        const scheduleScan = () => {
-          clearTimeout(scanDebounce);
-          scanDebounce = setTimeout(() => {
-            const now = Date.now();
-            if (now - lastScanAt < COOLDOWN_MS) {
-              return;
-            }
-            lastScanAt = now;
-            scanPageForWatchlists(activeWatchlists);
-          }, 250);
-        };
-
-        // Initial scan
-        scheduleScan();
-
-        // Watch for new content (infinite scroll)
-        const observer = new MutationObserver(() => {
-          scheduleScan();
+    if (!storageListenerRegistered) {
+      try {
+        chrome.storage.onChanged.addListener((changes, namespace) => {
+          if (namespace !== 'local') return;
+          if (changes.watchlistItems) {
+            hydrateWatchlists();
+          }
         });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-      } else {
-        log('No active watchlists found');
+        storageListenerRegistered = true;
+      } catch {
+        // ignore
       }
+    }
+
+    // Disconnect any prior observer (SPA navigation)
+    if (scannerObserver) {
+      try { scannerObserver.disconnect(); } catch {}
+      scannerObserver = null;
+    }
+
+    if (!activeWatchlists.length) {
+      log('No active watchlists found');
+      return;
+    }
+
+    log(`Found ${activeWatchlists.length} active watchlists, starting incremental scanner`);
+
+    // Observe a smaller subtree when possible
+    const scanRoot = document.querySelector('[role="main"]') || document.body;
+    let debounce;
+    const pendingRoots = new Set();
+
+    const schedule = (root) => {
+      pendingRoots.add(root);
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        // Process only newly added subtrees
+        pendingRoots.forEach((r) => processMarketplaceLinks(r));
+        pendingRoots.clear();
+      }, 500);
+    };
+
+    // Initial scan
+    schedule(document);
+
+    scannerObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const n of m.addedNodes || []) {
+          if (n && n.nodeType === Node.ELEMENT_NODE) {
+            schedule(n);
+          }
+        }
+      }
+    });
+
+    scannerObserver.observe(scanRoot, { childList: true, subtree: true });
+  }
+
+  function processMarketplaceLinks(root) {
+    if (!activeWatchlists.length) return;
+    const anchors = root.querySelectorAll
+      ? root.querySelectorAll('a[href*="/marketplace/item/"]')
+      : [];
+
+    anchors.forEach((link) => {
+      const href = link?.href;
+      if (!href) return;
+      const key = href.split('?')[0];
+      if (processedMarketplaceCardKeys.has(key)) return;
+      processedMarketplaceCardKeys.add(key);
+      evaluateAndHighlightLink(link);
+    });
+  }
+
+  function evaluateAndHighlightLink(link) {
+    if (!activeWatchlists.length) return;
+
+    // Navigate up to find the container card
+    let container = link;
+    for (let i = 0; i < 5; i++) {
+      if (container.parentElement && container.parentElement.innerText && container.parentElement.innerText.length > 50) {
+        container = container.parentElement;
+      } else {
+        break;
+      }
+    }
+
+    const text = (container.innerText || '').toLowerCase();
+    const titleElement = container.querySelector('span[style*="-webkit-line-clamp"]');
+    const title = (titleElement ? titleElement.innerText : text).toLowerCase();
+    const priceMatch = text.match(/\$[\d,]+/);
+    const price = priceMatch ? parsePrice(priceMatch[0]) : null;
+
+    activeWatchlists.forEach((watchlist) => {
+      const keywords = watchlist.keywords.toLowerCase().split(' ').filter(k => k.length > 0);
+      const matchesKeywords = keywords.every(k => title.includes(k) || text.includes(k));
+      if (!matchesKeywords) return;
+
+      const maxPrice = watchlist.max_price || watchlist.maxPrice || Infinity;
+      const minPrice = watchlist.min_price || watchlist.minPrice || 0;
+      if (price !== null && (price < minPrice || price > maxPrice)) return;
+
+      highlightMatch(container, watchlist);
     });
   }
 
@@ -239,15 +368,14 @@
       detail: initialPayload
     }));
 
-    chrome.runtime.sendMessage({ action: 'SCOUT_MATCH_FOUND', match: initialPayload }, () => {});
+    safeSendMessage({ action: 'SCOUT_MATCH_FOUND', match: initialPayload }, () => {});
 
     // Try to fetch sold comps in background and re-emit enriched event
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'GET_PRICE_INTELLIGENCE',
       query: title,
       currentPrice: parsePrice(priceText ? priceText[0] : null)
     }, (response) => {
-      if (chrome.runtime.lastError) return;
       if (!response || !response.found) return;
 
       const enriched = {
@@ -263,7 +391,7 @@
         detail: enriched
       }));
 
-      chrome.runtime.sendMessage({ action: 'SCOUT_MATCH_FOUND', match: enriched }, () => {});
+      safeSendMessage({ action: 'SCOUT_MATCH_FOUND', match: enriched }, () => {});
     });
   }
 
@@ -276,7 +404,16 @@
     observerActive = true;
     
     // Use MutationObserver to detect when listing data is loaded
-    const observer = new MutationObserver((mutations, obs) => {
+    if (listingObserver) {
+      try { listingObserver.disconnect(); } catch {}
+      listingObserver = null;
+    }
+    if (listingObserverTimeout) {
+      clearTimeout(listingObserverTimeout);
+      listingObserverTimeout = null;
+    }
+
+    listingObserver = new MutationObserver((mutations, obs) => {
       const listingData = extractListingData();
       
       if (listingData && listingData.title) {
@@ -288,7 +425,7 @@
       }
     });
 
-    observer.observe(document.body, {
+    listingObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
@@ -297,20 +434,66 @@
     const listingData = extractListingData();
     if (listingData && listingData.title) {
       log('Listing data found immediately:', listingData.title);
-      observer.disconnect();
+      listingObserver.disconnect();
       observerActive = false;
       currentListingData = listingData;
       requestPriceIntelligence(listingData);
     }
     
     // Timeout after 10 seconds
-    setTimeout(() => {
+    listingObserverTimeout = setTimeout(() => {
       if (observerActive) {
-        observer.disconnect();
+        try { listingObserver && listingObserver.disconnect(); } catch {}
         observerActive = false;
         log('Timed out waiting for listing data', 'warn');
       }
     }, 10000);
+  }
+
+  function extractMarketplaceDetails() {
+    const details = {};
+    const keys = new Set([
+      'Condition',
+      'Brand',
+      'Model',
+      'Type',
+      'Color',
+      'Material',
+      'Size',
+      'Style',
+      'Storage Capacity',
+      'Screen Size'
+    ]);
+
+    try {
+      // Best-effort heuristic: find rows that contain a known key and a value
+      const candidates = Array.from(document.querySelectorAll('span, div'))
+        .filter((el) => {
+          const t = (el.textContent || '').trim();
+          return t && keys.has(t);
+        })
+        .slice(0, 50);
+
+      candidates.forEach((labelEl) => {
+        const label = (labelEl.textContent || '').trim();
+        if (!label || details[label]) return;
+        const row = labelEl.closest('div');
+        if (!row) return;
+        const texts = Array.from(row.querySelectorAll('span, div'))
+          .map((e) => (e.textContent || '').trim())
+          .filter(Boolean);
+        if (texts.length < 2) return;
+        const idx = texts.indexOf(label);
+        const value = idx >= 0 ? (texts[idx + 1] || texts[texts.length - 1]) : texts[texts.length - 1];
+        if (value && value !== label && value.length < 120) {
+          details[label] = value;
+        }
+      });
+    } catch {
+      // ignore
+    }
+
+    return details;
   }
 
   function extractListingData() {
@@ -337,11 +520,20 @@
       return null;
     }
 
+    const details = extractMarketplaceDetails();
+    const condition = details.Condition || null;
+    const brand = details.Brand || null;
+    const model = details.Model || null;
+
     return {
-      title: title,
+      title,
       price: priceEl ? parsePrice(priceEl.textContent) : null,
       url: window.location.href,
-      platform: 'facebook'
+      platform: 'facebook',
+      condition,
+      brand,
+      model,
+      attributes: details
     };
   }
 
@@ -374,17 +566,12 @@
     renderLoadingOverlay(listingData);
     
     // Send to service worker for eBay API lookup
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'GET_PRICE_INTELLIGENCE',
       query: listingData.title,
-      currentPrice: listingData.price
+      currentPrice: listingData.price,
+      item: listingData
     }, (response) => {
-      if (chrome.runtime.lastError) {
-        log('Error getting price intelligence: ' + chrome.runtime.lastError.message, 'error');
-        renderErrorOverlay(listingData, 'Connection error. Please try again.');
-        return;
-      }
-      
       log('Price intelligence response:', response);
       
       if (response && response.requiresAuth) {
@@ -804,7 +991,12 @@
   // Quick Reply Chip Injection
   function injectQuickReplyChips() {
     // Watch for message dialogs appearing
-    const messageModalObserver = new MutationObserver(() => {
+    if (quickReplyObserver) {
+      try { quickReplyObserver.disconnect(); } catch {}
+      quickReplyObserver = null;
+    }
+
+    quickReplyObserver = new MutationObserver(() => {
         // Find the message input area
         const messageBox = document.querySelector('[aria-label="Message"]') ||
                            document.querySelector('textarea[placeholder*="Message"]');
@@ -858,7 +1050,7 @@
         }
     });
 
-    messageModalObserver.observe(document.body, {
+    quickReplyObserver.observe(document.body, {
         childList: true,
         subtree: true
     });
@@ -892,6 +1084,19 @@
   new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
+
+      // Cleanup to avoid leaks and duplicate observers
+      try { listingObserver && listingObserver.disconnect(); } catch {}
+      listingObserver = null;
+      if (listingObserverTimeout) {
+        clearTimeout(listingObserverTimeout);
+        listingObserverTimeout = null;
+      }
+      try { scannerObserver && scannerObserver.disconnect(); } catch {}
+      scannerObserver = null;
+      try { quickReplyObserver && quickReplyObserver.disconnect(); } catch {}
+      quickReplyObserver = null;
+
       if (overlayElement) {
         overlayElement.remove();
         overlayElement = null;

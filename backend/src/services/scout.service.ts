@@ -1,6 +1,15 @@
 import { supabaseAdmin as supabase } from '../config/supabase';
 import EbayApi from 'ebay-api';
 
+type PriceIntelligenceOptions = {
+  condition?: string;
+  brand?: string;
+  model?: string;
+  categoryId?: string;
+  currentPrice?: number;
+  specs?: Record<string, string>;
+};
+
 export class ScoutService {
   private ebay: any;
   private ebayConfigured: boolean;
@@ -24,6 +33,131 @@ export class ScoutService {
       }
     } else {
       console.warn('eBay API credentials not configured - price intelligence will be limited');
+    }
+  }
+
+  private normalizeQueryKey(query: string, opts?: PriceIntelligenceOptions): string {
+    const base = (query || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!opts) return base;
+
+    const parts: string[] = [];
+    if (opts.condition) parts.push(`cond=${String(opts.condition).toLowerCase()}`);
+    if (opts.brand) parts.push(`brand=${String(opts.brand).toLowerCase()}`);
+    if (opts.model) parts.push(`model=${String(opts.model).toLowerCase()}`);
+    if (opts.categoryId) parts.push(`cat=${String(opts.categoryId)}`);
+    if (Number.isFinite(opts.currentPrice as number)) parts.push(`p=${Number(opts.currentPrice).toFixed(2)}`);
+    if (opts.specs && typeof opts.specs === 'object') {
+      const keys = Object.keys(opts.specs).sort();
+      for (const k of keys) {
+        const v = opts.specs[k];
+        if (!v) continue;
+        parts.push(`spec:${k.toLowerCase()}=${String(v).toLowerCase()}`);
+      }
+    }
+
+    return parts.length ? `${base} | ${parts.join(' | ')}` : base;
+  }
+
+  private mapConditionToEbayConditions(condition?: string): string | undefined {
+    if (!condition) return undefined;
+    const c = condition.toLowerCase();
+    // eBay Browse filter supports conditions:{NEW|USED|...}
+    // We'll keep this coarse to avoid excluding legitimate comps.
+    if (c.includes('new')) return 'NEW';
+    if (c.includes('used') || c.includes('good') || c.includes('fair') || c.includes('like new')) return 'USED';
+    return undefined;
+  }
+
+  private buildPriceFilterRange(currentPrice?: number): { min?: number; max?: number } {
+    if (!Number.isFinite(currentPrice as number) || (currentPrice as number) <= 0) return {};
+    const p = Number(currentPrice);
+    // Keep a wide range while still trimming extreme irrelevant results.
+    return {
+      min: Math.max(1, p * 0.3),
+      max: Math.max(5, p * 3.0)
+    };
+  }
+
+  private tokenize(text: string): string[] {
+    const stop = new Set([
+      'the', 'a', 'an', 'and', 'or', 'for', 'with', 'to', 'of', 'in', 'on', 'at',
+      'by', 'from', 'new', 'used', 'like', 'condition', 'sale', 'listing'
+    ]);
+    return (text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 2 && !stop.has(t));
+  }
+
+  private jaccard(a: string[], b: string[]): number {
+    const A = new Set(a);
+    const B = new Set(b);
+    if (!A.size || !B.size) return 0;
+    let inter = 0;
+    for (const t of A) if (B.has(t)) inter++;
+    const union = A.size + B.size - inter;
+    return union ? inter / union : 0;
+  }
+
+  private rankAndFilterItems(items: any[], query: string, opts?: PriceIntelligenceOptions) {
+    const qTokens = this.tokenize(query);
+    const brand = opts?.brand?.toLowerCase();
+    const model = opts?.model?.toLowerCase();
+
+    const ranked = (items || []).map((item) => {
+      const title = String(item?.title || '');
+      const tTokens = this.tokenize(title);
+      let score = this.jaccard(qTokens, tTokens);
+
+      // Boost exact/substring hits for brand/model.
+      const titleLc = title.toLowerCase();
+      if (brand && titleLc.includes(brand)) score += 0.15;
+      if (model && titleLc.includes(model)) score += 0.15;
+
+      // Boost tokens derived from specs (best-effort)
+      if (opts?.specs) {
+        for (const v of Object.values(opts.specs)) {
+          const vv = String(v || '').toLowerCase();
+          if (vv && vv.length >= 2 && titleLc.includes(vv)) {
+            score += 0.05;
+          }
+        }
+      }
+
+      return { item, score };
+    });
+
+    ranked.sort((a, b) => b.score - a.score);
+
+    // Filter out low-confidence matches but keep some minimum results for sparse queries.
+    const filtered = ranked.filter((r) => r.score >= 0.2).slice(0, 50);
+    return filtered.length ? filtered : ranked.slice(0, 25);
+  }
+
+  private removeOutliers(prices: number[]): number[] {
+    const xs = prices.filter((p) => Number.isFinite(p) && p > 0).sort((a, b) => a - b);
+    if (xs.length < 8) return xs;
+
+    const median = xs[Math.floor(xs.length / 2)];
+    const deviations = xs.map((p) => Math.abs(p - median)).sort((a, b) => a - b);
+    const mad = deviations[Math.floor(deviations.length / 2)] || 0;
+    if (mad === 0) return xs;
+
+    const threshold = mad * 3.5;
+    return xs.filter((p) => Math.abs(p - median) <= threshold);
+  }
+
+  private async withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer: NodeJS.Timeout | null = null;
+    const timeout = new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([p, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -155,14 +289,14 @@ export class ScoutService {
   }
 
   // Price Intelligence Methods
-  async getPriceIntelligence(query: string) {
+  async getPriceIntelligence(query: string, opts?: PriceIntelligenceOptions) {
     // Validate query
     if (!query || typeof query !== 'string') {
       console.warn('getPriceIntelligence: Invalid query provided');
       return { found: false, error: 'Invalid query' };
     }
     
-    const normalizedQuery = query.toLowerCase().trim();
+    const normalizedQuery = this.normalizeQueryKey(query, opts);
     
     if (normalizedQuery.length < 2) {
       console.warn('getPriceIntelligence: Query too short');
@@ -215,13 +349,72 @@ export class ScoutService {
     // Fetch from eBay
     try {
       console.log('getPriceIntelligence: Fetching from eBay API for:', query);
-      
-      const results = await this.ebay.buy.browse.search({
+
+      const mappedCondition = this.mapConditionToEbayConditions(opts?.condition);
+      const { min: minPrice, max: maxPrice } = this.buildPriceFilterRange(opts?.currentPrice);
+
+      // Phase 1 (optional): derive dominantCategoryId for aspect filtering.
+      let dominantCategoryId: string | undefined = opts?.categoryId;
+      if (!dominantCategoryId && (opts?.brand || opts?.model || (opts?.specs && Object.keys(opts.specs).length > 0))) {
+        try {
+          const refine: any = await this.withTimeout(
+            (this.ebay.buy.browse.search({
+              q: query,
+              limit: 1,
+              fieldgroups: 'ASPECT_REFINEMENTS'
+            }) as any),
+            6500,
+            'eBay refinement search'
+          );
+          dominantCategoryId = refine?.refinement?.dominantCategoryId;
+        } catch (e) {
+          console.warn('getPriceIntelligence: failed to derive dominantCategoryId', e);
+        }
+      }
+
+      const filterParts: string[] = [];
+      if (minPrice !== undefined && maxPrice !== undefined) {
+        filterParts.push(`price:[${Math.round(minPrice)}..${Math.round(maxPrice)}]`);
+        filterParts.push('priceCurrency:USD');
+      }
+      if (mappedCondition) {
+        filterParts.push(`conditions:{${mappedCondition}}`);
+      }
+      // Include auctions as well as fixed-price to broaden comps.
+      filterParts.push('buyingOptions:{AUCTION|FIXED_PRICE}');
+
+      const searchParams: any = {
         q: query,
         limit: 50
-      });
+      };
+      if (filterParts.length) searchParams.filter = filterParts.join(',');
 
-      const items = results.itemSummaries || [];
+      // Only use aspect_filter if we have a categoryId (required by eBay).
+      if (dominantCategoryId && (opts?.brand || opts?.model || (opts?.specs && Object.keys(opts.specs).length > 0))) {
+        searchParams.category_ids = dominantCategoryId;
+
+        const aspectParts: string[] = [`categoryId:${dominantCategoryId}`];
+        if (opts?.brand) aspectParts.push(`Brand:{${opts.brand}}`);
+        if (opts?.model) aspectParts.push(`Model:{${opts.model}}`);
+        // Best-effort: treat some specs as aspects (may be ignored by eBay if invalid).
+        if (opts?.specs) {
+          for (const [k, v] of Object.entries(opts.specs)) {
+            if (!k || !v) continue;
+            // eBay aspects are case-sensitive in display, but accept URL encoding.
+            // Keep original key.
+            aspectParts.push(`${k}:{${v}}`);
+          }
+        }
+        searchParams.aspect_filter = aspectParts.join(',');
+      }
+
+      const results: any = await this.withTimeout(
+        (this.ebay.buy.browse.search(searchParams) as any),
+        10_000,
+        'eBay browse search'
+      );
+
+      const items: any[] = results?.itemSummaries || [];
       
       console.log(`getPriceIntelligence: eBay returned ${items.length} items`);
       
@@ -229,30 +422,36 @@ export class ScoutService {
         return { found: false, message: 'No comparable items found on eBay' };
       }
 
-      const prices = items
-        .filter((item: any) => item.price?.value)
-        .map((item: any) => parseFloat(item.price.value))
-        .filter((price: number) => !isNaN(price) && price > 0);
+      const ranked = this.rankAndFilterItems(items, query, opts);
+      const prices = ranked
+        .map((r) => parseFloat(r.item?.price?.value))
+        .filter((p) => !isNaN(p) && p > 0);
 
-      if (prices.length === 0) {
+      const filteredPrices = this.removeOutliers(prices);
+
+      if (filteredPrices.length === 0) {
         return { found: false, message: 'No priced items found' };
       }
 
-      const sorted = [...prices].sort((a: number, b: number) => a - b);
-      const avgPrice = prices.reduce((a: number, b: number) => a + b, 0) / prices.length;
+      const sorted = [...filteredPrices].sort((a: number, b: number) => a - b);
+      const avgPrice = filteredPrices.reduce((a: number, b: number) => a + b, 0) / filteredPrices.length;
 
       const result = {
         found: true,
         avgPrice: Math.round(avgPrice * 100) / 100,
         lowPrice: sorted[0],
         highPrice: sorted[sorted.length - 1],
-        count: items.length,
-        samples: items.slice(0, 5).map((item: any) => ({
-          title: item.title,
-          price: parseFloat(item.price?.value || 0),
-          image: item.image?.imageUrl,
-          url: item.itemWebUrl
-        }))
+        count: filteredPrices.length,
+        samples: ranked.slice(0, 5).map((r: any) => {
+          const item = r.item;
+          return {
+            score: Math.round((r.score || 0) * 100) / 100,
+            title: item.title,
+            price: parseFloat(item.price?.value || 0),
+            image: item.image?.imageUrl,
+            url: item.itemWebUrl
+          };
+        })
       };
 
       // Cache result
@@ -263,7 +462,9 @@ export class ScoutService {
           ebay_avg_price: result.avgPrice,
           ebay_low_price: result.lowPrice,
           ebay_high_price: result.highPrice,
-          ebay_sold_count: items.length,
+          // For now, "sold" is approximated by matched items count.
+          // If Marketplace Insights API access is granted later, replace with true sold history.
+          ebay_sold_count: filteredPrices.length,
           ebay_sample_listings: result.samples,
           fetched_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -340,7 +541,7 @@ export class ScoutService {
       const { data: pi } = await supabase
         .from('price_intelligence')
         .select('id')
-        .eq('normalized_query', comparison.listingTitle.toLowerCase().trim())
+        .eq('normalized_query', this.normalizeQueryKey(comparison.listingTitle))
         .single();
       priceIntelligenceId = pi?.id;
     }

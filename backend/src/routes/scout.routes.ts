@@ -49,8 +49,32 @@ router.get('/price-intelligence', authMiddleware, async (req, res, next) => {
     if (!query) {
       return res.status(400).json({ success: false, error: 'Query required' });
     }
-    
-    const data = await scoutService.getPriceIntelligence(query);
+
+    // Optional enhanced search metadata
+    const condition = (req.query.condition as string) || undefined;
+    const brand = (req.query.brand as string) || undefined;
+    const model = (req.query.model as string) || undefined;
+    const categoryId = (req.query.categoryId as string) || undefined;
+    const currentPriceRaw = (req.query.currentPrice as string) || undefined;
+    const currentPrice = currentPriceRaw ? Number(currentPriceRaw) : undefined;
+    const specsRaw = (req.query.specs as string) || undefined;
+    let specs: Record<string, string> | undefined;
+    if (specsRaw) {
+      try {
+        specs = JSON.parse(specsRaw);
+      } catch {
+        // ignore malformed specs
+      }
+    }
+
+    const data = await scoutService.getPriceIntelligence(query, {
+      condition,
+      brand,
+      model,
+      categoryId,
+      currentPrice,
+      specs
+    });
     res.json({ success: true, data });
   } catch (error) {
     next(error);

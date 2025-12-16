@@ -336,7 +336,7 @@ async function handleMessage(request, sender) {
 
       case 'GET_PRICE_INTELLIGENCE': {
         const { authToken: token } = await storageGet(['authToken']);
-        const result = await getPriceIntelligence(request.query, token);
+        const result = await getPriceIntelligence(request.query, token, request.item);
         // Pass back additional context for content scripts
         if (result.requiresAuth) {
           // Try to notify user if not authenticated

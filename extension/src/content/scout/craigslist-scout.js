@@ -10,6 +10,27 @@
     let currentListingData = null;
     let overlayElement = null;
 
+    // Prevent noisy "Extension context invalidated" errors on reloads
+    function isExtensionContextValid() {
+      try {
+        return !!(chrome && chrome.runtime && chrome.runtime.id);
+      } catch {
+        return false;
+      }
+    }
+
+    function safeSendMessage(payload, callback) {
+      if (!isExtensionContextValid()) return;
+      try {
+        chrome.runtime.sendMessage(payload, (response) => {
+          if (chrome.runtime.lastError) return;
+          callback && callback(response);
+        });
+      } catch (e) {
+        log(`sendMessage failed: ${e?.message || e}`, 'warn');
+      }
+    }
+
     // Logging helper with prefix
     function log(message, level = 'info') {
       const prefix = '[SmartScout CL]';
@@ -254,12 +275,11 @@
       }, watchlist);
 
       if (match?.title) {
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           action: 'GET_PRICE_INTELLIGENCE',
           query: match.title,
           currentPrice: match.price
         }, (response) => {
-          if (chrome.runtime.lastError) return;
           if (!response || !response.found) return;
 
           recordMatchAndNotify({
@@ -323,17 +343,11 @@
       renderLoadingOverlay(listingData);
       
       // Send to service worker for eBay API lookup
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         action: 'GET_PRICE_INTELLIGENCE',
         query: listingData.title,
         currentPrice: listingData.price
       }, (response) => {
-        if (chrome.runtime.lastError) {
-          log('Error getting price intelligence: ' + chrome.runtime.lastError.message, 'error');
-          renderErrorOverlay(listingData, 'Connection error. Please try again.');
-          return;
-        }
-        
         log('Price intelligence response:', response);
         
         if (response && response.requiresAuth) {
@@ -397,16 +411,16 @@
         }
 
         // Dispatch event for HUD
-        document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
-          detail: payload
-        }));
+      document.dispatchEvent(new CustomEvent('SMART_SCOUT_MATCH_FOUND', {
+        detail: payload
+      }));
 
-        // Broadcast to background for cross-tab synchronization
-        chrome.runtime.sendMessage({ action: 'SCOUT_MATCH_FOUND', match: payload }, () => {});
-      } catch (e) {
-        log('Failed to record/notify match: ' + e.message, 'warn');
-      }
+      // Broadcast to background for cross-tab synchronization
+      safeSendMessage({ action: 'SCOUT_MATCH_FOUND', match: payload }, () => {});
+    } catch (e) {
+      log('Failed to record/notify match: ' + e.message, 'warn');
     }
+  }
 
     // Backwards-compatible helper used by listing overlay flow
     function notifyMatch(listing, watchlist) {

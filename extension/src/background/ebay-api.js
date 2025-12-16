@@ -10,7 +10,7 @@ import { getBackendUrl, config } from '../config.js';
  * @param {string} [userToken] - Optional user authentication token
  * @returns {Promise<Object>} Price intelligence data
  */
-export async function getPriceIntelligence(query, userToken) {
+export async function getPriceIntelligence(query, userToken, item) {
   // Validate query
   if (!query || typeof query !== 'string' || query.trim().length < 2) {
     console.warn('Invalid query for price intelligence');
@@ -58,7 +58,22 @@ export async function getPriceIntelligence(query, userToken) {
   try {
     // Get the backend URL dynamically
     const backendUrl = await getBackendUrl();
-    const url = `${backendUrl}/api/scout/price-intelligence?q=${encodeURIComponent(query)}`;
+    // Optional precision fields (best effort)
+    const params = new URLSearchParams({ q: query });
+    if (item && typeof item === 'object') {
+      if (item.condition) params.set('condition', String(item.condition));
+      if (item.brand) params.set('brand', String(item.brand));
+      if (item.model) params.set('model', String(item.model));
+      if (typeof item.price === 'number' && !Number.isNaN(item.price)) params.set('currentPrice', String(item.price));
+      if (item.attributes && typeof item.attributes === 'object') {
+        try {
+          params.set('specs', JSON.stringify(item.attributes));
+        } catch {
+          // ignore
+        }
+      }
+    }
+    const url = `${backendUrl}/api/scout/price-intelligence?${params.toString()}`;
     
     console.log('Fetching price intelligence from:', url);
     
