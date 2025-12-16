@@ -24,6 +24,10 @@
   let lastListingExtractAt = 0;
   const LISTING_EXTRACT_COOLDOWN_MS = 600;
 
+  // Track previous listing to detect stale data on SPA navigation
+  let previousListingUrl = null;
+  let previousListingTitle = null;
+
   // Avoid duplicate work + reduce DOM churn
   const processedMarketplaceCardKeys = new Set();
   let activeWatchlists = [];
@@ -543,6 +547,11 @@
       listingPollTimeout = null;
     }
 
+    // Capture the current URL to detect if we navigated during polling
+    const currentUrl = window.location.href;
+    // Extract listing ID from URL to help detect fresh data
+    const currentListingId = extractListingIdFromUrl(currentUrl);
+    
     const startedAt = Date.now();
     const poll = () => {
       // Throttle extraction to prevent UI freezes
@@ -553,13 +562,39 @@
         return;
       }
 
+      // Check if URL changed while polling - abort if so
+      if (window.location.href !== currentUrl) {
+        log('URL changed during polling, aborting');
+        observerActive = false;
+        return;
+      }
+
       if (now - lastListingExtractAt >= LISTING_EXTRACT_COOLDOWN_MS) {
         lastListingExtractAt = now;
         const listingData = extractListingData();
         if (listingData && listingData.title && !isLikelyBadTitle(listingData.title)) {
+          // FIX: Check if this is stale data from a previous listing
+          // If we navigated from another listing page, verify the title is different
+          const isSameUrlAsLast = previousListingUrl && previousListingUrl === currentUrl;
+          const isSameTitleAsPrevious = previousListingTitle &&
+            normalizeForComparison(listingData.title) === normalizeForComparison(previousListingTitle);
+          
+          // If we're on a NEW listing page (different URL) but got the SAME title as the previous listing,
+          // this is likely stale og:title data - keep polling
+          if (!isSameUrlAsLast && isSameTitleAsPrevious && (now - startedAt < 6000)) {
+            log('Detected potentially stale title (same as previous listing), continuing to poll...');
+            listingPollTimeout = setTimeout(poll, 400);
+            return;
+          }
+          
           log('Listing data found:', listingData.title);
           observerActive = false;
           currentListingData = listingData;
+          
+          // Track this listing for stale detection on next navigation
+          previousListingUrl = currentUrl;
+          previousListingTitle = listingData.title;
+          
           requestPriceIntelligence(listingData);
           return;
         }
@@ -581,6 +616,17 @@
         log('Timed out waiting for listing data', 'warn');
       }
     }, 10000);
+  }
+
+  // Helper to extract listing ID from Facebook Marketplace URL
+  function extractListingIdFromUrl(url) {
+    const match = url.match(/\/marketplace\/item\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  // Normalize title for comparison (to detect stale data)
+  function normalizeForComparison(title) {
+    return (title || '').toLowerCase().trim().replace(/\s+/g, ' ');
   }
 
   function extractMarketplaceDetails() {
@@ -640,14 +686,21 @@
   }
 
   function extractListingData() {
-    // Prefer OG meta title (stable) over DOM, because FB often has a global "Marketplace" h1.
-    const ogTitleRaw = getMetaContent('og:title');
-    const ogTitle = sanitizeTitle(ogTitleRaw);
-
     // Scope DOM queries to main content to avoid capturing global header/navigation.
     const main = document.querySelector('[role="main"]') || document.body;
 
-    // Candidate title elements inside main.
+    // FIX: Prioritize DOM-extracted title over og:title because Facebook's React app
+    // updates the DOM more reliably during SPA navigation than the og:title meta tag.
+    // The og:title can be stale when quickly navigating between listings.
+    
+    // First, try the most reliable selector: marketplace_pdp_title (if available)
+    const pdpTitle = main.querySelector('[data-testid="marketplace_pdp_title"]');
+    const pdpTitleText = pdpTitle ? sanitizeTitle(pdpTitle.textContent) : '';
+    
+    // Also look for title in document.title (which Facebook updates on navigation)
+    const docTitle = sanitizeTitle(document.title);
+    
+    // Candidate title elements inside main (fallback).
     const candidates = Array.from(
       main.querySelectorAll('h1, h2, [data-testid="marketplace_pdp_title"], span[dir="auto"]')
     )
@@ -657,19 +710,40 @@
       }))
       .filter((c) => c.text.length >= 3)
       .filter((c) => c.text.toLowerCase() !== 'marketplace')
+      .filter((c) => c.text.toLowerCase() !== 'facebook marketplace')
       .slice(0, 50);
 
     // Choose the best candidate by heuristic: longer and not generic.
     const best = candidates.sort((a, b) => b.text.length - a.text.length)[0];
-
     const bestText = sanitizeTitle(best?.text);
-    const titleText = (
-      ogTitle && ogTitle.trim().length >= 3 && !isLikelyBadTitle(ogTitle)
-        ? ogTitle
-        : bestText
-    );
+    
+    // og:title as last resort (can be stale during SPA navigation)
+    const ogTitleRaw = getMetaContent('og:title');
+    const ogTitle = sanitizeTitle(ogTitleRaw);
 
-    const titleEl = best?.el || null;
+    // Priority order for title extraction:
+    // 1. marketplace_pdp_title (most reliable React-controlled element)
+    // 2. document.title (browser title, updated by React router)
+    // 3. Best DOM candidate (h1/h2/span heuristic)
+    // 4. og:title (can be stale, use as fallback only)
+    let titleText = '';
+    let titleSource = '';
+    
+    if (pdpTitleText && pdpTitleText.length >= 3 && !isLikelyBadTitle(pdpTitleText)) {
+      titleText = pdpTitleText;
+      titleSource = 'pdp_title';
+    } else if (docTitle && docTitle.length >= 3 && !isLikelyBadTitle(docTitle)) {
+      titleText = docTitle;
+      titleSource = 'document_title';
+    } else if (bestText && bestText.length >= 3 && !isLikelyBadTitle(bestText)) {
+      titleText = bestText;
+      titleSource = 'dom_candidate';
+    } else if (ogTitle && ogTitle.length >= 3 && !isLikelyBadTitle(ogTitle)) {
+      titleText = ogTitle;
+      titleSource = 'og_title';
+    }
+
+    const titleEl = best?.el || pdpTitle || null;
     
     // Price - look for currency patterns
     // This is tricky on FB, often just text like "$123"
@@ -694,6 +768,8 @@
     const brand = details.Brand || null;
     const model = details.Model || null;
 
+    log(`Title extracted from ${titleSource}: "${title.substring(0, 50)}..."`);
+
     return {
       title,
       price: Number.isFinite(metaPrice) ? metaPrice : (priceEl ? parsePrice(priceEl.textContent) : null),
@@ -702,7 +778,8 @@
       condition,
       brand,
       model,
-      attributes: details
+      attributes: details,
+      _titleSource: titleSource // For debugging
     };
   }
 
