@@ -129,6 +129,49 @@
     return t;
   }
 
+  function buildSearchQuery(item) {
+    // Goal: increase precision without over-constraining.
+    // Keep query reasonably short (eBay browse q is full-text; too long can reduce recall).
+    const title = sanitizeTitle(item?.title || '');
+    const brand = (item?.brand || '').toString().trim();
+    const model = (item?.model || '').toString().trim();
+
+    // Prefer marketplace detail fields if present
+    const attrs = (item?.attributes && typeof item.attributes === 'object') ? item.attributes : {};
+    const type = (attrs.Type || attrs['Product Type'] || '').toString().trim();
+
+    // Add a few high-signal specs only (avoid noise like color unless we have room)
+    const specKeys = ['Screen Size', 'Storage Capacity', 'Size', 'Capacity', 'Year', 'Series'];
+    const specParts = [];
+    for (const k of specKeys) {
+      const v = attrs[k];
+      if (!v) continue;
+      const vv = String(v).trim();
+      if (vv && vv.length <= 40) specParts.push(vv);
+      if (specParts.length >= 2) break;
+    }
+
+    // Build with de-dupe (avoid repeating brand/model if title already contains them)
+    const parts = [];
+    const titleLc = title.toLowerCase();
+    const pushIfNew = (s) => {
+      const v = String(s || '').trim();
+      if (!v) return;
+      const vLc = v.toLowerCase();
+      if (titleLc.includes(vLc)) return;
+      parts.push(v);
+    };
+
+    pushIfNew(brand);
+    pushIfNew(model);
+    pushIfNew(type);
+    specParts.forEach(pushIfNew);
+
+    // Final query: title first (keeps recall), then precision terms.
+    const full = [title, ...parts].join(' ').replace(/\s+/g, ' ').trim();
+    return full.length > 120 ? full.slice(0, 120) : full;
+  }
+
   function isLikelyBadTitle(title) {
     const t = (title || '').trim().toLowerCase();
     return !t || t === 'marketplace' || t === 'facebook marketplace';
@@ -691,7 +734,8 @@
   }
 
   function requestPriceIntelligence(listingData) {
-    log('Requesting price intelligence for:', listingData.title);
+    const query = buildSearchQuery(listingData);
+    log('Requesting price intelligence for:', query);
     
     // Show loading state
     renderLoadingOverlay(listingData);
@@ -699,7 +743,7 @@
     // Send to service worker for eBay API lookup
     safeSendMessage({
       action: 'GET_PRICE_INTELLIGENCE',
-      query: listingData.title,
+      query,
       currentPrice: listingData.price,
       item: listingData
     }, (response) => {
@@ -1231,6 +1275,14 @@
       if (listingObserverTimeout) {
         clearTimeout(listingObserverTimeout);
         listingObserverTimeout = null;
+      }
+      if (listingPollTimeout) {
+        clearTimeout(listingPollTimeout);
+        listingPollTimeout = null;
+      }
+      if (listingExtractDebounce) {
+        clearTimeout(listingExtractDebounce);
+        listingExtractDebounce = null;
       }
       try { scannerObserver && scannerObserver.disconnect(); } catch {}
       scannerObserver = null;

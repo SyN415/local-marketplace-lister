@@ -8,7 +8,10 @@ const supabaseServiceKey = config.SUPABASE_SERVICE_KEY;
 if (!supabaseServiceKey) {
   console.error('CRITICAL: SUPABASE_SERVICE_KEY is missing in config!');
 } else {
-  console.log('Supabase Admin Client initialized with Service Key:', supabaseServiceKey.substring(0, 10) + '...');
+  // Never log any portion of a secret in production.
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Supabase Admin Client initialized with Service Key');
+  }
 }
 
 // Client for authenticated requests (server-side with service key)

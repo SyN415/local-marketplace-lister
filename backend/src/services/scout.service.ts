@@ -26,13 +26,17 @@ export class ScoutService {
           sandbox: process.env.EBAY_SANDBOX === 'true',
           marketplaceId: 'EBAY_US'
         });
-        console.log('eBay API initialized successfully');
+        if (process.env.NODE_ENV !== 'test') {
+          console.log('eBay API initialized successfully');
+        }
       } catch (err) {
         console.error('Failed to initialize eBay API:', err);
         this.ebayConfigured = false;
       }
     } else {
-      console.warn('eBay API credentials not configured - price intelligence will be limited');
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('eBay API credentials not configured - price intelligence will be limited');
+      }
     }
   }
 
@@ -105,6 +109,7 @@ export class ScoutService {
     const qTokens = this.tokenize(query);
     const brand = opts?.brand?.toLowerCase();
     const model = opts?.model?.toLowerCase();
+    const qLc = String(query || '').toLowerCase();
 
     const ranked = (items || []).map((item) => {
       const title = String(item?.title || '');
@@ -113,8 +118,20 @@ export class ScoutService {
 
       // Boost exact/substring hits for brand/model.
       const titleLc = title.toLowerCase();
-      if (brand && titleLc.includes(brand)) score += 0.15;
-      if (model && titleLc.includes(model)) score += 0.15;
+      if (brand) {
+        // Brand is helpful but common; keep it a modest boost.
+        score += titleLc.includes(brand) ? 0.10 : -0.05;
+      }
+      if (model) {
+        // Model match is higher-signal; strongly prefer items that contain it.
+        score += titleLc.includes(model) ? 0.25 : -0.20;
+      }
+
+      // Phrase containment: if the item title contains the full query (or vice versa), boost.
+      if (qLc && qLc.length >= 6) {
+        if (titleLc.includes(qLc)) score += 0.12;
+        else if (qLc.includes(titleLc) && titleLc.length >= 10) score += 0.06;
+      }
 
       // Boost tokens derived from specs (best-effort)
       if (opts?.specs) {
@@ -125,6 +142,9 @@ export class ScoutService {
           }
         }
       }
+
+      // Clamp to a sane range to keep thresholding stable.
+      score = Math.max(0, Math.min(1, score));
 
       return { item, score };
     });

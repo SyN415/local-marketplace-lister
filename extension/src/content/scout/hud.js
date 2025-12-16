@@ -13,6 +13,23 @@
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
 
+  function isExtensionContextValid() {
+    try {
+      return !!(chrome && chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function safeGetURL(path) {
+    if (!isExtensionContextValid()) return null;
+    try {
+      return chrome.runtime.getURL(path);
+    } catch {
+      return null;
+    }
+  }
+
   function init() {
     // Avoid duplicates
     if (document.getElementById(HUD_CONTAINER_ID)) return;
@@ -32,7 +49,10 @@
     // Load external CSS
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = chrome.runtime.getURL('src/content/scout/hud.css');
+    const cssUrl = safeGetURL('src/content/scout/hud.css');
+    // If the extension is being reloaded, content script context can be invalidated.
+    // Avoid throwing "Extension context invalidated" and just render without styles.
+    if (cssUrl) link.href = cssUrl;
     shadowRoot.appendChild(link);
 
     // Create Dock (Collapsed)
@@ -169,15 +189,20 @@
   }
 
   function loadStats() {
-    chrome.storage.local.get(['watchlistItems', 'lastProfitAnalysis'], (result) => {
-      updateStatsUI(result.watchlistItems || []);
-      if (result.lastProfitAnalysis) {
-        const el = shadowRoot?.getElementById('hud-roi-score');
-        if (el && Number.isFinite(result.lastProfitAnalysis.roiScore)) {
-          el.textContent = result.lastProfitAnalysis.roiScore;
+    if (!isExtensionContextValid()) return;
+    try {
+      chrome.storage.local.get(['watchlistItems', 'lastProfitAnalysis'], (result) => {
+        updateStatsUI(result.watchlistItems || []);
+        if (result.lastProfitAnalysis) {
+          const el = shadowRoot?.getElementById('hud-roi-score');
+          if (el && Number.isFinite(result.lastProfitAnalysis.roiScore)) {
+            el.textContent = result.lastProfitAnalysis.roiScore;
+          }
         }
-      }
-    });
+      });
+    } catch {
+      // ignore
+    }
   }
 
   function updateStatsUI(items) {
@@ -205,26 +230,32 @@
 
   function setupEventListeners() {
     // Listen for storage changes
-    chrome.storage.onChanged.addListener((changes, namespace) => {
-      if (namespace !== 'local') return;
+    if (isExtensionContextValid()) {
+      try {
+        chrome.storage.onChanged.addListener((changes, namespace) => {
+          if (namespace !== 'local') return;
 
-      if (changes.watchlistItems) {
-        updateStatsUI(changes.watchlistItems.newValue);
-      }
+          if (changes.watchlistItems) {
+            updateStatsUI(changes.watchlistItems.newValue);
+          }
 
-      if (changes.lastProfitAnalysis) {
-        const next = changes.lastProfitAnalysis.newValue;
-        const el = shadowRoot?.getElementById('hud-roi-score');
-        if (el && next && Number.isFinite(next.roiScore)) {
-          el.textContent = next.roiScore;
-        }
-      }
+          if (changes.lastProfitAnalysis) {
+            const next = changes.lastProfitAnalysis.newValue;
+            const el = shadowRoot?.getElementById('hud-roi-score');
+            if (el && next && Number.isFinite(next.roiScore)) {
+              el.textContent = next.roiScore;
+            }
+          }
 
-      // Unified cross-tab match feed
-      if (changes.recentMatches) {
-        renderRecentMatches(changes.recentMatches.newValue || []);
+          // Unified cross-tab match feed
+          if (changes.recentMatches) {
+            renderRecentMatches(changes.recentMatches.newValue || []);
+          }
+        });
+      } catch {
+        // ignore
       }
-    });
+    }
 
     // Listen for match events from other content scripts (same-tab)
     document.addEventListener('SMART_SCOUT_MATCH_FOUND', (e) => {
@@ -248,24 +279,30 @@
     });
 
     // Listen for cross-tab broadcasts
-    chrome.runtime.onMessage.addListener((msg) => {
-      if (msg?.action === 'SCOUT_MATCH_BROADCAST' && msg.match) {
-        triggerRadarPing();
-        updateFeed(msg.match);
-        updateRoiScore(msg.match);
-      }
+    if (isExtensionContextValid()) {
+      try {
+        chrome.runtime.onMessage.addListener((msg) => {
+          if (msg?.action === 'SCOUT_MATCH_BROADCAST' && msg.match) {
+            triggerRadarPing();
+            updateFeed(msg.match);
+            updateRoiScore(msg.match);
+          }
 
-      // Back-compat: allow service worker to send enrichment updates directly
-      if (msg?.action === 'ENRICHMENT_UPDATE' && msg.payload) {
-        const payload = msg.payload;
-        if (payload.type === 'price_intelligence_enriched') {
-          const updated = { ...(payload.originalMatch || {}), ...(payload.patch || {}) };
-          triggerRadarPing();
-          updateFeed(updated);
-          updateRoiScore(updated);
-        }
+          // Back-compat: allow service worker to send enrichment updates directly
+          if (msg?.action === 'ENRICHMENT_UPDATE' && msg.payload) {
+            const payload = msg.payload;
+            if (payload.type === 'price_intelligence_enriched') {
+              const updated = { ...(payload.originalMatch || {}), ...(payload.patch || {}) };
+              triggerRadarPing();
+              updateFeed(updated);
+              updateRoiScore(updated);
+            }
+          }
+        });
+      } catch {
+        // ignore
       }
-    });
+    }
   }
 
   function renderRecentMatches(matches) {
@@ -535,30 +572,42 @@
     }
 
     // Persist last analysis with metadata for debugging + transparency
-    chrome.storage.local.set({
-      lastProfitAnalysis: {
-        ...analysis,
-        title: match.title,
-        link: match.link,
-        platform: match.platform,
-        matchId: match.id,
-        ts: Date.now()
+    if (isExtensionContextValid()) {
+      try {
+        chrome.storage.local.set({
+          lastProfitAnalysis: {
+            ...analysis,
+            title: match.title,
+            link: match.link,
+            platform: match.platform,
+            matchId: match.id,
+            ts: Date.now()
+          }
+        });
+      } catch {
+        // ignore
       }
-    });
+    }
 
     // Maintain a unified recentMatches list (storage-driven sidebar feed)
-    chrome.storage.local.get(['recentMatches'], (res) => {
-      const existing = Array.isArray(res.recentMatches) ? res.recentMatches : [];
-      const next = [
-        {
-          ...match,
-          analysis,
-          ts: match.ts || Date.now()
-        },
-        ...existing.filter((m) => (m?.id || m?.link) !== (match.id || match.link))
-      ].slice(0, 50);
-      chrome.storage.local.set({ recentMatches: next });
-    });
+    if (isExtensionContextValid()) {
+      try {
+        chrome.storage.local.get(['recentMatches'], (res) => {
+          const existing = Array.isArray(res.recentMatches) ? res.recentMatches : [];
+          const next = [
+            {
+              ...match,
+              analysis,
+              ts: match.ts || Date.now()
+            },
+            ...existing.filter((m) => (m?.id || m?.link) !== (match.id || match.link))
+          ].slice(0, 50);
+          chrome.storage.local.set({ recentMatches: next });
+        });
+      } catch {
+        // ignore
+      }
+    }
   }
 
   function triggerRadarPing() {

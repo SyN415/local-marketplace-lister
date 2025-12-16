@@ -17,8 +17,28 @@ export async function getPriceIntelligence(query, userToken, item) {
     return { found: false, error: 'Invalid query' };
   }
 
+  // Cache key should incorporate the item metadata used by backend precision filters.
+  // Otherwise, different items with the same title can return incorrect cached comps.
   const normalizedQuery = query.toLowerCase().trim();
-  const cacheKey = `price_intel_${normalizedQuery}`;
+  const metaParts = [];
+  try {
+    if (item && typeof item === 'object') {
+      if (item.condition) metaParts.push(`c=${String(item.condition).toLowerCase()}`);
+      if (item.brand) metaParts.push(`b=${String(item.brand).toLowerCase()}`);
+      if (item.model) metaParts.push(`m=${String(item.model).toLowerCase()}`);
+      if (typeof item.price === 'number' && !Number.isNaN(item.price)) metaParts.push(`p=${Number(item.price).toFixed(2)}`);
+      if (item.attributes && typeof item.attributes === 'object') {
+        // Keep stable ordering for consistent cache key.
+        const keys = Object.keys(item.attributes).sort();
+        const subset = keys.slice(0, 12).map((k) => `${k}:${String(item.attributes[k]).slice(0, 32)}`);
+        if (subset.length) metaParts.push(`s=${subset.join('|').toLowerCase()}`);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  const metaKey = metaParts.length ? `::${metaParts.join('::')}` : '';
+  const cacheKey = `price_intel_${normalizedQuery}${metaKey}`;
   
   // Check local cache first
   try {
@@ -77,13 +97,20 @@ export async function getPriceIntelligence(query, userToken, item) {
     
     console.log('Fetching price intelligence from:', url);
     
+    // Hard timeout so a hung network request doesn't keep the SW alive and block UI.
+    const controller = new AbortController();
+    const timeoutMs = 12_000;
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      signal: controller.signal
     });
+    clearTimeout(t);
 
     if (response.status === 401) {
       // Token expired or invalid - clear it and prompt re-login
@@ -155,9 +182,10 @@ export async function getPriceIntelligence(query, userToken, item) {
       // Ignore cache error
     }
     
+    const isAbort = String(error?.name || '').toLowerCase().includes('abort');
     return { 
       found: false, 
-      error: error.message || 'Failed to fetch price data',
+      error: isAbort ? 'Request timed out' : (error.message || 'Failed to fetch price data'),
       offline: !navigator.onLine
     };
   }
