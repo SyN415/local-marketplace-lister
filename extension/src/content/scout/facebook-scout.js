@@ -134,15 +134,120 @@
   }
 
   function buildSearchQuery(item) {
-    // Goal: increase precision without over-constraining.
-    // Keep query reasonably short (eBay browse q is full-text; too long can reduce recall).
-    const title = sanitizeTitle(item?.title || '');
+    // Goal: Generate a concise, high-signal search query for eBay
+    // eBay Browse API works best with short, specific queries (< 80 chars ideal)
+    
+    const rawTitle = item?.title || '';
+    const title = sanitizeTitle(rawTitle);
     const brand = (item?.brand || '').toString().trim();
     const model = (item?.model || '').toString().trim();
-
+    
+    // Get extracted specs from description parsing (NEW)
+    const specs = (item?.extractedSpecs && typeof item.extractedSpecs === 'object')
+      ? item.extractedSpecs : {};
+    
     // Prefer marketplace detail fields if present
     const attrs = (item?.attributes && typeof item.attributes === 'object') ? item.attributes : {};
     const type = (attrs.Type || attrs['Product Type'] || '').toString().trim();
+
+    // ENHANCED: Detect product category from title/specs for smarter query building
+    const titleLc = title.toLowerCase();
+    const isComputer = /(?:pc|gaming|computer|desktop|laptop|build)/i.test(titleLc) ||
+                       specs.cpu || specs.gpu || specs.ram;
+    const isMonitor = /(?:monitor|display|screen|tv|oled|qled|inch|hz)/i.test(titleLc) ||
+                      specs.screenSize;
+    const isElectronics = isComputer || isMonitor ||
+                          /(?:phone|iphone|samsung|console|playstation|xbox|nintendo)/i.test(titleLc);
+
+    // For electronics with specs, build query from key specs rather than verbose title
+    if (isComputer && (specs.gpu || specs.cpu)) {
+      // Gaming PC: prioritize GPU and CPU specs
+      const queryParts = [];
+      
+      // Extract core identifying info from title (e.g., "RTX 4070", "Ryzen 7")
+      const gpuFromTitle = titleLc.match(/(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?/i);
+      const cpuFromTitle = titleLc.match(/(?:i[3579]-?\d{4,5}[a-z]*|ryzen\s*\d+\s*\d{4}[a-z]*)/i);
+      
+      // Use extracted spec or title match
+      const gpu = specs.gpu || (gpuFromTitle ? gpuFromTitle[0] : '');
+      const cpu = specs.cpu || (cpuFromTitle ? cpuFromTitle[0] : '');
+      
+      if (gpu) queryParts.push(cleanSpecValue(gpu));
+      if (cpu) queryParts.push(cleanSpecValue(cpu));
+      
+      // Add "gaming pc" or "desktop" if we have good specs
+      if (queryParts.length > 0) {
+        queryParts.push('gaming pc');
+      }
+      
+      // Add RAM if available and concise
+      if (specs.ram) {
+        const ramMatch = specs.ram.match(/\d+\s*gb/i);
+        if (ramMatch) queryParts.push(ramMatch[0]);
+      }
+      
+      const query = queryParts.join(' ').trim();
+      if (query.length >= 15 && query.length <= 80) {
+        log(`Built spec-based query: "${query}"`);
+        return query;
+      }
+    }
+    
+    if (isMonitor) {
+      // Monitor: prioritize brand, size, resolution, refresh rate
+      const queryParts = [];
+      
+      // Extract key monitor specs from title
+      const sizeMatch = titleLc.match(/\d{2,3}[\s"'″]*/);
+      const resMatch = titleLc.match(/(?:4k|1080p|1440p|qhd|uhd|fhd)/i);
+      const refreshMatch = titleLc.match(/\d{2,3}\s*hz/i);
+      const panelMatch = titleLc.match(/(?:oled|qd-oled|ips|va|tn)/i);
+      
+      // Brand extraction
+      const monitorBrands = ['msi', 'asus', 'acer', 'samsung', 'lg', 'dell', 'benq', 'alienware', 'gigabyte', 'aoc'];
+      const brandMatch = monitorBrands.find(b => titleLc.includes(b));
+      
+      if (brandMatch) queryParts.push(brandMatch.toUpperCase());
+      if (sizeMatch) queryParts.push(sizeMatch[0].replace(/['"″]/g, '"'));
+      if (resMatch) queryParts.push(resMatch[0].toUpperCase());
+      if (refreshMatch) queryParts.push(refreshMatch[0]);
+      if (panelMatch) queryParts.push(panelMatch[0].toUpperCase());
+      
+      queryParts.push('monitor');
+      
+      const query = queryParts.join(' ').trim();
+      if (query.length >= 10 && query.length <= 80) {
+        log(`Built monitor query: "${query}"`);
+        return query;
+      }
+    }
+
+    // FALLBACK: Clean title-based query for non-electronics or when spec extraction fails
+    // Remove common Facebook boilerplate that makes queries too long
+    let cleanTitle = title
+      .replace(/\bmarketplace\b/gi, '')
+      .replace(/\bfacebook\b/gi, '')
+      .replace(/\bselling\b/gi, '')
+      .replace(/\bread description\b/gi, '')
+      .replace(/\bobo\b/gi, '')  // "or best offer"
+      .replace(/\bfirm\b/gi, '')
+      .replace(/\bno trades?\b/gi, '')
+      .replace(/\bpickup only\b/gi, '')
+      .replace(/\bfree delivery\b/gi, '')
+      .replace(/\bcash only\b/gi, '')
+      .replace(/\|.*$/g, '')  // Remove everything after pipe (e.g., "| Facebook")
+      .replace(/[【】\[\](){}]/g, ' ')  // Remove brackets
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // If title is still too long, try to extract the core product name
+    if (cleanTitle.length > 80) {
+      // Take first meaningful chunk (likely the product name)
+      const firstChunk = cleanTitle.split(/[-–—•,]/)[0].trim();
+      if (firstChunk.length >= 10) {
+        cleanTitle = firstChunk;
+      }
+    }
 
     // Add a few high-signal specs only (avoid noise like color unless we have room)
     const specKeys = ['Screen Size', 'Storage Capacity', 'Size', 'Capacity', 'Year', 'Series'];
@@ -157,12 +262,12 @@
 
     // Build with de-dupe (avoid repeating brand/model if title already contains them)
     const parts = [];
-    const titleLc = title.toLowerCase();
+    const cleanTitleLc = cleanTitle.toLowerCase();
     const pushIfNew = (s) => {
       const v = String(s || '').trim();
       if (!v) return;
       const vLc = v.toLowerCase();
-      if (titleLc.includes(vLc)) return;
+      if (cleanTitleLc.includes(vLc)) return;
       parts.push(v);
     };
 
@@ -171,9 +276,22 @@
     pushIfNew(type);
     specParts.forEach(pushIfNew);
 
-    // Final query: title first (keeps recall), then precision terms.
-    const full = [title, ...parts].join(' ').replace(/\s+/g, ' ').trim();
-    return full.length > 120 ? full.slice(0, 120) : full;
+    // Final query: cleaned title first, then precision terms.
+    const full = [cleanTitle, ...parts].join(' ').replace(/\s+/g, ' ').trim();
+    const finalQuery = full.length > 80 ? full.slice(0, 80) : full;
+    
+    log(`Built title-based query: "${finalQuery}"`);
+    return finalQuery;
+  }
+  
+  // Helper to clean extracted spec values for search
+  function cleanSpecValue(value) {
+    if (!value) return '';
+    return value
+      .replace(/\s+/g, ' ')
+      .replace(/[()[\]{}]/g, '')
+      .trim()
+      .slice(0, 30); // Cap individual spec values
   }
 
   function isLikelyBadTitle(title) {
@@ -685,6 +803,130 @@
     return details;
   }
 
+  // NEW: Extract full description text from the listing page
+  function extractFullDescription() {
+    try {
+      const main = document.querySelector('[role="main"]') || document.body;
+      
+      // Facebook marketplace listings typically have description in a specific area
+      // Look for text blocks that contain spec-like content
+      const descriptionCandidates = [];
+      
+      // Strategy 1: Look for "See more" expandable sections or long text blocks
+      const allTextElements = main.querySelectorAll('span[dir="auto"], div[dir="auto"]');
+      
+      for (const el of allTextElements) {
+        const text = (el.textContent || '').trim();
+        // Skip short texts, navigation elements, buttons
+        if (text.length < 50) continue;
+        if (text.toLowerCase().includes('see more')) continue;
+        if (text.toLowerCase().includes('message seller')) continue;
+        if (text.toLowerCase().includes('is this available')) continue;
+        
+        // Good candidates: contains specs-like patterns
+        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gb|tb|mhz|ghz)/i.test(text);
+        const hasDescription = text.length > 100 || hasSpecs;
+        
+        if (hasDescription) {
+          descriptionCandidates.push({
+            text,
+            score: text.length + (hasSpecs ? 500 : 0)
+          });
+        }
+      }
+      
+      // Sort by score and take the best candidates
+      descriptionCandidates.sort((a, b) => b.score - a.score);
+      
+      // Combine top candidates (may have title + description separately)
+      const combinedText = descriptionCandidates
+        .slice(0, 3)
+        .map(c => c.text)
+        .join('\n\n');
+      
+      return combinedText.slice(0, 2000); // Cap at 2000 chars
+    } catch (e) {
+      log('Error extracting description: ' + e?.message, 'warn');
+      return '';
+    }
+  }
+
+  // NEW: Extract image URLs from the listing
+  function extractImageUrls() {
+    try {
+      const imageUrls = [];
+      const main = document.querySelector('[role="main"]') || document.body;
+      
+      // Look for main listing images - usually high quality images
+      const images = main.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]');
+      
+      for (const img of images) {
+        const src = img.src || img.getAttribute('data-src') || '';
+        if (!src) continue;
+        
+        // Skip small thumbnails, icons, profile pics
+        const width = img.naturalWidth || parseInt(img.getAttribute('width') || '0');
+        const height = img.naturalHeight || parseInt(img.getAttribute('height') || '0');
+        
+        // Only include images that appear to be product images (larger size)
+        if (width > 200 || height > 200 || src.includes('s1080x1080') || src.includes('s960x960')) {
+          imageUrls.push(src);
+        }
+      }
+      
+      // Deduplicate and limit
+      const uniqueUrls = [...new Set(imageUrls)].slice(0, 5);
+      return uniqueUrls;
+    } catch (e) {
+      log('Error extracting images: ' + e?.message, 'warn');
+      return [];
+    }
+  }
+
+  // NEW: Extract structured specs from description text
+  function extractSpecsFromDescription(description) {
+    const specs = {};
+    
+    try {
+      // CPU patterns
+      const cpuMatch = description.match(/(?:cpu|processor)[:\s]*([^\n•,]+)/i) ||
+                       description.match(/((?:intel|amd)\s+(?:core|ryzen)[^,\n•]+)/i) ||
+                       description.match(/(ryzen\s+\d+\s+\d+)/i) ||
+                       description.match(/(i[357]-\d{4,5}[a-z]*)/i);
+      if (cpuMatch) specs.cpu = cpuMatch[1].trim().slice(0, 50);
+      
+      // GPU patterns
+      const gpuMatch = description.match(/(?:gpu|graphics)[:\s]*([^\n•,]+)/i) ||
+                       description.match(/((?:nvidia|geforce|rtx|gtx)\s+[^\n•,]+)/i) ||
+                       description.match(/((?:amd|radeon)\s+(?:rx|vega)[^\n•,]+)/i);
+      if (gpuMatch) specs.gpu = gpuMatch[1].trim().slice(0, 50);
+      
+      // RAM patterns
+      const ramMatch = description.match(/(?:ram|memory)[:\s]*([^\n•,]+)/i) ||
+                       description.match(/(\d+\s*gb\s*(?:ddr\d)?[^,\n•]*(?:memory|ram)?)/i);
+      if (ramMatch) specs.ram = ramMatch[1].trim().slice(0, 40);
+      
+      // Storage patterns
+      const storageMatch = description.match(/(?:storage|ssd|hdd)[:\s]*([^\n•,]+)/i) ||
+                           description.match(/(\d+\s*(?:gb|tb)\s*(?:ssd|hdd|nvme|m\.2)[^\n•,]*)/i);
+      if (storageMatch) specs.storage = storageMatch[1].trim().slice(0, 40);
+      
+      // Motherboard patterns
+      const moboMatch = description.match(/(?:motherboard|mobo)[:\s]*([^\n•,]+)/i) ||
+                        description.match(/((?:asus|msi|gigabyte|asrock|aorus)\s+[^\n•,]+(?:motherboard)?)/i);
+      if (moboMatch) specs.motherboard = moboMatch[1].trim().slice(0, 50);
+      
+      // Screen size for monitors/TVs
+      const screenMatch = description.match(/(\d{2,3}[\s"'′″inch]*(?:\s*(?:inch|"|4k|1080p|1440p|qhd|uhd))?)/i);
+      if (screenMatch) specs.screenSize = screenMatch[1].trim();
+      
+    } catch (e) {
+      log('Error extracting specs: ' + e?.message, 'warn');
+    }
+    
+    return specs;
+  }
+
   function extractListingData() {
     // Scope DOM queries to main content to avoid capturing global header/navigation.
     const main = document.querySelector('[role="main"]') || document.body;
@@ -768,7 +1010,26 @@
     const brand = details.Brand || null;
     const model = details.Model || null;
 
+    // NEW: Extract full description and specs for AI-powered search term generation
+    const fullDescription = extractFullDescription();
+    const extractedSpecs = extractSpecsFromDescription(fullDescription);
+    const imageUrls = extractImageUrls();
+    
+    // Merge extracted specs with marketplace details (prefer marketplace if available)
+    const mergedSpecs = {
+      ...extractedSpecs,
+      ...(brand && { brand }),
+      ...(model && { model }),
+      ...(condition && { condition }),
+    };
+
     log(`Title extracted from ${titleSource}: "${title.substring(0, 50)}..."`);
+    if (fullDescription) {
+      log(`Description length: ${fullDescription.length} chars`);
+    }
+    if (Object.keys(extractedSpecs).length > 0) {
+      log(`Extracted specs: ${JSON.stringify(extractedSpecs)}`);
+    }
 
     return {
       title,
@@ -779,6 +1040,10 @@
       brand,
       model,
       attributes: details,
+      // NEW: Enhanced data for AI-powered search
+      fullDescription,
+      extractedSpecs: mergedSpecs,
+      imageUrls,
       _titleSource: titleSource // For debugging
     };
   }

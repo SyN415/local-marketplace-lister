@@ -85,9 +85,18 @@ export async function getPriceIntelligence(query, userToken, item) {
       if (item.brand) params.set('brand', String(item.brand));
       if (item.model) params.set('model', String(item.model));
       if (typeof item.price === 'number' && !Number.isNaN(item.price)) params.set('currentPrice', String(item.price));
-      if (item.attributes && typeof item.attributes === 'object') {
+      
+      // ENHANCED: Merge marketplace attributes with extracted specs from description
+      // extractedSpecs contains hardware specs parsed from description text (GPU, CPU, RAM, etc.)
+      // attributes contains Facebook marketplace detail fields (Condition, Brand, etc.)
+      const combinedSpecs = {
+        ...(item.extractedSpecs || {}),  // Specs extracted from description text
+        ...(item.attributes || {})        // Facebook marketplace detail fields (take precedence)
+      };
+      
+      if (Object.keys(combinedSpecs).length > 0) {
         try {
-          params.set('specs', JSON.stringify(item.attributes));
+          params.set('specs', JSON.stringify(combinedSpecs));
         } catch {
           // ignore
         }
