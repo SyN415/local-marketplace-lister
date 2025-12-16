@@ -101,8 +101,17 @@
     return window.location.href.includes('/marketplace/item/');
   }
 
+  function isMarketplaceContext() {
+    // Prevent running expensive scanners on non-marketplace facebook pages.
+    return window.location.pathname.includes('/marketplace');
+  }
+
   // Active Search Scanner
   function initSearchScanner() {
+    if (!isMarketplaceContext()) {
+      log('Not on /marketplace; scanner disabled');
+      return;
+    }
     if (!isExtensionContextValid()) return;
 
     const hydrateWatchlists = () => {
@@ -182,6 +191,11 @@
       ? root.querySelectorAll('a[href*="/marketplace/item/"]')
       : [];
 
+    // Prevent unbounded growth (memory pressure)
+    if (processedMarketplaceCardKeys.size > 2000) {
+      processedMarketplaceCardKeys.clear();
+    }
+
     anchors.forEach((link) => {
       const href = link?.href;
       if (!href) return;
@@ -198,16 +212,21 @@
     // Navigate up to find the container card
     let container = link;
     for (let i = 0; i < 5; i++) {
-      if (container.parentElement && container.parentElement.innerText && container.parentElement.innerText.length > 50) {
+      const parentText = container.parentElement?.textContent || '';
+      if (container.parentElement && parentText.length > 50) {
         container = container.parentElement;
       } else {
         break;
       }
     }
 
-    const text = (container.innerText || '').toLowerCase();
-    const titleElement = container.querySelector('span[style*="-webkit-line-clamp"]');
-    const title = (titleElement ? titleElement.innerText : text).toLowerCase();
+    // Use textContent (cheaper than innerText, avoids layout) and cap length
+    const raw = (container.textContent || '').slice(0, 600);
+    const text = raw.toLowerCase();
+
+    const titleElement = container.querySelector('span[style*="-webkit-line-clamp"], [data-testid="marketplace_pdp_title"]');
+    const titleText = (titleElement?.textContent || '').trim();
+    const title = (titleText || text).toLowerCase();
     const priceMatch = text.match(/\$[\d,]+/);
     const price = priceMatch ? parsePrice(priceMatch[0]) : null;
 
@@ -497,26 +516,49 @@
   }
 
   function extractListingData() {
-    // Facebook uses dynamic classes, so we rely on semantic structure
-    // Title is usually in the first h1 or specific span with role
-    const titleEl = document.querySelector('h1') || 
-                    document.querySelector('[data-testid="marketplace_pdp_title"]') ||
-                    document.querySelector('span[dir="auto"]');
+    // Prefer OG meta title (stable) over DOM, because FB often has a global "Marketplace" h1.
+    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+
+    // Scope DOM queries to main content to avoid capturing global header/navigation.
+    const main = document.querySelector('[role="main"]') || document.body;
+
+    // Candidate title elements inside main.
+    const candidates = Array.from(
+      main.querySelectorAll('h1, h2, [data-testid="marketplace_pdp_title"], span[dir="auto"]')
+    )
+      .map((el) => ({
+        el,
+        text: (el.textContent || '').trim()
+      }))
+      .filter((c) => c.text.length >= 3)
+      .filter((c) => c.text.toLowerCase() !== 'marketplace')
+      .slice(0, 50);
+
+    // Choose the best candidate by heuristic: longer and not generic.
+    const best = candidates.sort((a, b) => b.text.length - a.text.length)[0];
+
+    const titleText = (
+      ogTitle && ogTitle.trim().length >= 3 && ogTitle.trim().toLowerCase() !== 'marketplace'
+        ? ogTitle.trim()
+        : best?.text
+    );
+
+    const titleEl = best?.el || null;
     
     // Price - look for currency patterns
     // This is tricky on FB, often just text like "$123"
     // We look for a span containing $ nearby the title or in main column
     const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]') ||
-                    findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement.parentElement : document.body);
-    
-    if (!titleEl) {
+                    findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement?.parentElement || main : main);
+
+    if (!titleText) {
       return null;
     }
 
-    const title = titleEl.textContent.trim();
+    const title = titleText;
     
     // Skip if title is too generic or short
-    if (title.length < 3) {
+    if (title.length < 3 || title.toLowerCase() === 'marketplace') {
       return null;
     }
 
@@ -1080,8 +1122,9 @@
   }
 
   // Handle SPA navigation (Facebook is React-based)
+  // Avoid MutationObserver on entire document (high-frequency, can cause lag/freezes).
   let lastUrl = location.href;
-  new MutationObserver(() => {
+  setInterval(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
 
@@ -1105,6 +1148,6 @@
       observerActive = false;
       init();
     }
-  }).observe(document, { subtree: true, childList: true });
+  }, 1000);
 
 })();
