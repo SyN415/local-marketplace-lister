@@ -14,9 +14,15 @@
   // Keep references so we can disconnect on SPA navigation
   let listingObserver = null;
   let listingObserverTimeout = null;
+  let listingPollTimeout = null;
   let scannerObserver = null;
   let quickReplyObserver = null;
   let messageListenerRegistered = false;
+
+  // Throttle expensive extraction on FB's high-frequency DOM mutations
+  let listingExtractDebounce = null;
+  let lastListingExtractAt = 0;
+  const LISTING_EXTRACT_COOLDOWN_MS = 600;
 
   // Avoid duplicate work + reduce DOM churn
   const processedMarketplaceCardKeys = new Set();
@@ -104,6 +110,45 @@
   function isMarketplaceContext() {
     // Prevent running expensive scanners on non-marketplace facebook pages.
     return window.location.pathname.includes('/marketplace');
+  }
+
+  function sanitizeTitle(raw) {
+    if (!raw) return '';
+    let t = String(raw).trim();
+
+    // Remove common FB boilerplate
+    t = t.replace(/^marketplace\s*-\s*/i, '');
+    t = t.replace(/^facebook\s*marketplace\s*-\s*/i, '');
+
+    // Normalize whitespace and smart quotes
+    t = t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+    t = t.replace(/\s+/g, ' ').trim();
+
+    // De-noise common "call to action" junk
+    t = t.replace(/\bread description\b/gi, '').replace(/\s+/g, ' ').trim();
+    return t;
+  }
+
+  function isLikelyBadTitle(title) {
+    const t = (title || '').trim().toLowerCase();
+    return !t || t === 'marketplace' || t === 'facebook marketplace';
+  }
+
+  function getMetaContent(prop) {
+    return document.querySelector(`meta[property="${prop}"]`)?.getAttribute('content') || null;
+  }
+
+  function extractPriceFromMeta() {
+    // Sometimes available on product-like pages
+    const p = getMetaContent('product:price:amount') || getMetaContent('og:price:amount');
+    const n = p ? Number(p) : NaN;
+    if (Number.isFinite(n)) return n;
+
+    // Fall back to parsing og:description for a $ price
+    const desc = getMetaContent('og:description') || '';
+    const m = desc.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+    if (!m) return null;
+    return parsePrice(m[0]);
   }
 
   // Active Search Scanner
@@ -255,6 +300,24 @@
 
   function handleWatchlistCheck(watchlist) {
     log('Received watchlist check request for:', watchlist.keywords);
+
+    // Avoid heavy scanning when the user is on a single listing page.
+    if (isMarketplaceListingPage()) {
+      log('On listing page; skipping watchlist scan');
+      return;
+    }
+
+    if (!isMarketplaceContext()) {
+      log('Not in marketplace context; skipping watchlist scan');
+      return;
+    }
+
+    // Prefer incremental scanner path (avoids costly innerText scanning)
+    if (watchlist && watchlist.isActive && (watchlist.platforms || []).includes('facebook')) {
+      activeWatchlists = [watchlist];
+      processMarketplaceLinks(document);
+      return;
+    }
     
     // Scan the current page for matches
     const matches = scanForMatches(watchlist);
@@ -362,9 +425,10 @@
     element.appendChild(badge);
 
     // Notify HUD
-    const priceText = element.innerText.match(/\$[\d,]+/);
+    const text = (element.textContent || '').slice(0, 800);
+    const priceText = text.match(/\$[\d,]+/);
     const titleElement = element.querySelector('span[style*="-webkit-line-clamp"]');
-    const title = titleElement ? titleElement.innerText : 'Unknown Item';
+    const title = titleElement ? (titleElement.textContent || '').trim() : 'Unknown Item';
 
     // Best-effort enrich for Profit Analyzer (async)
     const baseMatch = {
@@ -422,7 +486,7 @@
     
     observerActive = true;
     
-    // Use MutationObserver to detect when listing data is loaded
+    // Prefer polling for listing data over a broad MutationObserver (FB can mutate constantly).
     if (listingObserver) {
       try { listingObserver.disconnect(); } catch {}
       listingObserver = null;
@@ -431,38 +495,45 @@
       clearTimeout(listingObserverTimeout);
       listingObserverTimeout = null;
     }
-
-    listingObserver = new MutationObserver((mutations, obs) => {
-      const listingData = extractListingData();
-      
-      if (listingData && listingData.title) {
-        log('Listing data found:', listingData.title);
-        obs.disconnect();
-        observerActive = false;
-        currentListingData = listingData;
-        requestPriceIntelligence(listingData);
-      }
-    });
-
-    listingObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    // Also try immediately
-    const listingData = extractListingData();
-    if (listingData && listingData.title) {
-      log('Listing data found immediately:', listingData.title);
-      listingObserver.disconnect();
-      observerActive = false;
-      currentListingData = listingData;
-      requestPriceIntelligence(listingData);
+    if (listingPollTimeout) {
+      clearTimeout(listingPollTimeout);
+      listingPollTimeout = null;
     }
+
+    const startedAt = Date.now();
+    const poll = () => {
+      // Throttle extraction to prevent UI freezes
+      const now = Date.now();
+      if (now - startedAt > 12_000) {
+        observerActive = false;
+        log('Timed out waiting for listing data', 'warn');
+        return;
+      }
+
+      if (now - lastListingExtractAt >= LISTING_EXTRACT_COOLDOWN_MS) {
+        lastListingExtractAt = now;
+        const listingData = extractListingData();
+        if (listingData && listingData.title && !isLikelyBadTitle(listingData.title)) {
+          log('Listing data found:', listingData.title);
+          observerActive = false;
+          currentListingData = listingData;
+          requestPriceIntelligence(listingData);
+          return;
+        }
+      }
+
+      listingPollTimeout = setTimeout(poll, 400);
+    };
+
+    poll();
     
     // Timeout after 10 seconds
     listingObserverTimeout = setTimeout(() => {
       if (observerActive) {
-        try { listingObserver && listingObserver.disconnect(); } catch {}
+        if (listingPollTimeout) {
+          clearTimeout(listingPollTimeout);
+          listingPollTimeout = null;
+        }
         observerActive = false;
         log('Timed out waiting for listing data', 'warn');
       }
@@ -485,13 +556,23 @@
     ]);
 
     try {
+      const main = document.querySelector('[role="main"]') || document.body;
+
+      // Try to scope to the details panel area to avoid scanning the whole document.
+      let detailsRoot = main;
+      const detailsHeading = Array.from(main.querySelectorAll('span, div'))
+        .find((el) => (el.textContent || '').trim().toLowerCase() === 'details');
+      if (detailsHeading) {
+        detailsRoot = detailsHeading.closest('div') || main;
+      }
+
       // Best-effort heuristic: find rows that contain a known key and a value
-      const candidates = Array.from(document.querySelectorAll('span, div'))
+      const candidates = Array.from(detailsRoot.querySelectorAll('span, div'))
         .filter((el) => {
           const t = (el.textContent || '').trim();
           return t && keys.has(t);
         })
-        .slice(0, 50);
+        .slice(0, 40);
 
       candidates.forEach((labelEl) => {
         const label = (labelEl.textContent || '').trim();
@@ -517,7 +598,8 @@
 
   function extractListingData() {
     // Prefer OG meta title (stable) over DOM, because FB often has a global "Marketplace" h1.
-    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    const ogTitleRaw = getMetaContent('og:title');
+    const ogTitle = sanitizeTitle(ogTitleRaw);
 
     // Scope DOM queries to main content to avoid capturing global header/navigation.
     const main = document.querySelector('[role="main"]') || document.body;
@@ -537,10 +619,11 @@
     // Choose the best candidate by heuristic: longer and not generic.
     const best = candidates.sort((a, b) => b.text.length - a.text.length)[0];
 
+    const bestText = sanitizeTitle(best?.text);
     const titleText = (
-      ogTitle && ogTitle.trim().length >= 3 && ogTitle.trim().toLowerCase() !== 'marketplace'
-        ? ogTitle.trim()
-        : best?.text
+      ogTitle && ogTitle.trim().length >= 3 && !isLikelyBadTitle(ogTitle)
+        ? ogTitle
+        : bestText
     );
 
     const titleEl = best?.el || null;
@@ -548,6 +631,7 @@
     // Price - look for currency patterns
     // This is tricky on FB, often just text like "$123"
     // We look for a span containing $ nearby the title or in main column
+    const metaPrice = extractPriceFromMeta();
     const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]') ||
                     findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement?.parentElement || main : main);
 
@@ -555,7 +639,7 @@
       return null;
     }
 
-    const title = titleText;
+    const title = sanitizeTitle(titleText);
     
     // Skip if title is too generic or short
     if (title.length < 3 || title.toLowerCase() === 'marketplace') {
@@ -569,7 +653,7 @@
 
     return {
       title,
-      price: priceEl ? parsePrice(priceEl.textContent) : null,
+      price: Number.isFinite(metaPrice) ? metaPrice : (priceEl ? parsePrice(priceEl.textContent) : null),
       url: window.location.href,
       platform: 'facebook',
       condition,
@@ -580,6 +664,9 @@
   }
 
   function findElementByContent(regex, root = document.body) {
+    // Guard against scanning huge DOMs (can freeze FB)
+    const maxNodes = 600;
+    let seen = 0;
     const walker = document.createTreeWalker(
       root,
       NodeFilter.SHOW_TEXT,
@@ -588,6 +675,8 @@
     );
 
     while (walker.nextNode()) {
+      seen++;
+      if (seen > maxNodes) return null;
       if (regex.test(walker.currentNode.textContent.trim())) {
         return walker.currentNode.parentElement;
       }
@@ -1038,7 +1127,12 @@
       quickReplyObserver = null;
     }
 
+    let lastQuickReplyAt = 0;
     quickReplyObserver = new MutationObserver(() => {
+        const now = Date.now();
+        if (now - lastQuickReplyAt < 700) return;
+        lastQuickReplyAt = now;
+
         // Find the message input area
         const messageBox = document.querySelector('[aria-label="Message"]') ||
                            document.querySelector('textarea[placeholder*="Message"]');
@@ -1090,6 +1184,9 @@
         if (messageBox.parentElement) {
           messageBox.parentElement.insertBefore(chipContainer, messageBox);
         }
+
+        // Once injected, we can stop observing to reduce overhead.
+        try { quickReplyObserver && quickReplyObserver.disconnect(); } catch {}
     });
 
     quickReplyObserver.observe(document.body, {
