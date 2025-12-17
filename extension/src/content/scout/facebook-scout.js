@@ -116,6 +116,28 @@
     return window.location.pathname.includes('/marketplace');
   }
 
+  function getListingRoot() {
+    // FB often renders listing details inside a modal/dialog which is NOT inside [role="main"].
+    // Prefer the closest container around marketplace_pdp nodes when present.
+    try {
+      const pdp = document.querySelector('[data-testid="marketplace_pdp_title"], [data-testid="marketplace_pdp_price"]');
+      if (pdp) {
+        return (
+          pdp.closest('[role="dialog"]') ||
+          pdp.closest('[role="main"]') ||
+          document.querySelector('[role="dialog"]') ||
+          document.querySelector('[role="main"]') ||
+          document.body
+        );
+      }
+
+      // Fallback: prefer dialog if we are on an item URL.
+      return document.querySelector('[role="dialog"]') || document.querySelector('[role="main"]') || document.body;
+    } catch {
+      return document.body;
+    }
+  }
+
   function sanitizeTitle(raw) {
     if (!raw) return '';
     let t = String(raw).trim();
@@ -324,9 +346,9 @@
     return false;
   }
 
-  function findTitleNearPrice(main) {
+  function findTitleNearPrice(root) {
     try {
-      const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
+      const priceEl = root?.querySelector?.('[data-testid="marketplace_pdp_price"]') || document.querySelector('[data-testid="marketplace_pdp_price"]');
       if (!priceEl) return '';
 
       // Walk up a few levels and search for title-like nodes within the same card/column
@@ -336,7 +358,7 @@
       }
 
       const candidates = Array.from(
-        root.querySelectorAll('h1, h2, [role="heading"], [data-testid="marketplace_pdp_title"], span[dir="auto"], div[dir="auto"]')
+        (root || document.body).querySelectorAll('h1, h2, [role="heading"], [data-testid="marketplace_pdp_title"], span[dir="auto"], div[dir="auto"]')
       )
         .map((el) => ({ el, text: sanitizeTitle(el.textContent || '') }))
         .filter((c) => c.text && c.text.length >= 3 && c.text.length <= 120)
@@ -373,9 +395,21 @@
     // Lightweight readiness gate so we don't time out while FB is still mounting.
     // We consider page ready if we can see a price OR the pdp title element.
     try {
-      const hasPrice = !!document.querySelector('[data-testid="marketplace_pdp_price"]');
-      const hasTitle = !!(main && main.querySelector('[data-testid="marketplace_pdp_title"]'));
-      return hasPrice || hasTitle;
+      const root = main || getListingRoot();
+      const hasPrice = !!(root && root.querySelector && root.querySelector('[data-testid="marketplace_pdp_price"]'));
+      const hasTitle = !!(root && root.querySelector && root.querySelector('[data-testid="marketplace_pdp_title"]'));
+      if (hasPrice || hasTitle) return true;
+
+      // Last-resort heuristic: look for a currency-like text node (bounded scan)
+      const walker = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT);
+      let seen = 0;
+      while (walker.nextNode()) {
+        const txt = (walker.currentNode.textContent || '').trim();
+        if (!txt) continue;
+        if (++seen > 250) break;
+        if (/^\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?$/.test(txt)) return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -1045,8 +1079,8 @@
   }
 
   function extractListingData() {
-    // Scope DOM queries to main content to avoid capturing global header/navigation.
-    const main = document.querySelector('[role="main"]') || document.body;
+    // Prefer a listing-specific root. FB listing pages are frequently rendered in a dialog/modal.
+    const main = getListingRoot();
 
     // FIX: Prioritize DOM-extracted title over og:title because Facebook's React app
     // updates the DOM more reliably during SPA navigation than the og:title meta tag.
