@@ -369,6 +369,18 @@
     }
   }
 
+  function isListingPageReady(main) {
+    // Lightweight readiness gate so we don't time out while FB is still mounting.
+    // We consider page ready if we can see a price OR the pdp title element.
+    try {
+      const hasPrice = !!document.querySelector('[data-testid="marketplace_pdp_price"]');
+      const hasTitle = !!(main && main.querySelector('[data-testid="marketplace_pdp_title"]'));
+      return hasPrice || hasTitle;
+    } catch {
+      return false;
+    }
+  }
+
   function getMetaContent(prop) {
     return document.querySelector(`meta[property="${prop}"]`)?.getAttribute('content') || null;
   }
@@ -757,6 +769,12 @@
         return;
       }
 
+      // Wait until FB has mounted the key listing nodes before attempting extraction.
+      if (!isListingPageReady(document.querySelector('[role="main"]') || document.body)) {
+        listingPollTimeout = setTimeout(poll, 400);
+        return;
+      }
+
       if (now - lastListingExtractAt >= LISTING_EXTRACT_COOLDOWN_MS) {
         lastListingExtractAt = now;
         const listingData = extractListingData();
@@ -793,7 +811,7 @@
 
     poll();
     
-    // Timeout after 10 seconds
+    // Timeout after 12 seconds (FB can be slow to mount listing panel)
     listingObserverTimeout = setTimeout(() => {
       if (observerActive) {
         if (listingPollTimeout) {
@@ -803,7 +821,7 @@
         observerActive = false;
         log('Timed out waiting for listing data', 'warn');
       }
-    }, 10000);
+    }, 12000);
   }
 
   // Helper to extract listing ID from Facebook Marketplace URL
@@ -1081,7 +1099,8 @@
     // FB often keeps og:title/og:url from the previous listing during SPA navigation.
     const currentListingId = extractListingIdFromUrl(window.location.href);
     const ogUrl = getMetaContent('og:url') || '';
-    const ogUrlMatchesCurrent = currentListingId ? ogUrl.includes(currentListingId) : true;
+    // IMPORTANT: og:url is sometimes missing/late-loading. Treat missing og:url as "unknown" (allow fallback).
+    const ogUrlMatchesCurrent = !currentListingId ? true : (!ogUrl ? true : ogUrl.includes(currentListingId));
 
     // Priority order for title extraction:
     // 1. marketplace_pdp_title (most reliable React-controlled element)
