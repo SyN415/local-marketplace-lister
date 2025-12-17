@@ -315,7 +315,58 @@
 
   function isLikelyBadTitle(title) {
     const t = (title || '').trim().toLowerCase();
-    return !t || t === 'marketplace' || t === 'facebook marketplace';
+    if (!t) return true;
+    if (t === 'marketplace' || t === 'facebook marketplace') return true;
+    // FB feed headers / UI labels that sometimes get picked up as "title"
+    if (t === "today's picks" || t.includes("today's picks")) return true;
+    if (t.includes('top picks')) return true;
+    if (t.includes('browse all')) return true;
+    return false;
+  }
+
+  function findTitleNearPrice(main) {
+    try {
+      const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
+      if (!priceEl) return '';
+
+      // Walk up a few levels and search for title-like nodes within the same card/column
+      let root = priceEl;
+      for (let i = 0; i < 6 && root?.parentElement; i++) {
+        root = root.parentElement;
+      }
+
+      const candidates = Array.from(
+        root.querySelectorAll('h1, h2, [role="heading"], [data-testid="marketplace_pdp_title"], span[dir="auto"], div[dir="auto"]')
+      )
+        .map((el) => ({ el, text: sanitizeTitle(el.textContent || '') }))
+        .filter((c) => c.text && c.text.length >= 3 && c.text.length <= 120)
+        .filter((c) => !isLikelyBadTitle(c.text))
+        .filter((c) => !/^\$\s*\d/.test(c.text));
+
+      if (!candidates.length) return '';
+
+      // Prefer elements before the price element in DOM order
+      const beforePrice = candidates.filter((c) => {
+        try {
+          return !!(c.el.compareDocumentPosition(priceEl) & Node.DOCUMENT_POSITION_FOLLOWING);
+        } catch {
+          return false;
+        }
+      });
+
+      const pool = beforePrice.length ? beforePrice : candidates;
+      const score = (c) => {
+        const tag = (c.el?.tagName || '').toLowerCase();
+        const len = c.text.length;
+        const headingBoost = tag === 'h1' ? 30 : tag === 'h2' ? 20 : 10;
+        const lenBoost = (len >= 5 && len <= 80) ? 20 : (len <= 120 ? 5 : -10);
+        return headingBoost + lenBoost + Math.min(len, 120) / 3;
+      };
+      pool.sort((a, b) => score(b) - score(a));
+      return pool[0]?.text || '';
+    } catch {
+      return '';
+    }
   }
 
   function getMetaContent(prop) {
@@ -905,43 +956,72 @@
   // NEW: Extract structured specs from description text
   function extractSpecsFromDescription(description) {
     const specs = {};
+
+    const isValidSpecValue = (v) => {
+      const s = String(v || '').trim();
+      if (!s) return false;
+      if (s.length < 2) return false;
+      // Reject emojis / decorative junk / punctuation-only
+      if (/^[^a-z0-9]+$/i.test(s)) return false;
+      // Reject extreme lengths
+      if (s.length > 80) return false;
+      return true;
+    };
+
+    const extractGpuModelToken = (text) => {
+      const s = String(text || '');
+      const m = s.match(/\b(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?\b/i);
+      return m ? m[0].toUpperCase().replace(/\s+/g, ' ') : '';
+    };
+
+    const extractCpuModelToken = (text) => {
+      const s = String(text || '');
+      const m = s.match(/\b(?:i[3579]-?\d{4,5}[a-z]*|ryzen\s*\d+\s*\d{4}[a-z]*)\b/i);
+      return m ? m[0].toUpperCase().replace(/\s+/g, ' ') : '';
+    };
     
     try {
-      // CPU patterns
-      const cpuMatch = description.match(/(?:cpu|processor)[:\s]*([^\n•,]+)/i) ||
-                       description.match(/((?:intel|amd)\s+(?:core|ryzen)[^,\n•]+)/i) ||
-                       description.match(/(ryzen\s+\d+\s+\d+)/i) ||
-                       description.match(/(i[357]-\d{4,5}[a-z]*)/i);
-      if (cpuMatch) specs.cpu = cpuMatch[1].trim().slice(0, 50);
+      // CPU patterns (reduce to model token only)
+      const cpuRaw = (description.match(/(?:cpu|processor)[:\s]*([^\n•,]+)/i)?.[1]) ||
+                     (description.match(/\b(i[3579]-?\d{4,5}[a-z]*)\b/i)?.[1]) ||
+                     (description.match(/\b(ryzen\s*\d+\s*\d{4}[a-z]*)\b/i)?.[1]) ||
+                     '';
+      const cpuTok = extractCpuModelToken(cpuRaw);
+      if (cpuTok) specs.cpu = cpuTok;
       
-      // GPU patterns
-      const gpuMatch = description.match(/(?:gpu|graphics)[:\s]*([^\n•,]+)/i) ||
-                       description.match(/((?:nvidia|geforce|rtx|gtx)\s+[^\n•,]+)/i) ||
-                       description.match(/((?:amd|radeon)\s+(?:rx|vega)[^\n•,]+)/i);
-      if (gpuMatch) specs.gpu = gpuMatch[1].trim().slice(0, 50);
+      // GPU patterns (reduce to model token only)
+      const gpuRaw = (description.match(/(?:gpu|graphics)[:\s]*([^\n•,]+)/i)?.[1]) ||
+                     (description.match(/\b((?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?)\b/i)?.[1]) ||
+                     '';
+      const gpuTok = extractGpuModelToken(gpuRaw);
+      if (gpuTok) specs.gpu = gpuTok;
       
       // RAM patterns
-      const ramMatch = description.match(/(?:ram|memory)[:\s]*([^\n•,]+)/i) ||
-                       description.match(/(\d+\s*gb\s*(?:ddr\d)?[^,\n•]*(?:memory|ram)?)/i);
-      if (ramMatch) specs.ram = ramMatch[1].trim().slice(0, 40);
+      const ramRaw = (description.match(/(?:ram|memory)[:\s]*([^\n•,]+)/i)?.[1]) ||
+                     (description.match(/\b(\d+\s*gb)\b/i)?.[1]) ||
+                     '';
+      const ramTok = ramRaw.match(/\b\d+\s*gb\b/i)?.[0] || '';
+      if (ramTok) specs.ram = ramTok.toUpperCase();
       
       // Storage patterns
-      const storageMatch = description.match(/(?:storage|ssd|hdd)[:\s]*([^\n•,]+)/i) ||
-                           description.match(/(\d+\s*(?:gb|tb)\s*(?:ssd|hdd|nvme|m\.2)[^\n•,]*)/i);
-      if (storageMatch) specs.storage = storageMatch[1].trim().slice(0, 40);
-      
-      // Motherboard patterns
-      const moboMatch = description.match(/(?:motherboard|mobo)[:\s]*([^\n•,]+)/i) ||
-                        description.match(/((?:asus|msi|gigabyte|asrock|aorus)\s+[^\n•,]+(?:motherboard)?)/i);
-      if (moboMatch) specs.motherboard = moboMatch[1].trim().slice(0, 50);
+      const storageRaw = (description.match(/(?:storage|ssd|hdd)[:\s]*([^\n•,]+)/i)?.[1]) ||
+                         (description.match(/\b(\d+\s*(?:gb|tb)\s*(?:ssd|hdd|nvme|m\.2))\b/i)?.[1]) ||
+                         '';
+      const storageTok = storageRaw.match(/\b\d+\s*(?:gb|tb)\b/i)?.[0] || '';
+      if (storageTok) specs.storage = storageTok.toUpperCase();
       
       // Screen size for monitors/TVs
-      const screenMatch = description.match(/(\d{2,3}[\s"'′″inch]*(?:\s*(?:inch|"|4k|1080p|1440p|qhd|uhd))?)/i);
-      if (screenMatch) specs.screenSize = screenMatch[1].trim();
+      const screenMatch = description.match(/\b(\d{2,3})\s*(?:"|″|in\b|inch\b)/i);
+      if (screenMatch) specs.screenSize = `${screenMatch[1]}"`;
       
     } catch (e) {
       log('Error extracting specs: ' + e?.message, 'warn');
     }
+
+    // Validate final values
+    Object.keys(specs).forEach((k) => {
+      if (!isValidSpecValue(specs[k])) delete specs[k];
+    });
     
     return specs;
   }
@@ -957,6 +1037,10 @@
     // First, try the most reliable selector: marketplace_pdp_title (if available)
     const pdpTitle = main.querySelector('[data-testid="marketplace_pdp_title"]');
     const pdpTitleText = pdpTitle ? sanitizeTitle(pdpTitle.textContent) : '';
+
+    // Second, try to derive title from the same DOM region as the price
+    // (prevents feed headers like "Today's picks" from being used)
+    const nearPriceTitle = sanitizeTitle(findTitleNearPrice(main));
     
     // Also look for title in document.title (Facebook updates on navigation, but can be noisy)
     const docTitle = sanitizeTitle(document.title);
@@ -1001,15 +1085,19 @@
 
     // Priority order for title extraction:
     // 1. marketplace_pdp_title (most reliable React-controlled element)
-    // 2. document.title (browser title, updated by React router)
-    // 3. Best DOM candidate (h1/h2/span heuristic)
-    // 4. og:title (can be stale, use as fallback only)
+    // 2. Title near price (same card/column)
+    // 3. Best DOM candidate (heading heuristic)
+    // 4. document.title (guarded by og:url match)
+    // 5. og:title (guarded by og:url match)
     let titleText = '';
     let titleSource = '';
     
     if (pdpTitleText && pdpTitleText.length >= 3 && !isLikelyBadTitle(pdpTitleText)) {
       titleText = pdpTitleText;
       titleSource = 'pdp_title';
+    } else if (nearPriceTitle && nearPriceTitle.length >= 3 && !isLikelyBadTitle(nearPriceTitle)) {
+      titleText = nearPriceTitle;
+      titleSource = 'near_price';
     } else if (docTitle && docTitle.length >= 3 && !isLikelyBadTitle(docTitle) && ogUrlMatchesCurrent) {
       titleText = docTitle;
       titleSource = 'document_title';
