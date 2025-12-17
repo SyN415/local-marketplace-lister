@@ -120,9 +120,17 @@
     if (!raw) return '';
     let t = String(raw).trim();
 
+    // Strip common FB/Chromium prefixes like "(1) " from document.title
+    t = t.replace(/^\(\d+\)\s*/i, '');
+
     // Remove common FB boilerplate
-    t = t.replace(/^marketplace\s*-\s*/i, '');
-    t = t.replace(/^facebook\s*marketplace\s*-\s*/i, '');
+    t = t.replace(/^(?:facebook\s*)?marketplace\s*-\s*/i, '');
+    t = t.replace(/^\(\d+\)\s*(?:facebook\s*)?marketplace\s*-\s*/i, '');
+
+    // Remove common suffixes from document.title
+    t = t.replace(/\s*\|\s*facebook\s*$/i, '');
+    t = t.replace(/\s*-\s*chromium\s*$/i, '');
+    t = t.replace(/\s*-\s*google\s*chrome\s*$/i, '');
 
     // Normalize whitespace and smart quotes
     t = t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
@@ -160,6 +168,17 @@
                           /(?:phone|iphone|samsung|console|playstation|xbox|nintendo)/i.test(titleLc);
 
     // For electronics with specs, build query from key specs rather than verbose title
+    const extractGpuModel = (text) => {
+      const s = String(text || '');
+      const m = s.match(/\b(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?\b/i);
+      return m ? m[0] : '';
+    };
+    const extractCpuModel = (text) => {
+      const s = String(text || '');
+      const m = s.match(/\b(?:i[3579]-?\d{4,5}[a-z]*|ryzen\s*\d+\s*\d{4}[a-z]*)\b/i);
+      return m ? m[0] : '';
+    };
+
     if (isComputer && (specs.gpu || specs.cpu)) {
       // Gaming PC: prioritize GPU and CPU specs
       const queryParts = [];
@@ -168,9 +187,9 @@
       const gpuFromTitle = titleLc.match(/(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?/i);
       const cpuFromTitle = titleLc.match(/(?:i[3579]-?\d{4,5}[a-z]*|ryzen\s*\d+\s*\d{4}[a-z]*)/i);
       
-      // Use extracted spec or title match
-      const gpu = specs.gpu || (gpuFromTitle ? gpuFromTitle[0] : '');
-      const cpu = specs.cpu || (cpuFromTitle ? cpuFromTitle[0] : '');
+      // Use extracted model from specs if possible, otherwise title match
+      const gpu = extractGpuModel(specs.gpu) || (gpuFromTitle ? gpuFromTitle[0] : '') || '';
+      const cpu = extractCpuModel(specs.cpu) || (cpuFromTitle ? cpuFromTitle[0] : '') || '';
       
       if (gpu) queryParts.push(cleanSpecValue(gpu));
       if (cpu) queryParts.push(cleanSpecValue(cpu));
@@ -939,12 +958,13 @@
     const pdpTitle = main.querySelector('[data-testid="marketplace_pdp_title"]');
     const pdpTitleText = pdpTitle ? sanitizeTitle(pdpTitle.textContent) : '';
     
-    // Also look for title in document.title (which Facebook updates on navigation)
+    // Also look for title in document.title (Facebook updates on navigation, but can be noisy)
     const docTitle = sanitizeTitle(document.title);
     
-    // Candidate title elements inside main (fallback).
+    // Candidate title elements inside main.
+    // IMPORTANT: avoid broad selectors like span[dir="auto"] (often captures description/other UI text).
     const candidates = Array.from(
-      main.querySelectorAll('h1, h2, [data-testid="marketplace_pdp_title"], span[dir="auto"]')
+      main.querySelectorAll('h1, h2, [role="heading"], [data-testid="marketplace_pdp_title"]')
     )
       .map((el) => ({
         el,
@@ -955,13 +975,29 @@
       .filter((c) => c.text.toLowerCase() !== 'facebook marketplace')
       .slice(0, 50);
 
-    // Choose the best candidate by heuristic: longer and not generic.
-    const best = candidates.sort((a, b) => b.text.length - a.text.length)[0];
+    // Choose the best candidate by heuristic:
+    // - Prefer heading-like elements
+    // - Prefer reasonable title lengths (avoid huge blocks like full descriptions)
+    const scoreCandidate = (c) => {
+      const tag = (c?.el?.tagName || '').toLowerCase();
+      const txt = c?.text || '';
+      const len = txt.length;
+      const isHeadingTag = tag === 'h1' ? 3 : tag === 'h2' ? 2 : 1;
+      const lenScore = (len >= 5 && len <= 120) ? 2 : (len <= 180 ? 1 : -2);
+      return isHeadingTag * 10 + lenScore * 3 + Math.min(len, 120) / 40;
+    };
+    const best = candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a))[0];
     const bestText = sanitizeTitle(best?.text);
     
     // og:title as last resort (can be stale during SPA navigation)
     const ogTitleRaw = getMetaContent('og:title');
     const ogTitle = sanitizeTitle(ogTitleRaw);
+
+    // Staleness guard: if we are falling back to document/meta title, verify og:url matches current listing ID.
+    // FB often keeps og:title/og:url from the previous listing during SPA navigation.
+    const currentListingId = extractListingIdFromUrl(window.location.href);
+    const ogUrl = getMetaContent('og:url') || '';
+    const ogUrlMatchesCurrent = currentListingId ? ogUrl.includes(currentListingId) : true;
 
     // Priority order for title extraction:
     // 1. marketplace_pdp_title (most reliable React-controlled element)
@@ -974,15 +1010,20 @@
     if (pdpTitleText && pdpTitleText.length >= 3 && !isLikelyBadTitle(pdpTitleText)) {
       titleText = pdpTitleText;
       titleSource = 'pdp_title';
-    } else if (docTitle && docTitle.length >= 3 && !isLikelyBadTitle(docTitle)) {
+    } else if (docTitle && docTitle.length >= 3 && !isLikelyBadTitle(docTitle) && ogUrlMatchesCurrent) {
       titleText = docTitle;
       titleSource = 'document_title';
     } else if (bestText && bestText.length >= 3 && !isLikelyBadTitle(bestText)) {
       titleText = bestText;
       titleSource = 'dom_candidate';
-    } else if (ogTitle && ogTitle.length >= 3 && !isLikelyBadTitle(ogTitle)) {
+    } else if (ogTitle && ogTitle.length >= 3 && !isLikelyBadTitle(ogTitle) && ogUrlMatchesCurrent) {
       titleText = ogTitle;
       titleSource = 'og_title';
+    }
+
+    // If we still don't have a title, or meta/doc titles are stale, keep polling.
+    if (!titleText) {
+      return null;
     }
 
     const titleEl = best?.el || pdpTitle || null;
@@ -1078,6 +1119,10 @@
   function requestPriceIntelligence(listingData) {
     const query = buildSearchQuery(listingData);
     log('Requesting price intelligence for:', query);
+
+    // Guard against SPA navigation: ignore late responses for a previous listing.
+    const requestKey = `${(listingData?.url || '').split('?')[0]}::${Date.now()}`;
+    window.__smartScoutActiveRequestKey = requestKey;
     
     // Show loading state
     renderLoadingOverlay(listingData);
@@ -1089,6 +1134,13 @@
       currentPrice: listingData.price,
       item: listingData
     }, (response) => {
+      // Ignore if the user navigated away while the request was in flight.
+      const currentUrl = (window.location.href || '').split('?')[0];
+      const listingUrl = (listingData?.url || '').split('?')[0];
+      if (window.__smartScoutActiveRequestKey !== requestKey || (listingUrl && currentUrl !== listingUrl)) {
+        log('Ignoring stale price intelligence response (navigated away)');
+        return;
+      }
       log('Price intelligence response:', response);
       
       if (response && response.requiresAuth) {
@@ -1637,8 +1689,10 @@
       }
       currentListingData = null;
       observerActive = false;
+      // Invalidate any in-flight request so late responses don't render on the new listing.
+      window.__smartScoutActiveRequestKey = null;
       init();
     }
-  }, 1000);
+  }, 250);
 
 })();
