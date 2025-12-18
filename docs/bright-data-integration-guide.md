@@ -124,6 +124,21 @@ Rollback:
 
 Metrics are tracked in `chrome.storage.local.enrichmentMetrics`.
 
+### Added metrics (2025-12 audit)
+
+The baseline counters remain, and the following were added for better operational visibility:
+
+- `cacheHits`, `staleCacheHits`
+- `throttledByReason` (e.g. `duplicate_request`, `circuit_open`)
+- `averageQueueDelayMs` (queue wait time)
+- `brightDataRetries` (retry attempts emitted by [`BrightDataClient.requestWithRetry()`](../extension/src/background/brightdata-client.js:56))
+- `brightDataErrorsByCode` + `lastError` (bucketed errors)
+
+Implementation:
+- metrics schema: [`DEFAULT_METRICS`](../extension/src/background/enrichment-metrics.js:6)
+- queue delay + throttled reasons: [`EnrichmentWorker.enqueueMatch()`](../extension/src/background/enrichment-worker.js:70)
+- retry counter hook: [`initEnrichmentWorker()`](../extension/src/background/service-worker.js:63)
+
 API:
 - `ENRICHMENT_GET_METRICS`
 - `ENRICHMENT_RESET_METRICS`
@@ -183,6 +198,21 @@ node extension/test/enrichment_smoke_test.js
 ```
 
 File: [`extension/test/enrichment_smoke_test.js`](../extension/test/enrichment_smoke_test.js:1)
+
+### Failure scenario simulation (local)
+
+The enrichment pipeline is designed to degrade gracefully; you can validate key edge cases via unit tests:
+
+- Dedup window prevents extra scrapes
+- Circuit breaker opens after consecutive failures and then throttles
+
+Run:
+
+```bash
+node --test extension/src/background/__tests__/enrichment-worker.test.js
+```
+
+Tests: [`enrichment-worker.test.js`](../extension/src/background/__tests__/enrichment-worker.test.js:1)
 
 ### Manual browser validation checklist
 

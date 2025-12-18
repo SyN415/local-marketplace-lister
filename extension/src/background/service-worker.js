@@ -7,7 +7,7 @@ import { getBackendUrl, getFrontendUrl, config } from '../config.js';
 import { BrightDataClient } from './brightdata-client.js';
 import { EnrichmentWorker } from './enrichment-worker.js';
 import { getEnrichmentFlags, setEnrichmentFlags } from './feature-flags.js';
-import { getMetrics, resetMetrics } from './enrichment-metrics.js';
+import { addBrightDataRetries, getMetrics, resetMetrics } from './enrichment-metrics.js';
 import { clearCachedEnrichmentByPrefix } from './enrichment-cache.js';
 
 // State constants
@@ -96,6 +96,13 @@ async function initEnrichmentWorker() {
       browserPassword: creds.brightDataBrowserPassword,
       proxyPassword: creds.brightDataProxyPassword
     });
+
+    // Observability: count retries in metrics (do not include secrets)
+    brightDataClient.onEvent = (ev) => {
+      if (ev?.type === 'retry') {
+        addBrightDataRetries(1).catch(() => {});
+      }
+    };
 
     enrichmentWorker = new EnrichmentWorker(brightDataClient, {
       maxConcurrentRequests: 5,
@@ -208,12 +215,14 @@ async function addLog(message, level = 'info') {
 
 // Message handler - MUST return true for async responses
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Background received message:', request.action, request);
+  // Avoid logging full request payloads because some actions may carry secrets
+  // (e.g., ENRICHMENT_SET_CREDENTIALS).
+  console.log('Background received message:', request?.action);
   
   // Handle the message asynchronously
   handleMessage(request, sender)
     .then((response) => {
-      console.log('Sending response for', request.action, response);
+      console.log('Sending response for', request?.action);
       sendResponse(response);
     })
     .catch((error) => {

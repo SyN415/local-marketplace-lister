@@ -10,7 +10,15 @@
 
 import { BrightDataClient } from './brightdata-client.js';
 import { getCachedEnrichment, setCachedEnrichment, makeCacheKey } from './enrichment-cache.js';
-import { addBrightDataRequests, inc, recordLatency } from './enrichment-metrics.js';
+import {
+  addBrightDataRequests,
+  inc,
+  incThrottledReason,
+  recordBrightDataError,
+  recordEnrichmentSuccess,
+  recordLatency,
+  recordQueueDelay
+} from './enrichment-metrics.js';
 import { shouldEnrichMatch } from './feature-flags.js';
 
 /**
@@ -84,6 +92,8 @@ export class EnrichmentWorker {
     // 24h cache fast path
     const cached = await getCachedEnrichment(cacheKey);
     if (cached?.value) {
+      // Observability: cache effectiveness
+      await inc(cached.stale ? 'staleCacheHits' : 'cacheHits', 1);
       // Emit immediate update sourced from cache
       this.#emitEnriched(match, cached.value, { cached: true, stale: !!cached.stale });
       return { enqueued: false, reason: cached.stale ? 'stale_cache_hit' : 'cache_hit' };
@@ -92,14 +102,14 @@ export class EnrichmentWorker {
     // Dedup window (60s): skip if recently attempted
     const last = this.dedupe.get(cacheKey);
     if (last && Date.now() - last < this.config.deduplicationWindowMs) {
-      await inc('throttledRequests', 1);
+      await incThrottledReason('duplicate_request', 1);
       this.#emitThrottled(match, 'duplicate_request', this.config.deduplicationWindowMs - (Date.now() - last));
       return { enqueued: false, reason: 'duplicate_request' };
     }
 
     // Circuit breaker
     if (!this.#isCircuitClosed()) {
-      await inc('throttledRequests', 1);
+      await incThrottledReason('circuit_open', 1);
       const retryAfter = Math.max(0, this.config.circuitBreakerResetMs - (Date.now() - this.cb.openedAt));
       this.#emitThrottled(match, 'circuit_open', retryAfter);
       return { enqueued: false, reason: 'circuit_open' };
@@ -158,13 +168,16 @@ export class EnrichmentWorker {
   async #processOne(match, cacheKey, requestedAt) {
     const started = Date.now();
     try {
+      // Time spent waiting since enqueue (includes batching delay + queueing)
+      await recordQueueDelay(Date.now() - (Number(requestedAt) || Date.now()));
+
       const enrichment = await this.#fetchCompetitorPrices(match);
 
       // Cache 24h
       await setCachedEnrichment(cacheKey, enrichment, 24 * 60 * 60 * 1000);
 
       this.#recordSuccess();
-      await inc('successfulEnrichments', 1);
+      await recordEnrichmentSuccess();
       await recordLatency(Date.now() - started);
 
       this.#emitEnriched(match, enrichment, { cached: false, stale: false });
@@ -172,7 +185,9 @@ export class EnrichmentWorker {
       return enrichment;
     } catch (err) {
       this.#recordFailure();
-      await inc('failedEnrichments', 1);
+
+      // Record error bucket (BrightDataError has code/status)
+      await recordBrightDataError(err?.code || 'UNKNOWN', err?.status || null, err?.message || err);
       await recordLatency(Date.now() - started);
 
       this.#emitFailed(match, err);

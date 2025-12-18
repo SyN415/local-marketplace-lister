@@ -35,6 +35,12 @@ export class BrightDataClient {
     this.usage = { count: 0, lastResetMs: Date.now() };
   }
 
+  /**
+   * Optional hook for observability.
+   * @type {(event: {type:'retry'|'request'|'response'|'error', attempt?:number, delayMs?:number, status?:number|null, code?:string, elapsedMs?:number}) => void}
+   */
+  onEvent = null;
+
   getUsageSnapshot() {
     return { ...this.usage };
   }
@@ -53,6 +59,7 @@ export class BrightDataClient {
   async requestWithRetry(request, attempt = 0) {
     const startedAt = Date.now();
     try {
+      this.onEvent?.({ type: 'request', attempt, elapsedMs: 0 });
       const res = await this.#fetchJson(`${API_BASE}/request`, {
         method: 'POST',
         headers: {
@@ -63,6 +70,7 @@ export class BrightDataClient {
       });
 
       this.usage.count += 1;
+      this.onEvent?.({ type: 'response', attempt, elapsedMs: Date.now() - startedAt });
       return res;
     } catch (err) {
       const classified = classifyBrightDataError(err);
@@ -72,6 +80,14 @@ export class BrightDataClient {
 
       if (shouldRetry) {
         const delayMs = this.#calculateBackoffMs(attempt, classified.retryAfterMs);
+        this.onEvent?.({
+          type: 'retry',
+          attempt: attempt + 1,
+          delayMs,
+          status: classified.status,
+          code: classified.code,
+          elapsedMs: Date.now() - startedAt
+        });
         console.warn('[Bright Data] retry', {
           attempt: attempt + 1,
           max: this.config.maxRetries,
@@ -84,6 +100,13 @@ export class BrightDataClient {
         return this.requestWithRetry(request, attempt + 1);
       }
 
+      this.onEvent?.({
+        type: 'error',
+        attempt,
+        status: classified.status,
+        code: classified.code,
+        elapsedMs: Date.now() - startedAt
+      });
       throw Object.assign(new Error(classified.message), {
         name: 'BrightDataError',
         status: classified.status,
