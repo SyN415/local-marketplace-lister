@@ -5,7 +5,7 @@ import { getBackendUrl, config } from '../config.js';
 
 /**
  * Multi-Modal Item Identifier
- * 
+ *
  * This module implements a pipeline that:
  * 1. Extracts listing images and analyzes them via AI (OpenRouter)
  * 2. Parses and structures textual data (title, description, specs)
@@ -14,12 +14,29 @@ import { getBackendUrl, config } from '../config.js';
  */
 
 class MultimodalIdentifier {
-  constructor() {
-    this.aiEndpoint = null;
-    this.authToken = null;
-    this.cache = new Map();
-    this.cacheTimeout = 24 * 60 * 60 * 1000; // 24 hours
-  }
+ constructor() {
+   this.aiEndpoint = null;
+   this.authToken = null;
+   this.cache = new Map();
+   this.cacheTimeout = 24 * 60 * 60 * 1000; // 24 hours
+ }
+
+/**
+ * Get cache key for listing data
+ * Now includes URL and timestamp to prevent cross-listing cache reuse
+ */
+getCacheKey(listingData) {
+  const url = (listingData?.url || '').split('?')[0];
+  const timestamp = Date.now();
+  // Include URL in cache key to ensure different listings don't share cache
+  // Include timestamp to ensure fresh results for each listing visit
+  const parts = [
+    url,
+    timestamp,
+    (listingData.imageUrls || []).slice(0, 2).join(',')
+  ];
+  return parts.join('::').toLowerCase().slice(0, 200);
+ }
 
   /**
    * Initialize the identifier with API configuration

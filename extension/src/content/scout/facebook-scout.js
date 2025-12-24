@@ -1277,7 +1277,8 @@
 
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), timeoutMs);
-        const resp = await fetch(url, { credentials: 'include', signal: controller.signal });
+        // Remove credentials: 'include' to avoid CORS issues with Facebook CDN
+        const resp = await fetch(url, { signal: controller.signal });
         clearTimeout(t);
         if (!resp.ok) return null;
         const blob = await resp.blob();
