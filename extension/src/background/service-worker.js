@@ -2,6 +2,7 @@
 import { getPriceIntelligence, isAuthenticated, clearPriceCache } from './ebay-api.js';
 import { initWatchlistAlarms, handleWatchlistAlarm } from './watchlist-manager.js';
 import { getBackendUrl, getFrontendUrl, config } from '../config.js';
+import { multimodalIdentifier } from './multimodal-identifier.js';
 
 // Bright Data enrichment (decoupled consumer)
 import { BrightDataClient } from './brightdata-client.js';
@@ -375,6 +376,40 @@ async function handleMessage(request, sender) {
         
       case 'CHECK_AUTH':
         return { authenticated: await isAuthenticated() };
+
+      case 'MULTIMODAL_ANALYZE_LISTING': {
+        // Multi-modal item identification for eBay search optimization
+        const listingData = request.listingData;
+        
+        if (!listingData) {
+          return { success: false, error: 'No listing data provided' };
+        }
+
+        try {
+          // Initialize the multimodal identifier if needed
+          await multimodalIdentifier.initialize();
+          
+          // Perform multi-modal analysis
+          const analysis = await multimodalIdentifier.analyzeListing(listingData);
+          
+          return {
+            success: true,
+            query: analysis.query,
+            confidence: analysis.confidence,
+            sources: analysis.sources,
+            fallbackUsed: analysis.fallbackUsed,
+            mergedData: analysis.mergedData
+          };
+        } catch (error) {
+          console.error('[ServiceWorker] Multi-modal analysis failed:', error);
+          // Return failure so content script falls back to traditional query building
+          return {
+            success: false,
+            error: error.message,
+            fallbackRequired: true
+          };
+        }
+      }
 
       case 'SYNC_WATCHLIST': {
         // Frontend calls this after adding/removing items to update local storage

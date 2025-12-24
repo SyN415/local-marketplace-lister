@@ -1258,9 +1258,8 @@
   }
 
   function requestPriceIntelligence(listingData) {
-    const query = buildSearchQuery(listingData);
-    log('Requesting price intelligence for:', query);
-
+    log('Starting multi-modal item identification...');
+    
     // Guard against SPA navigation: ignore late responses for a previous listing.
     const requestKey = `${(listingData?.url || '').split('?')[0]}::${Date.now()}`;
     window.__smartScoutActiveRequestKey = requestKey;
@@ -1268,35 +1267,68 @@
     // Show loading state
     renderLoadingOverlay(listingData);
     
-    // Send to service worker for eBay API lookup
+    // Step 1: Use multi-modal identifier to generate optimized query
     safeSendMessage({
-      action: 'GET_PRICE_INTELLIGENCE',
-      query,
-      currentPrice: listingData.price,
-      item: listingData
-    }, (response) => {
+      action: 'MULTIMODAL_ANALYZE_LISTING',
+      listingData: listingData
+    }, async (analysisResponse) => {
       // Ignore if the user navigated away while the request was in flight.
       const currentUrl = (window.location.href || '').split('?')[0];
       const listingUrl = (listingData?.url || '').split('?')[0];
       if (window.__smartScoutActiveRequestKey !== requestKey || (listingUrl && currentUrl !== listingUrl)) {
-        log('Ignoring stale price intelligence response (navigated away)');
+        log('Ignoring stale analysis response (navigated away)');
         return;
       }
-      log('Price intelligence response:', response);
       
-      if (response && response.requiresAuth) {
-        // User needs to authenticate
-        renderAuthRequiredOverlay(listingData, response.message);
-      } else if (response && response.found) {
-        // Success - render the price comparison
-        renderOverlay(listingData, response);
-      } else if (response && response.error) {
-        // Error occurred
-        renderErrorOverlay(listingData, response.error);
+      log('Multi-modal analysis response:', analysisResponse);
+      
+      // Determine which query to use
+      let query;
+      let querySource;
+      
+      if (analysisResponse && analysisResponse.success && analysisResponse.query) {
+        // Use AI-optimized query from multi-modal analysis
+        query = analysisResponse.query;
+        querySource = analysisResponse.sources?.join('+') || 'multimodal';
+        log(`Using AI-optimized query (${querySource}): "${query}"`);
       } else {
-        // No data found
-        renderNoDataOverlay(listingData);
+        // Fallback to traditional query building
+        query = buildSearchQuery(listingData);
+        querySource = 'fallback_traditional';
+        log(`Using fallback query: "${query}"`);
       }
+      
+      // Step 2: Request price intelligence with the optimized query
+      safeSendMessage({
+        action: 'GET_PRICE_INTELLIGENCE',
+        query,
+        currentPrice: listingData.price,
+        item: listingData,
+        querySource: querySource
+      }, (response) => {
+        // Ignore if the user navigated away while the request was in flight.
+        const currentUrl2 = (window.location.href || '').split('?')[0];
+        const listingUrl2 = (listingData?.url || '').split('?')[0];
+        if (window.__smartScoutActiveRequestKey !== requestKey || (listingUrl2 && currentUrl2 !== listingUrl2)) {
+          log('Ignoring stale price intelligence response (navigated away)');
+          return;
+        }
+        log('Price intelligence response:', response);
+        
+        if (response && response.requiresAuth) {
+          // User needs to authenticate
+          renderAuthRequiredOverlay(listingData, response.message);
+        } else if (response && response.found) {
+          // Success - render the price comparison
+          renderOverlay(listingData, response);
+        } else if (response && response.error) {
+          // Error occurred
+          renderErrorOverlay(listingData, response.error);
+        } else {
+          // No data found
+          renderNoDataOverlay(listingData);
+        }
+      });
     });
   }
 
