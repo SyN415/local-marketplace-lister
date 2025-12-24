@@ -40,8 +40,8 @@ app.use(helmet({
 // CORS configuration
 app.use(cors({
   origin: config.NODE_ENV === 'production'
-    ? [config.FRONTEND_URL, /\.onrender\.com$/]
-    : ['http://localhost:5173', 'http://localhost:3000'],
+    ? [config.FRONTEND_URL, /\.onrender\.com$/, 'chrome-extension://*']
+    : ['http://localhost:5173', 'http://localhost:3000', 'chrome-extension://*'],
   credentials: true,
 }));
 
