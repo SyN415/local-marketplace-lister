@@ -120,18 +120,6 @@ getCacheKey(listingData) {
   }
 
   /**
-   * Get cache key for listing data
-   */
-  getCacheKey(listingData) {
-    const parts = [
-      listingData.title || '',
-      listingData.url || '',
-      (listingData.imageUrls || []).slice(0, 2).join(',')
-    ];
-    return parts.join('::').toLowerCase().slice(0, 200);
-  }
-
-  /**
    * Step 1: Visual Analysis - Analyze images via OpenRouter API
    * @param {Array<string>} imageUrls - Array of image URLs
    * @returns {Promise<Object>} Visual analysis result
