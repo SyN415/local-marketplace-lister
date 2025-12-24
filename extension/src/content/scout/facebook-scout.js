@@ -1267,11 +1267,57 @@
     // Show loading state
     renderLoadingOverlay(listingData);
     
+    // Step 0 (NEW): Best-effort inline image extraction for AI.
+    // FB image URLs (fbcdn/scontent) are often not publicly fetchable by the backend/LLM.
+    // We therefore fetch a couple images in-page and send as data URLs.
+    const fetchImageAsDataUrl = async (url, timeoutMs = 2500) => {
+      try {
+        if (!url || typeof url !== 'string') return null;
+        if (url.startsWith('data:image')) return url;
+
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), timeoutMs);
+        const resp = await fetch(url, { credentials: 'include', signal: controller.signal });
+        clearTimeout(t);
+        if (!resp.ok) return null;
+        const blob = await resp.blob();
+
+        // Cap size to avoid huge payloads to service worker/backend.
+        // 800KB is a practical upper bound for quick analysis.
+        if (blob.size > 800_000) return null;
+
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+        return typeof dataUrl === 'string' ? dataUrl : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const getListingForAnalysis = async () => {
+      const urls = Array.isArray(listingData?.imageUrls) ? listingData.imageUrls : [];
+      const dataUrls = [];
+      for (const u of urls.slice(0, 2)) {
+        const du = await fetchImageAsDataUrl(u);
+        if (du) dataUrls.push(du);
+      }
+      return {
+        ...listingData,
+        imageDataUrls: dataUrls
+      };
+    };
+
     // Step 1: Use multi-modal identifier to generate optimized query
-    safeSendMessage({
-      action: 'MULTIMODAL_ANALYZE_LISTING',
-      listingData: listingData
-    }, async (analysisResponse) => {
+    (async () => {
+      const listingForAnalysis = await getListingForAnalysis();
+      safeSendMessage({
+        action: 'MULTIMODAL_ANALYZE_LISTING',
+        listingData: listingForAnalysis
+      }, async (analysisResponse) => {
       // Ignore if the user navigated away while the request was in flight.
       const currentUrl = (window.location.href || '').split('?')[0];
       const listingUrl = (listingData?.url || '').split('?')[0];
@@ -1329,7 +1375,8 @@
           renderNoDataOverlay(listingData);
         }
       });
-    });
+      });
+    })();
   }
 
   function createOverlayContainer() {

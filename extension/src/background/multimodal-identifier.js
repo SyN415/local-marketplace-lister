@@ -1,7 +1,7 @@
 // Multi-Modal Item Identification Pipeline
 // Combines visual and textual analysis to generate optimized eBay search queries
 
-import { config } from '../config.js';
+import { getBackendUrl, config } from '../config.js';
 
 /**
  * Multi-Modal Item Identifier
@@ -16,7 +16,7 @@ import { config } from '../config.js';
 class MultimodalIdentifier {
   constructor() {
     this.aiEndpoint = null;
-    this.apiKey = null;
+    this.authToken = null;
     this.cache = new Map();
     this.cacheTimeout = 24 * 60 * 60 * 1000; // 24 hours
   }
@@ -26,16 +26,19 @@ class MultimodalIdentifier {
    */
   async initialize() {
     try {
-      const { openRouterApiKey } = await chrome.storage.local.get(['openRouterApiKey']);
-      this.apiKey = openRouterApiKey;
-      
-      if (!this.apiKey) {
-        console.warn('[MultimodalIdentifier] OPENROUTER_API_KEY not configured');
+      // IMPORTANT:
+      // The extension must NOT call OpenRouter directly with an API key.
+      // Instead, it calls the backend AI proxy using the user's auth token.
+      const { authToken } = await chrome.storage.local.get(['authToken']);
+      this.authToken = authToken || null;
+
+      if (!this.authToken) {
+        console.warn('[MultimodalIdentifier] No auth token available; AI analysis disabled');
         return false;
       }
-      
-      const { backendUrl } = await chrome.storage.local.get(['backendUrl']);
-      this.aiEndpoint = `${backendUrl || config.backendUrl}/api/ai/analyze-listing`;
+
+      const backendUrl = await getBackendUrl();
+      this.aiEndpoint = `${backendUrl}/api/ai/analyze-listing`;
       
       console.log('[MultimodalIdentifier] Initialized successfully');
       return true;
@@ -66,7 +69,20 @@ class MultimodalIdentifier {
     console.log('[MultimodalIdentifier] Starting multi-modal analysis');
 
     // Step 1: Extract and analyze images (visual analysis)
-    const visualAnalysis = await this.analyzeImages(listingData.imageUrls || []);
+    // Prefer in-page fetched data URLs when available (FB CDN often blocks backend fetching).
+    const visualInputs = (Array.isArray(listingData.imageDataUrls) && listingData.imageDataUrls.length)
+      ? listingData.imageDataUrls
+      : (listingData.imageUrls || []);
+
+    const visualAnalysis = await this.analyzeImages(
+      visualInputs,
+      {
+        title: listingData.title,
+        description: listingData.fullDescription,
+        attributes: listingData.attributes,
+        extractedSpecs: listingData.extractedSpecs
+      }
+    );
 
     // Step 2: Parse and structure textual data
     const textualAnalysis = this.analyzeText(listingData);
@@ -103,7 +119,7 @@ class MultimodalIdentifier {
    * @param {Array<string>} imageUrls - Array of image URLs
    * @returns {Promise<Object>} Visual analysis result
    */
-  async analyzeImages(imageUrls) {
+  async analyzeImages(imageUrls, context) {
     const result = {
       success: false,
       confidence: 0,
@@ -126,16 +142,21 @@ class MultimodalIdentifier {
     const imagesToAnalyze = imageUrls.slice(0, 3);
 
     try {
-      // Check if AI is configured
-      if (!this.apiKey) {
-        result.error = 'ai_not_configured';
+      // Check if user is authenticated (backend AI routes are protected)
+      if (!this.authToken) {
+        result.error = 'auth_required';
         return result;
       }
 
-      // Prepare request payload
+      // Prepare request payload (include context to improve accuracy)
       const payload = {
         images: imagesToAnalyze,
-        context: 'ebay_search_optimization'
+        context: {
+          title: context?.title,
+          description: context?.description,
+          attributes: context?.attributes,
+          extractedSpecs: context?.extractedSpecs
+        }
       };
 
       // Call backend AI endpoint (which uses OpenRouter)
@@ -143,10 +164,17 @@ class MultimodalIdentifier {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'Authorization': `Bearer ${this.authToken}`
         },
         body: JSON.stringify(payload)
       });
+
+      if (response.status === 401) {
+        // Token expired/invalid; let caller fallback to text-only flow.
+        result.error = 'auth_required';
+        result.confidence = 0;
+        return result;
+      }
 
       if (!response.ok) {
         throw new Error(`AI API returned ${response.status}`);
