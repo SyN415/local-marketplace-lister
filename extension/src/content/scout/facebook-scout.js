@@ -1006,9 +1006,16 @@
   }
 
   // NEW: Extract structured specs from description text
+  // FIXED: Make spec extraction more conservative to avoid false positives from stale descriptions
   function extractSpecsFromDescription(description) {
     const specs = {};
-
+    
+    // Only extract specs if description is substantial and contains spec-like patterns
+    // This prevents extracting specs from short descriptions or unrelated text
+    if (!description || description.length < 50) {
+      return specs; // Return empty for short descriptions
+    }
+    
     const isValidSpecValue = (v) => {
       const s = String(v || '').trim();
       if (!s) return false;
