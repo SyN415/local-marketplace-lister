@@ -381,7 +381,15 @@ async function handleMessage(request, sender) {
         // Multi-modal item identification for eBay search optimization
         const listingData = request.listingData;
         
+        console.log('[ServiceWorker] MULTIMODAL_ANALYZE_LISTING called with listing:', {
+          url: listingData?.url,
+          title: listingData?.title,
+          hasImages: !!(listingData?.imageDataUrls && listingData.imageDataUrls.length),
+          imageCount: listingData?.imageDataUrls?.length || 0
+        });
+        
         if (!listingData) {
+          console.error('[ServiceWorker] No listing data provided');
           return { success: false, error: 'No listing data provided' };
         }
 
@@ -391,6 +399,15 @@ async function handleMessage(request, sender) {
           
           // Perform multi-modal analysis
           const analysis = await multimodalIdentifier.analyzeListing(listingData);
+          
+          console.log('[ServiceWorker] Multimodal analysis result:', {
+            success: true,
+            query: analysis.query,
+            confidence: analysis.confidence,
+            sources: analysis.sources,
+            fallbackUsed: analysis.fallbackUsed,
+            mergedData: analysis.mergedData
+          });
           
           return {
             success: true,

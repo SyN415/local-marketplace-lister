@@ -1334,7 +1334,14 @@
         return;
       }
       
-      log('Multi-modal analysis response:', analysisResponse);
+      log('Multi-modal analysis response:', JSON.stringify(analysisResponse));
+      
+      log('Listing for analysis:', {
+        url: listingForAnalysis?.url,
+        title: listingForAnalysis?.title,
+        hasImageDataUrls: !!(listingForAnalysis?.imageDataUrls && listingForAnalysis.imageDataUrls.length),
+        imageDataUrlCount: listingForAnalysis?.imageDataUrls?.length || 0
+      });
       
       // Determine which query to use
       let query;

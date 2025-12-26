@@ -23,20 +23,20 @@ class MultimodalIdentifier {
 
 /**
  * Get cache key for listing data
- * Now includes URL and timestamp to prevent cross-listing cache reuse
+ * Uses URL and image URLs to identify the listing uniquely
+ * Cache expiration is handled separately via expiresAt timestamp
  */
 getCacheKey(listingData) {
   const url = (listingData?.url || '').split('?')[0];
-  const timestamp = Date.now();
-  // Include URL in cache key to ensure different listings don't share cache
-  // Include timestamp to ensure fresh results for each listing visit
+  // Include URL and image URLs in cache key to ensure different listings don't share cache
+  // Do NOT include timestamp here - that would prevent cache hits
+  // Cache expiration is handled by the expiresAt field in the cache entry
   const parts = [
     url,
-    timestamp,
     (listingData.imageUrls || []).slice(0, 2).join(',')
   ];
   return parts.join('::').toLowerCase().slice(0, 200);
- }
+}
 
   /**
    * Initialize the identifier with API configuration
@@ -74,13 +74,21 @@ getCacheKey(listingData) {
     const startTime = Date.now();
     const cacheKey = this.getCacheKey(listingData);
 
+    console.log('[MultimodalIdentifier] Cache key:', cacheKey);
+    console.log('[MultimodalIdentifier] Listing URL:', listingData?.url);
+    console.log('[MultimodalIdentifier] Listing title:', listingData?.title);
+
     // Check cache first
     if (this.cache.has(cacheKey)) {
       const cached = this.cache.get(cacheKey);
       if (cached.expiresAt > Date.now()) {
         console.log('[MultimodalIdentifier] Using cached analysis');
         return cached.result;
+      } else {
+        console.log('[MultimodalIdentifier] Cache entry expired, re-analyzing');
       }
+    } else {
+      console.log('[MultimodalIdentifier] Cache miss, starting fresh analysis');
     }
 
     console.log('[MultimodalIdentifier] Starting multi-modal analysis');
@@ -136,6 +144,8 @@ getCacheKey(listingData) {
       error: null
     };
 
+    console.log('[MultimodalIdentifier] analyzeImages called with', imageUrls.length, 'images');
+
     // Fallback: No images available
     if (!imageUrls || imageUrls.length === 0) {
       console.warn('[MultimodalIdentifier] No images available for visual analysis');
@@ -145,10 +155,12 @@ getCacheKey(listingData) {
 
     // Use first 3 images (primary + 2 alternates) for analysis
     const imagesToAnalyze = imageUrls.slice(0, 3);
+    console.log('[MultimodalIdentifier] Analyzing', imagesToAnalyze.length, 'images');
 
     try {
       // Check if user is authenticated (backend AI routes are protected)
       if (!this.authToken) {
+        console.warn('[MultimodalIdentifier] No auth token available');
         result.error = 'auth_required';
         return result;
       }
@@ -164,6 +176,13 @@ getCacheKey(listingData) {
         }
       };
 
+      console.log('[MultimodalIdentifier] Sending payload to AI endpoint:', {
+        hasImages: payload.images.length > 0,
+        hasTitle: !!payload.context.title,
+        hasDescription: !!payload.context.description,
+        hasAttributes: !!payload.context.attributes
+      });
+
       // Call backend AI endpoint (which uses OpenRouter)
       const response = await fetch(this.aiEndpoint, {
         method: 'POST',
@@ -174,8 +193,11 @@ getCacheKey(listingData) {
         body: JSON.stringify(payload)
       });
 
+      console.log('[MultimodalIdentifier] AI response status:', response.status);
+
       if (response.status === 401) {
         // Token expired/invalid; let caller fallback to text-only flow.
+        console.warn('[MultimodalIdentifier] Auth failed (401)');
         result.error = 'auth_required';
         result.confidence = 0;
         return result;
@@ -186,6 +208,7 @@ getCacheKey(listingData) {
       }
 
       const data = await response.json();
+      console.log('[MultimodalIdentifier] AI response data:', data);
 
       if (data.success && data.analysis) {
         result.success = true;
@@ -195,7 +218,14 @@ getCacheKey(listingData) {
         result.category = data.analysis.category || null;
         result.keyAttributes = data.analysis.keyAttributes || [];
         result.description = data.analysis.description || null;
+        console.log('[MultimodalIdentifier] Visual analysis successful:', {
+          brand: result.brand,
+          model: result.model,
+          category: result.category,
+          confidence: result.confidence
+        });
       } else {
+        console.warn('[MultimodalIdentifier] AI analysis failed:', data.error);
         result.error = data.error || 'analysis_failed';
       }
 
@@ -517,6 +547,18 @@ getCacheKey(listingData) {
       }
     };
 
+    console.log('[MultimodalIdentifier] mergeAnalyses called with:', {
+      visualSuccess: visualAnalysis.success,
+      visualConfidence: visualAnalysis.confidence,
+      visualBrand: visualAnalysis.brand,
+      visualModel: visualAnalysis.model,
+      visualCategory: visualAnalysis.category,
+      textualConfidence: textualAnalysis.confidence,
+      textualBrand: textualAnalysis.brand,
+      textualModel: textualAnalysis.model,
+      textualCategory: textualAnalysis.category
+    });
+
     // Determine which sources to use based on confidence and availability
     const visualConfidence = visualAnalysis.success ? visualAnalysis.confidence : 0;
     const textualConfidence = textualAnalysis.confidence;
@@ -563,6 +605,16 @@ getCacheKey(listingData) {
 
     // Generate optimized eBay search query
     result.query = this.buildOptimizedQuery(result.mergedData, listingData);
+
+    console.log('[MultimodalIdentifier] Merged result:', {
+      query: result.query,
+      sources: result.sources,
+      confidence: result.confidence,
+      fallbackUsed: result.fallbackUsed,
+      mergedBrand: result.mergedData.brand,
+      mergedModel: result.mergedData.model,
+      mergedCategory: result.mergedData.category
+    });
 
     // Determine if fallback was used
     if (!visualAnalysis.success && textualConfidence < 0.3) {
