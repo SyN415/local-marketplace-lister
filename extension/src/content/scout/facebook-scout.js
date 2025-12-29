@@ -1683,7 +1683,8 @@
 
   function renderNoDataOverlay(listing) {
     const shadow = createOverlayContainer();
-    
+    const showPartOut = isPcBuildListing(listing);
+
     shadow.innerHTML = `
       <style>${getBaseStyles()}</style>
       <div class="scout-card">
@@ -1698,8 +1699,13 @@
         <div class="scout-message">
           No comparable eBay listings found
         </div>
-        <a class="scout-link" 
-           href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1" 
+        ${showPartOut ? `
+          <button class="scout-link pc-partout-btn" style="background: #7c3aed; border: none; cursor: pointer; margin-bottom: 8px;">
+            🖥️ PC Part-Out Analysis →
+          </button>
+        ` : ''}
+        <a class="scout-link"
+           href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1"
            target="_blank">
           Try searching eBay directly →
         </a>
@@ -1710,6 +1716,16 @@
       overlayElement.remove();
       overlayElement = null;
     });
+
+    // Add PC Part-Out Analysis button handler
+    const partoutBtn = shadow.querySelector('.pc-partout-btn');
+    if (partoutBtn) {
+      partoutBtn.addEventListener('click', () => {
+        partoutBtn.textContent = '⏳ Analyzing...';
+        partoutBtn.disabled = true;
+        requestPcResaleAnalysis(listing);
+      });
+    }
   }
 
   function renderOverlay(listing, priceData) {

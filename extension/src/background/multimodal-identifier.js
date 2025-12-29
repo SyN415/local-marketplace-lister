@@ -634,16 +634,44 @@ getCacheKey(listingData) {
   buildOptimizedQuery(mergedData, listingData) {
     const queryParts = [];
 
+    // Detect if this is a PC build based on component specs
+    const hasPcSpecs = mergedData.specs && (mergedData.specs.cpu || mergedData.specs.gpu);
+    const isPcBuild = hasPcSpecs ||
+      /(?:gaming\s*pc|gaming\s*rig|gaming\s*computer|custom\s*build|desktop\s*pc)/i.test(listingData?.title || '');
+
+    // Override category if we detect PC components (visual AI might misclassify)
+    if (isPcBuild && ['furniture', 'appliance', 'audio'].includes(mergedData.category)) {
+      console.log('[MultimodalIdentifier] Overriding category from', mergedData.category, 'to computer (PC specs detected)');
+      mergedData.category = 'computer';
+    }
+
     // Priority 1: Brand + Model (highest precision)
-    if (mergedData.brand) {
+    // Skip brand for PC builds - they're usually custom builds without a single brand
+    if (mergedData.brand && !isPcBuild) {
       queryParts.push(mergedData.brand);
     }
-    if (mergedData.model) {
+    if (mergedData.model && !isPcBuild) {
       queryParts.push(mergedData.model);
     }
 
-    // Priority 2: Category keyword (for context)
-    if (mergedData.category) {
+    // For PC builds: prioritize specs over brand/model
+    if (isPcBuild) {
+      // Add GPU first (most valuable spec for pricing)
+      if (mergedData.specs?.gpu) {
+        const gpuClean = this.cleanSpecValue(mergedData.specs.gpu);
+        if (gpuClean) queryParts.push(gpuClean);
+      }
+      // Add CPU second
+      if (mergedData.specs?.cpu) {
+        const cpuClean = this.cleanSpecValue(mergedData.specs.cpu);
+        if (cpuClean) queryParts.push(cpuClean);
+      }
+      // Add "gaming PC" for context
+      queryParts.push('gaming PC');
+    }
+
+    // Priority 2: Category keyword (for context) - skip for PC builds already handled above
+    if (mergedData.category && !isPcBuild) {
       const categoryKeywords = {
         'monitor': 'monitor',
         'computer': 'PC',
@@ -652,9 +680,8 @@ getCacheKey(listingData) {
         'console': 'console',
         'tablet': 'tablet',
         'camera': 'camera',
-        'audio': 'speaker',
-        'furniture': 'furniture',
-        'appliance': 'appliance'
+        'audio': 'speaker'
+        // Removed 'furniture' and 'appliance' - these should not be added to electronics queries
       };
       const catKeyword = categoryKeywords[mergedData.category];
       if (catKeyword && !queryParts.includes(catKeyword)) {
@@ -662,18 +689,20 @@ getCacheKey(listingData) {
       }
     }
 
-    // Priority 3: High-value specs (2-3 most important)
-    const highValueSpecs = ['cpu', 'gpu', 'ram', 'storage', 'screenSize', 'year'];
-    for (const specKey of highValueSpecs) {
-      const value = mergedData.specs[specKey];
-      if (value && !queryParts.some(p => p.toLowerCase().includes(value.toLowerCase()))) {
-        // Clean spec value for search
-        const cleanValue = this.cleanSpecValue(value);
-        if (cleanValue) {
-          queryParts.push(cleanValue);
+    // Priority 3: High-value specs (2-3 most important) - for non-PC items
+    if (!isPcBuild) {
+      const highValueSpecs = ['cpu', 'gpu', 'ram', 'storage', 'screenSize', 'year'];
+      for (const specKey of highValueSpecs) {
+        const value = mergedData.specs[specKey];
+        if (value && !queryParts.some(p => p.toLowerCase().includes(value.toLowerCase()))) {
+          // Clean spec value for search
+          const cleanValue = this.cleanSpecValue(value);
+          if (cleanValue) {
+            queryParts.push(cleanValue);
+          }
         }
+        if (queryParts.length >= 5) break; // Limit query length
       }
-      if (queryParts.length >= 5) break; // Limit query length
     }
 
     // Fallback: Use original title if we don't have enough structured data
