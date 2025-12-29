@@ -926,29 +926,58 @@
   }
 
   // NEW: Extract full description text from the listing page
+  // IMPROVED: Better targeting of description area and staleness prevention
   function extractFullDescription() {
     try {
-      const main = document.querySelector('[role="main"]') || document.body;
-      
+      // Get the listing root - prefer modal/dialog if present (FB often shows listings in modals)
+      const main = getListingRoot();
+
+      // Get the current listing title to validate description relevance
+      const currentTitle = (getMetaContent('og:title') || document.title || '').toLowerCase();
+      const titleWords = currentTitle.split(/\s+/).filter(w => w.length > 3);
+
       // Facebook marketplace listings typically have description in a specific area
       // Look for text blocks that contain spec-like content
       const descriptionCandidates = [];
-      
-      // Strategy 1: Look for "See more" expandable sections or long text blocks
+
+      // Strategy 1: Look for the main content area more specifically
+      // FB Marketplace descriptions are usually in span/div elements with dir="auto"
       const allTextElements = main.querySelectorAll('span[dir="auto"], div[dir="auto"]');
-      
+
       for (const el of allTextElements) {
         const text = (el.textContent || '').trim();
+        const textLower = text.toLowerCase();
+
         // Skip short texts, navigation elements, buttons
         if (text.length < 50) continue;
-        if (text.toLowerCase().includes('see more')) continue;
-        if (text.toLowerCase().includes('message seller')) continue;
-        if (text.toLowerCase().includes('is this available')) continue;
-        
-        // Good candidates: contains specs-like patterns
+        if (textLower.includes('see more')) continue;
+        if (textLower.includes('message seller')) continue;
+        if (textLower.includes('is this available')) continue;
+        if (textLower.includes('pick up today')) continue;
+        if (textLower.includes('cash ready')) continue;
+        if (textLower.includes('bundle deal')) continue;
+
+        // Skip if this looks like a previous listing's content
+        // (contains GPU/CPU specs that don't match any title keywords)
         const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gb|tb|mhz|ghz)/i.test(text);
+
+        // Validate: if text has specs, at least one title word should appear
+        // This helps filter out stale descriptions from previous listings
+        if (hasSpecs && titleWords.length > 0) {
+          const matchesTitleWord = titleWords.some(w => textLower.includes(w));
+          if (!matchesTitleWord) {
+            // Check if it contains the listing price - another relevance indicator
+            const priceMatch = main.querySelector('[data-testid="marketplace_pdp_price"]')?.textContent || '';
+            const priceInText = priceMatch && text.includes(priceMatch.replace('$', ''));
+            if (!priceInText) {
+              log(`Skipping potentially stale description (no title match): ${text.substring(0, 50)}...`);
+              continue;
+            }
+          }
+        }
+
         const hasDescription = text.length > 100 || hasSpecs;
-        
+
         if (hasDescription) {
           descriptionCandidates.push({
             text,
@@ -956,16 +985,18 @@
           });
         }
       }
-      
+
       // Sort by score and take the best candidates
       descriptionCandidates.sort((a, b) => b.score - a.score);
-      
+
       // Combine top candidates (may have title + description separately)
       const combinedText = descriptionCandidates
         .slice(0, 3)
         .map(c => c.text)
         .join('\n\n');
-      
+
+      log(`extractFullDescription found ${descriptionCandidates.length} candidates, combined length: ${combinedText.length}`);
+
       return combinedText.slice(0, 2000); // Cap at 2000 chars
     } catch (e) {
       log('Error extracting description: ' + e?.message, 'warn');
@@ -1909,27 +1940,50 @@
 
   // Request PC Resale Analysis from backend
   function requestPcResaleAnalysis(listing) {
-    log('Requesting PC resale analysis...', {
-      title: listing.title,
-      price: listing.price,
-      priceType: typeof listing.price,
-      url: listing.url
+    // CRITICAL: Re-extract fresh listing data to avoid stale cached data from SPA navigation
+    // The `listing` object passed here may be from when the page first loaded, which could be stale
+    const freshListing = extractListingData();
+
+    // Use fresh data if available, otherwise fall back to the provided listing
+    const listingToAnalyze = freshListing || listing;
+
+    // Verify the fresh data matches the current URL to ensure we're analyzing the right listing
+    const currentUrl = window.location.href;
+    const listingUrl = listingToAnalyze.url || '';
+
+    // Extract listing IDs to compare
+    const currentId = extractListingIdFromUrl(currentUrl);
+    const listingId = extractListingIdFromUrl(listingUrl);
+
+    if (currentId && listingId && currentId !== listingId) {
+      log('Listing data mismatch - current URL has different listing ID', 'warn');
+      alert('Please wait for the page to fully load before analyzing.');
+      return;
+    }
+
+    log('Requesting PC resale analysis with FRESH data...', {
+      title: listingToAnalyze.title,
+      price: listingToAnalyze.price,
+      priceType: typeof listingToAnalyze.price,
+      url: listingToAnalyze.url,
+      descriptionLength: (listingToAnalyze.fullDescription || '').length,
+      wasFreshExtract: !!freshListing
     });
 
     safeSendMessage({
       action: 'PC_RESALE_ANALYZE',
       listingData: {
         platform: 'facebook',
-        platformListingUrl: listing.url,
-        title: listing.title,
-        description: listing.fullDescription || '',
-        price: listing.price,
-        imageUrls: listing.imageUrls || [],
-        sellerLocation: listing.location || ''
+        platformListingUrl: listingToAnalyze.url,
+        title: listingToAnalyze.title,
+        description: listingToAnalyze.fullDescription || '',
+        price: listingToAnalyze.price,
+        imageUrls: listingToAnalyze.imageUrls || [],
+        sellerLocation: listingToAnalyze.location || ''
       }
     }, (response) => {
       if (response && response.success) {
-        renderPcResaleOverlay(listing, response.data);
+        renderPcResaleOverlay(listingToAnalyze, response.data);
       } else {
         log('PC resale analysis failed: ' + (response?.error || 'Unknown error'), 'warn');
         alert(response?.error || 'PC Resale Analysis failed. Please try again.');
