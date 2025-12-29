@@ -928,32 +928,46 @@
   // NEW: Extract full description text from the listing page
   function extractFullDescription() {
     try {
-      // Strategy 1: Find the listing content area by looking near the price element
-      // This is more reliable than getListingRoot() which can return the whole page
-      const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
-
-      // Find the parent container that holds the listing details (not the whole page)
-      // Walk up from price to find a reasonable container
+      // Strategy 1: Find listing container from h1 (title) element
+      // Facebook's structure: h1 (title) and price are in the same container as description
+      const h1 = document.querySelector('[role="main"] h1') || document.querySelector('h1');
       let listingContainer = null;
-      if (priceEl) {
-        let parent = priceEl.parentElement;
-        // Walk up to find a container that's not too big (likely the listing panel)
+
+      if (h1) {
+        // Walk up to find the listing details panel
+        let parent = h1.parentElement;
         for (let i = 0; i < 10 && parent; i++) {
-          // Stop at role="main" or role="dialog" - we want something smaller
           const role = parent.getAttribute?.('role');
-          if (role === 'main' || role === 'dialog') break;
-          // A good container is typically 300-1500px tall (listing details area)
+          if (role === 'main') break;
+          // Look for a container with reasonable height
           const height = parent.getBoundingClientRect?.()?.height || 0;
-          if (height > 200 && height < 2000) {
+          if (height > 300 && height < 2000) {
             listingContainer = parent;
           }
           parent = parent.parentElement;
         }
       }
 
-      // Fallback to searching near price element's ancestors
+      // Strategy 2: Look for data-testid elements
       if (!listingContainer) {
-        listingContainer = priceEl?.closest('[class*="x"]')?.parentElement?.parentElement || getListingRoot();
+        const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
+        if (priceEl) {
+          let parent = priceEl.parentElement;
+          for (let i = 0; i < 10 && parent; i++) {
+            const role = parent.getAttribute?.('role');
+            if (role === 'main' || role === 'dialog') break;
+            const height = parent.getBoundingClientRect?.()?.height || 0;
+            if (height > 200 && height < 2000) {
+              listingContainer = parent;
+            }
+            parent = parent.parentElement;
+          }
+        }
+      }
+
+      // Fallback to role="main"
+      if (!listingContainer) {
+        listingContainer = document.querySelector('[role="main"]') || getListingRoot();
       }
 
       log(`extractFullDescription: using container with ${listingContainer?.children?.length || 0} children`);
@@ -1232,72 +1246,99 @@
     const titleEl = best?.el || pdpTitle || null;
 
     // Price - look for currency patterns
-    // This is tricky on FB, often just text like "$123"
-    // IMPORTANT: Facebook SPA can leave stale price elements in DOM, so find ALL price elements
-    // and pick the one that's visible and in the current listing area
+    // Facebook's DOM structure: title (h1) and price are siblings in a container
+    // We need to find the price element that's a SIBLING or near the title
     const metaPrice = extractPriceFromMeta();
     let priceEl = null;
+    let priceSource = '';
 
-    // Find ALL marketplace_pdp_price elements (there may be stale ones from previous listings)
+    // Method 1: Try data-testid (may not exist on logged-out pages)
     const allPriceEls = Array.from(document.querySelectorAll('[data-testid="marketplace_pdp_price"]'));
     log(`Found ${allPriceEls.length} price elements with data-testid`);
 
-    // Find the visible one that's in the current viewport
     for (const el of allPriceEls) {
       const rect = el.getBoundingClientRect();
-      // Element is visible if it has size and is within viewport
       if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < window.innerHeight) {
         priceEl = el;
+        priceSource = 'data-testid';
         log(`Selected visible price element: "${el.textContent?.trim()}"`);
         break;
       }
     }
 
-    // If no visible one found, fall back to first one
-    if (!priceEl && allPriceEls.length > 0) {
-      priceEl = allPriceEls[0];
-      log(`Using first price element (none visible): "${priceEl.textContent?.trim()}"`);
-    }
-
-    // Fallback: find price element near the title
-    if (!priceEl) {
-      priceEl = findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement?.parentElement || main : main);
-    }
-
-    // Fallback: Look for price near the title more aggressively
-    if (!priceEl && !Number.isFinite(metaPrice)) {
-      // Try to find price in the right column (details area)
-      const rightColumn = document.querySelector('[class*="x1n2onr6"]') ||
-                         document.querySelector('[class*="xdt5ytf"]') ||
-                         main;
-      if (rightColumn) {
-        priceEl = findElementByContent(/^\$[\d,]+(?:\.\d{2})?$/, rightColumn);
-      }
-
-      // Last resort: search more broadly but prefer visible elements
-      if (!priceEl) {
-        const allPriceElements = Array.from(document.querySelectorAll('span, div'))
-          .filter(el => {
-            const text = el.textContent?.trim() || '';
-            if (!/^\$[\d,]+$/.test(text) || text.length >= 15) return false;
-            // Check visibility
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
-          });
-        if (allPriceElements.length > 0) {
-          priceEl = allPriceElements[0];
+    // Method 2: Look for price as sibling of title (Facebook's current structure)
+    // The title is in an h1, and price is in a sibling div with just "$X,XXX"
+    if (!priceEl && titleEl) {
+      const titleContainer = titleEl.closest('div')?.parentElement;
+      if (titleContainer) {
+        // Search siblings and children for price pattern
+        const walker = document.createTreeWalker(titleContainer, NodeFilter.SHOW_TEXT);
+        let node;
+        while (node = walker.nextNode()) {
+          const text = node.textContent?.trim() || '';
+          // Match $XXX or $X,XXX patterns (not in middle of other text)
+          if (/^\$[\d,]+$/.test(text)) {
+            priceEl = node.parentElement;
+            priceSource = 'title-sibling';
+            log(`Found price near title: "${text}"`);
+            break;
+          }
         }
+      }
+    }
+
+    // Method 3: Look for h1 heading and find price in same container
+    if (!priceEl) {
+      const h1 = main?.querySelector('h1') || document.querySelector('[role="main"] h1');
+      if (h1) {
+        const container = h1.parentElement?.parentElement;
+        if (container) {
+          const divs = container.querySelectorAll('div, span');
+          for (const div of divs) {
+            const text = div.textContent?.trim() || '';
+            // Price is usually just "$X,XXX" with nothing else
+            if (/^\$[\d,]+$/.test(text) && div.childElementCount === 0) {
+              priceEl = div;
+              priceSource = 'h1-container';
+              log(`Found price in h1 container: "${text}"`);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Method 4: Fallback to findElementByContent
+    if (!priceEl) {
+      priceEl = findElementByContent(/^\$[\d,]+$/, titleEl ? titleEl.parentElement?.parentElement || main : main);
+      if (priceEl) priceSource = 'findElementByContent';
+    }
+
+    // Method 5: Broad search for visible price elements
+    if (!priceEl && !Number.isFinite(metaPrice)) {
+      const allPriceElements = Array.from(document.querySelectorAll('span, div'))
+        .filter(el => {
+          const text = el.textContent?.trim() || '';
+          if (!/^\$[\d,]+$/.test(text) || text.length >= 15) return false;
+          if (el.childElementCount > 0) return false; // Avoid containers
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < window.innerHeight;
+        });
+      if (allPriceElements.length > 0) {
+        priceEl = allPriceElements[0];
+        priceSource = 'broad-search';
+        log(`Found price via broad search: "${priceEl.textContent?.trim()}"`);
       }
     }
 
     // Extract price from description as final fallback
     let fallbackPrice = null;
     if (!priceEl && !Number.isFinite(metaPrice)) {
-      // Look for price pattern in page text
       const descText = main?.textContent || document.body.textContent || '';
       const priceMatch = descText.match(/\$\s*([\d,]+)/);
       if (priceMatch) {
         fallbackPrice = parsePrice(priceMatch[0]);
+        priceSource = 'text-fallback';
       }
     }
 
@@ -1340,22 +1381,17 @@
 
     // Determine final price with fallbacks
     let finalPrice = null;
-
-    // FRESH price extraction: Re-query the price element each time to avoid stale data
-    const freshPriceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
-    const freshPriceText = freshPriceEl?.textContent?.trim() || '';
+    const priceElText = priceEl?.textContent?.trim() || '';
 
     if (Number.isFinite(metaPrice)) {
       finalPrice = metaPrice;
-    } else if (freshPriceEl && freshPriceText) {
-      finalPrice = parsePrice(freshPriceText);
-    } else if (priceEl) {
-      finalPrice = parsePrice(priceEl.textContent);
+    } else if (priceEl && priceElText) {
+      finalPrice = parsePrice(priceElText);
     } else if (fallbackPrice) {
       finalPrice = fallbackPrice;
     }
 
-    log(`Price extraction result: metaPrice=${metaPrice}, priceEl=${!!priceEl}, freshPriceText="${freshPriceText}", fallbackPrice=${fallbackPrice}, final=${finalPrice}`);
+    log(`Price extraction result: metaPrice=${metaPrice}, priceEl=${!!priceEl}, priceSource="${priceSource}", priceElText="${priceElText}", fallbackPrice=${fallbackPrice}, final=${finalPrice}`);
 
     return {
       title,
