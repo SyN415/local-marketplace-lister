@@ -537,11 +537,21 @@ async function handleMessage(request, sender) {
         // PC Resale Analysis - calls backend to analyze PC build for part-out profit
         const listingData = request.listingData;
 
-        console.log('[ServiceWorker] PC_RESALE_ANALYZE called with listing:', {
-          url: listingData?.platformListingUrl,
-          title: listingData?.title,
-          price: listingData?.price
-        });
+        console.log('[ServiceWorker] PC_RESALE_ANALYZE called with full listing data:', JSON.stringify(listingData, null, 2));
+
+        // Validate required fields before sending to backend
+        if (!listingData?.title) {
+          console.error('[ServiceWorker] PC resale analysis missing title');
+          return { success: false, error: 'Listing title is required' };
+        }
+
+        // Ensure price is a valid number - required by backend
+        let price = listingData.price;
+        if (price === null || price === undefined || isNaN(Number(price))) {
+          console.error('[ServiceWorker] PC resale analysis missing or invalid price:', price);
+          return { success: false, error: 'Listing price is required. Could not extract price from this listing.' };
+        }
+        price = Number(price);
 
         // Get auth token for API call
         const { authToken: pcAuthToken } = await storageGet(['authToken']);
@@ -552,13 +562,27 @@ async function handleMessage(request, sender) {
 
         try {
           const backendUrl = await getBackendUrl();
+
+          // Prepare clean request data
+          const requestData = {
+            platform: listingData.platform || 'facebook',
+            platformListingUrl: listingData.platformListingUrl || '',
+            title: listingData.title,
+            description: listingData.description || '',
+            price: price,
+            imageUrls: listingData.imageUrls || [],
+            sellerLocation: listingData.sellerLocation || ''
+          };
+
+          console.log('[ServiceWorker] Sending PC resale analysis request:', JSON.stringify(requestData, null, 2));
+
           const response = await fetch(`${backendUrl}/api/pc-resale/analyze`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${pcAuthToken}`
             },
-            body: JSON.stringify(listingData)
+            body: JSON.stringify(requestData)
           });
 
           if (!response.ok) {
@@ -566,8 +590,8 @@ async function handleMessage(request, sender) {
               return { success: false, error: 'Session expired. Please login again.' };
             }
             const errorText = await response.text();
-            console.error('[ServiceWorker] PC resale analysis failed:', errorText);
-            return { success: false, error: `API error: ${response.status}` };
+            console.error('[ServiceWorker] PC resale analysis failed:', response.status, errorText);
+            return { success: false, error: `API error: ${response.status} - ${errorText}` };
           }
 
           const data = await response.json();

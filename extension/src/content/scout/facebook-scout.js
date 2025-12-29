@@ -1175,13 +1175,48 @@
     }
 
     const titleEl = best?.el || pdpTitle || null;
-    
+
     // Price - look for currency patterns
     // This is tricky on FB, often just text like "$123"
     // We look for a span containing $ nearby the title or in main column
     const metaPrice = extractPriceFromMeta();
-    const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]') ||
+    let priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]') ||
                     findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement?.parentElement || main : main);
+
+    // Fallback: Look for price near the title more aggressively
+    if (!priceEl && !Number.isFinite(metaPrice)) {
+      // Try to find price in the right column (details area)
+      const rightColumn = document.querySelector('[class*="x1n2onr6"]') ||
+                         document.querySelector('[class*="xdt5ytf"]') ||
+                         main;
+      if (rightColumn) {
+        priceEl = findElementByContent(/^\$[\d,]+(?:\.\d{2})?$/, rightColumn);
+      }
+
+      // Last resort: search more broadly
+      if (!priceEl) {
+        const allPriceElements = Array.from(document.querySelectorAll('span, div'))
+          .filter(el => {
+            const text = el.textContent?.trim() || '';
+            return /^\$[\d,]+$/.test(text) && text.length < 15;
+          });
+        if (allPriceElements.length > 0) {
+          // Prefer the first one that's near the title
+          priceEl = allPriceElements[0];
+        }
+      }
+    }
+
+    // Extract price from description as final fallback
+    let fallbackPrice = null;
+    if (!priceEl && !Number.isFinite(metaPrice)) {
+      // Look for price pattern in page text
+      const descText = main?.textContent || document.body.textContent || '';
+      const priceMatch = descText.match(/\$\s*([\d,]+)/);
+      if (priceMatch) {
+        fallbackPrice = parsePrice(priceMatch[0]);
+      }
+    }
 
     if (!titleText) {
       return null;
@@ -1220,9 +1255,21 @@
       log(`Extracted specs: ${JSON.stringify(extractedSpecs)}`);
     }
 
+    // Determine final price with fallbacks
+    let finalPrice = null;
+    if (Number.isFinite(metaPrice)) {
+      finalPrice = metaPrice;
+    } else if (priceEl) {
+      finalPrice = parsePrice(priceEl.textContent);
+    } else if (fallbackPrice) {
+      finalPrice = fallbackPrice;
+    }
+
+    log(`Price extraction result: metaPrice=${metaPrice}, priceEl=${!!priceEl}, fallbackPrice=${fallbackPrice}, final=${finalPrice}`);
+
     return {
       title,
-      price: Number.isFinite(metaPrice) ? metaPrice : (priceEl ? parsePrice(priceEl.textContent) : null),
+      price: finalPrice,
       url: window.location.href,
       platform: 'facebook',
       condition,
@@ -1862,7 +1909,12 @@
 
   // Request PC Resale Analysis from backend
   function requestPcResaleAnalysis(listing) {
-    log('Requesting PC resale analysis...');
+    log('Requesting PC resale analysis...', {
+      title: listing.title,
+      price: listing.price,
+      priceType: typeof listing.price,
+      url: listing.url
+    });
 
     safeSendMessage({
       action: 'PC_RESALE_ANALYZE',
@@ -1880,7 +1932,7 @@
         renderPcResaleOverlay(listing, response.data);
       } else {
         log('PC resale analysis failed: ' + (response?.error || 'Unknown error'), 'warn');
-        alert('PC Resale Analysis failed. Please try again.');
+        alert(response?.error || 'PC Resale Analysis failed. Please try again.');
       }
     });
   }

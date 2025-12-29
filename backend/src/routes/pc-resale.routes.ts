@@ -27,10 +27,17 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
     };
 
     // Validate required fields
-    if (!listing.title || !listing.price || isNaN(listing.price)) {
+    if (!listing.title) {
       return res.status(400).json({
         success: false,
-        error: 'Title and valid price are required',
+        error: 'Listing title is required',
+      });
+    }
+
+    if (!listing.price || isNaN(listing.price)) {
+      return res.status(400).json({
+        success: false,
+        error: `Valid price is required. Received: ${req.body.price} (type: ${typeof req.body.price})`,
       });
     }
 
