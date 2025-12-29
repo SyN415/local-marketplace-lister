@@ -928,55 +928,71 @@
   // NEW: Extract full description text from the listing page
   function extractFullDescription() {
     try {
-      // Strategy 1: Find listing container from h1 (title) element
-      // Facebook's structure: h1 (title) and price are in the same container as description
-      const h1 = document.querySelector('[role="main"] h1') || document.querySelector('h1');
-      let listingContainer = null;
+      // CRITICAL: Facebook has "Today's picks" in the same [role="main"] as the listing
+      // We MUST find only the listing details section, NOT the recommendations
 
+      // Strategy 1: Find the "Details" heading and extract text from that section
+      const h1 = document.querySelector('[role="main"] h1') || document.querySelector('h1');
+      let detailsSection = null;
+
+      // Look for the "Details" section which contains the actual description
+      const allH2s = document.querySelectorAll('[role="main"] h2, [role="main"] [role="heading"]');
+      for (const h2 of allH2s) {
+        const text = h2.textContent?.trim()?.toLowerCase() || '';
+        if (text === 'details' || text.includes('details')) {
+          // Found "Details" heading - get its parent container
+          detailsSection = h2.closest('div')?.parentElement;
+          if (detailsSection) {
+            log(`Found Details section via h2`);
+            break;
+          }
+        }
+      }
+
+      // Strategy 2: Find container that has h1 (title) but STOP before "Today's picks"
+      let listingContainer = null;
       if (h1) {
-        // Walk up to find the listing details panel
+        // The listing details are usually in a specific column/section
+        // Find the closest ancestor that's a direct child of role="main"
         let parent = h1.parentElement;
-        for (let i = 0; i < 10 && parent; i++) {
-          const role = parent.getAttribute?.('role');
-          if (role === 'main') break;
-          // Look for a container with reasonable height
+        for (let i = 0; i < 15 && parent; i++) {
+          // Stop if we hit "Today's picks" section
+          const textContent = parent.textContent || '';
+          if (textContent.includes("Today's picks")) {
+            break;
+          }
+
+          // Check if parent is direct child of role="main" container
+          const grandparent = parent.parentElement;
+          if (grandparent?.getAttribute?.('role') === 'main') {
+            listingContainer = parent;
+            break;
+          }
+
+          // Keep track of reasonable containers
           const height = parent.getBoundingClientRect?.()?.height || 0;
-          if (height > 300 && height < 2000) {
+          if (height > 200 && height < 1500) {
             listingContainer = parent;
           }
           parent = parent.parentElement;
         }
       }
 
-      // Strategy 2: Look for data-testid elements
-      if (!listingContainer) {
-        const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
-        if (priceEl) {
-          let parent = priceEl.parentElement;
-          for (let i = 0; i < 10 && parent; i++) {
-            const role = parent.getAttribute?.('role');
-            if (role === 'main' || role === 'dialog') break;
-            const height = parent.getBoundingClientRect?.()?.height || 0;
-            if (height > 200 && height < 2000) {
-              listingContainer = parent;
-            }
-            parent = parent.parentElement;
-          }
-        }
+      // Use detailsSection if found, otherwise listingContainer
+      const searchContainer = detailsSection || listingContainer;
+
+      if (!searchContainer) {
+        log('extractFullDescription: No valid container found, skipping');
+        return '';
       }
 
-      // Fallback to role="main"
-      if (!listingContainer) {
-        listingContainer = document.querySelector('[role="main"]') || getListingRoot();
-      }
-
-      log(`extractFullDescription: using container with ${listingContainer?.children?.length || 0} children`);
+      log(`extractFullDescription: using container with ${searchContainer?.children?.length || 0} children`);
 
       const descriptionCandidates = [];
       const processedTexts = new Set();
 
       // Get all text elements in the listing area
-      const allTextElements = listingContainer?.querySelectorAll?.('span, div') || [];
+      const allTextElements = searchContainer?.querySelectorAll?.('span, div') || [];
 
       for (const el of allTextElements) {
         const text = (el.textContent || '').trim();
@@ -992,9 +1008,17 @@
 
         const textLower = text.toLowerCase();
 
-        // CRITICAL: Skip Facebook sidebar/navigation content
+        // CRITICAL: Skip "Today's picks" content - these contain OTHER listings
+        if (textLower.includes("today's picks")) continue;
+        if (textLower.includes('san francisco') && textLower.includes('mi') && text.includes('$')) continue;
+        // Skip if text looks like multiple listing titles/prices concatenated
+        const priceCount = (text.match(/\$\d+/g) || []).length;
+        if (priceCount > 3) continue; // Multiple prices = recommendation section
+
+        // Skip Facebook sidebar/navigation content
         if (textLower.includes('chats') && textLower.includes('groups')) continue;
         if (textLower.includes('communities') && textLower.includes('unread')) continue;
+        if (textLower.includes('yousell') || textLower.includes('all categories')) continue;
         if (textLower.includes('has new content')) continue;
         if (textLower.includes('marketplace') && textLower.includes('groups') && textLower.includes('chats')) continue;
 
@@ -1006,10 +1030,10 @@
         if (textLower.includes('report listing')) continue;
         if (textLower.includes('similar listings')) continue;
         if (textLower.includes('seller information')) continue;
-        if (textLower.includes('see more')) continue;
+        if (textLower.includes('see more') && text.length < 50) continue;
 
         // Good candidates: contains specs-like patterns
-        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gtx|rtx|rx\s*\d|gb|tb|mhz|ghz|ddr|nvme|motherboard|psu|power supply|cooling|cooler|asrock|gigabyte|asus|msi)/i.test(text);
+        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gtx|rtx|rx\s*\d|gb|tb|mhz|ghz|ddr|nvme|motherboard|psu|power supply|cooling|cooler|asrock|gigabyte|asus|msi|arc\s*a\d{3})/i.test(text);
 
         // Boost score for text that looks like a parts list
         const hasPartsList = /(?:cpu\s*[-:–]|gpu\s*[-:–]|ram\s*[-:–]|motherboard\s*[-:–]|psu\s*[-:–])/i.test(text);
@@ -1315,6 +1339,7 @@
     }
 
     // Method 5: Broad search for visible price elements
+    // IMPORTANT: Handle crossed-out prices - prefer non-strikethrough prices
     if (!priceEl && !Number.isFinite(metaPrice)) {
       const allPriceElements = Array.from(document.querySelectorAll('span, div'))
         .filter(el => {
@@ -1323,11 +1348,34 @@
           if (el.childElementCount > 0) return false; // Avoid containers
           const rect = el.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < window.innerHeight;
+        })
+        .map(el => {
+          // Check if price is crossed out (strikethrough)
+          const style = window.getComputedStyle(el);
+          const parentStyle = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
+          const isCrossedOut = style.textDecoration.includes('line-through') ||
+                              (parentStyle && parentStyle.textDecoration.includes('line-through'));
+          return { el, isCrossedOut, price: parsePrice(el.textContent) };
+        })
+        .sort((a, b) => {
+          // Prefer non-crossed-out prices first
+          if (a.isCrossedOut !== b.isCrossedOut) {
+            return a.isCrossedOut ? 1 : -1;
+          }
+          // If both crossed out or both not, prefer lower price (active price is usually lower)
+          return (a.price || 0) - (b.price || 0);
         });
+
       if (allPriceElements.length > 0) {
-        priceEl = allPriceElements[0];
-        priceSource = 'broad-search';
-        log(`Found price via broad search: "${priceEl.textContent?.trim()}"`);
+        const best = allPriceElements[0];
+        priceEl = best.el;
+        priceSource = best.isCrossedOut ? 'broad-search-crossed' : 'broad-search';
+        log(`Found price via broad search: "${priceEl.textContent?.trim()}" (crossedOut: ${best.isCrossedOut})`);
+
+        // If we found multiple prices and first is NOT crossed out, log it
+        if (allPriceElements.length > 1) {
+          log(`Multiple prices found: ${allPriceElements.map(p => `$${p.price}(${p.isCrossedOut ? 'X' : 'OK'})`).join(', ')}`);
+        }
       }
     }
 
