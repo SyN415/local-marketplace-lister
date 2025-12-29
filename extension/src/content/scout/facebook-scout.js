@@ -1768,8 +1768,14 @@
           </div>
         ` : ''}
         
-        <a class="scout-link" 
-           href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1" 
+        ${isPcBuildListing(listing) ? `
+          <button class="scout-link pc-partout-btn" style="background: #7c3aed; border: none; cursor: pointer; margin-bottom: 8px;">
+            🖥️ Part-Out Analysis →
+          </button>
+        ` : ''}
+
+        <a class="scout-link"
+           href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1"
            target="_blank">
           View sold comps on eBay →
         </a>
@@ -1781,15 +1787,25 @@
       overlayElement.remove();
       overlayElement = null;
     });
+
+    // Add PC Part-Out Analysis button handler
+    const partoutBtn = shadow.querySelector('.pc-partout-btn');
+    if (partoutBtn) {
+      partoutBtn.addEventListener('click', () => {
+        partoutBtn.textContent = '⏳ Analyzing...';
+        partoutBtn.disabled = true;
+        requestPcResaleAnalysis(listing);
+      });
+    }
   }
 
   function calculateDealRating(askingPrice, priceData) {
     if (!askingPrice) return 50;
-    
+
     // Rating based on how asking compares to market
     // Below avg = good, at avg = okay, above avg = poor
     const ratio = askingPrice / priceData.avgPrice;
-    
+
     if (ratio <= 0.5) return 95;      // 50% or less of market: amazing
     if (ratio <= 0.7) return 85;      // 70%: great
     if (ratio <= 0.85) return 70;     // 85%: good
@@ -1797,6 +1813,174 @@
     if (ratio <= 1.15) return 35;     // 15% above: meh
     if (ratio <= 1.3) return 20;      // 30% above: overpriced
     return 10;                        // 30%+ above: avoid
+  }
+
+  // PC Build Detection for Part-Out Analysis
+  function isPcBuildListing(listing) {
+    const title = (listing?.title || '').toLowerCase();
+    const description = (listing?.fullDescription || '').toLowerCase();
+    const combinedText = `${title} ${description}`;
+
+    // Keywords indicating a full PC build
+    const pcKeywords = [
+      'full pc', 'gaming pc', 'gaming rig', 'custom build', 'custom pc',
+      'desktop tower', 'computer build', 'pc build', 'gaming computer',
+      'full build', 'complete build', 'gaming setup', 'workstation',
+      'desktop computer', 'tower pc'
+    ];
+
+    const hasKeyword = pcKeywords.some(kw => combinedText.includes(kw));
+
+    // Check for multiple component types
+    const specs = listing?.extractedSpecs || {};
+    const hasGpu = specs.gpu || /(?:rtx|gtx|rx)\s*\d{3,4}/i.test(combinedText);
+    const hasCpu = specs.cpu || /(?:i[3579]-?\d{4,5}|ryzen\s*\d+)/i.test(combinedText);
+    const hasRam = specs.ram || /\d+\s*gb\s*(?:ddr|ram)/i.test(combinedText);
+    const hasStorage = specs.storage || /\d+\s*(?:tb|gb)\s*(?:ssd|hdd|nvme)/i.test(combinedText);
+
+    const componentCount = [hasGpu, hasCpu, hasRam, hasStorage].filter(Boolean).length;
+
+    // If 3+ component types are mentioned, likely a PC build
+    return hasKeyword || componentCount >= 3;
+  }
+
+  // Request PC Resale Analysis from backend
+  function requestPcResaleAnalysis(listing) {
+    log('Requesting PC resale analysis...');
+
+    safeSendMessage({
+      action: 'PC_RESALE_ANALYZE',
+      listingData: {
+        platform: 'facebook',
+        platformListingUrl: listing.url,
+        title: listing.title,
+        description: listing.fullDescription || '',
+        price: listing.price,
+        imageUrls: listing.imageUrls || [],
+        sellerLocation: listing.location || ''
+      }
+    }, (response) => {
+      if (response && response.success) {
+        renderPcResaleOverlay(listing, response.data);
+      } else {
+        log('PC resale analysis failed: ' + (response?.error || 'Unknown error'), 'warn');
+        alert('PC Resale Analysis failed. Please try again.');
+      }
+    });
+  }
+
+  // Render PC Resale Analysis Overlay
+  function renderPcResaleOverlay(listing, analysis) {
+    const shadow = createOverlayContainer();
+
+    const recommendation = analysis.recommendation || 'SKIP';
+    const netProfit = analysis.netProfit || 0;
+    const roiPct = analysis.roiPercentage || 0;
+    const partsValue = analysis.aggregateComponentValue || 0;
+    const confidence = analysis.confidenceScore || 0;
+    const components = analysis.componentProfile?.rawComponents || {};
+    const componentBreakdown = analysis.componentValuation?.componentBreakdown || {};
+    const missingSpecs = analysis.componentProfile?.missingSpecs || [];
+    const costBreakdown = analysis.costBreakdown || {};
+    const reasoning = analysis.reasoning || '';
+
+    const isGoodDeal = recommendation === 'BUY';
+
+    shadow.innerHTML = `
+      <style>${getBaseStyles()}</style>
+
+      <div class="scout-card" style="max-width: 360px;">
+        <button class="close-btn" title="Close">&times;</button>
+
+        <div class="scout-header" style="background: ${isGoodDeal ? '#22c55e' : '#f59e0b'};">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          PC Part-Out Analysis
+        </div>
+
+        <div style="text-align: center; padding: 12px 0; border-bottom: 1px solid #334155;">
+          <div style="font-size: 24px; font-weight: bold; color: ${isGoodDeal ? '#22c55e' : '#f59e0b'};">
+            ${recommendation}
+          </div>
+          <div style="font-size: 12px; color: #94a3b8;">
+            ${isGoodDeal ? '🔥 Profitable Part-Out Opportunity!' : '⚠️ Not Recommended'}
+          </div>
+          ${reasoning ? `<div style="font-size: 10px; color: #64748b; margin-top: 4px;">${reasoning}</div>` : ''}
+        </div>
+
+        <div class="price-row">
+          <span class="price-label">Listing Price:</span>
+          <span class="price-value">$${listing.price || 0}</span>
+        </div>
+
+        <div class="price-row">
+          <span class="price-label">Parts Value:</span>
+          <span class="price-value ebay-price">$${partsValue.toFixed(0)}</span>
+        </div>
+
+        <div class="price-row">
+          <span class="price-label">Net Profit:</span>
+          <span class="price-value ${netProfit > 0 ? 'spread-positive' : 'spread-negative'}">
+            ${netProfit >= 0 ? '+' : ''}$${netProfit.toFixed(0)}
+          </span>
+        </div>
+
+        <div class="price-row">
+          <span class="price-label">ROI:</span>
+          <span class="price-value">${roiPct.toFixed(0)}%</span>
+        </div>
+
+        ${Object.keys(componentBreakdown).length > 0 ? `
+          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #334155;">
+            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px;">Component Values (eBay):</div>
+            ${Object.entries(componentBreakdown).map(([type, price]) =>
+              `<div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0;">
+                <span style="color: #94a3b8; text-transform: uppercase;">${type}</span>
+                <span style="color: #22c55e;">$${price.toFixed(0)}</span>
+              </div>`
+            ).join('')}
+          </div>
+        ` : ''}
+
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #334155;">
+          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px;">Detected Components:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${Object.entries(components).map(([type, values]) =>
+              (values || []).map(v =>
+                `<span style="background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: #e2e8f0;">${type}: ${v}</span>`
+              ).join('')
+            ).join('')}
+          </div>
+          ${missingSpecs.length > 0 ? `
+            <div style="margin-top: 8px; font-size: 10px; color: #f59e0b;">
+              ⚠️ Missing: ${missingSpecs.join(', ')}
+            </div>
+          ` : ''}
+        </div>
+
+        ${costBreakdown.total ? `
+          <div style="margin-top: 8px; font-size: 10px; color: #64748b;">
+            Est. Costs: $${costBreakdown.total.toFixed(0)} (fees, shipping, etc.)
+          </div>
+        ` : ''}
+
+        <div style="margin-top: 8px; font-size: 10px; color: #64748b;">
+          Confidence: ${(confidence * 100).toFixed(0)}%
+        </div>
+
+        <a class="scout-link" href="${APP_URL}/pc-resale" target="_blank" style="margin-top: 12px;">
+          View Full Analysis →
+        </a>
+      </div>
+    `;
+
+    shadow.querySelector('.close-btn').addEventListener('click', () => {
+      overlayElement.remove();
+      overlayElement = null;
+    });
   }
 
   // Quick Reply Chip Injection

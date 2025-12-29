@@ -18,6 +18,7 @@ import { emailRoutes } from './routes/email.routes';
 import { postingRoutes } from './routes/posting.routes';
 import adminRoutes from './routes/admin.routes';
 import scoutRoutes from './routes/scout.routes';
+import pcResaleRoutes from './routes/pc-resale.routes';
 import { startPeriodicTasks } from './jobs/periodic-tasks';
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/postings', postingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/scout', scoutRoutes);
+app.use('/api/pc-resale', pcResaleRoutes);
 
 // Serve static files from the frontend build directory
 const frontendPath = path.join(__dirname, '../../frontend/dist');

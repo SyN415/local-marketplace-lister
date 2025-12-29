@@ -20,6 +20,7 @@ import Listings from './pages/Listings';
 import Pricing from './pages/Pricing';
 import Watchlist from './pages/Watchlist';
 import Deals from './pages/Deals';
+import PcResaleScanner from './pages/PcResaleScanner';
 import Success from './pages/payment/Success';
 import Cancel from './pages/payment/Cancel';
 
@@ -101,7 +102,16 @@ const AppRouter: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          
+
+          <Route
+            path="/pc-resale"
+            element={
+              <ProtectedRoute>
+                <PcResaleScanner />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/create-listing"
             element={

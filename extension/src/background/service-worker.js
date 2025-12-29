@@ -532,7 +532,53 @@ async function handleMessage(request, sender) {
 
         return { success: true };
       }
-        
+
+      case 'PC_RESALE_ANALYZE': {
+        // PC Resale Analysis - calls backend to analyze PC build for part-out profit
+        const listingData = request.listingData;
+
+        console.log('[ServiceWorker] PC_RESALE_ANALYZE called with listing:', {
+          url: listingData?.platformListingUrl,
+          title: listingData?.title,
+          price: listingData?.price
+        });
+
+        // Get auth token for API call
+        const { authToken: pcAuthToken } = await storageGet(['authToken']);
+        if (!pcAuthToken) {
+          console.warn('[ServiceWorker] PC resale analysis requires authentication');
+          return { success: false, error: 'Please login to use PC Resale Analysis' };
+        }
+
+        try {
+          const backendUrl = await getBackendUrl();
+          const response = await fetch(`${backendUrl}/api/pc-resale/analyze`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${pcAuthToken}`
+            },
+            body: JSON.stringify(listingData)
+          });
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              return { success: false, error: 'Session expired. Please login again.' };
+            }
+            const errorText = await response.text();
+            console.error('[ServiceWorker] PC resale analysis failed:', errorText);
+            return { success: false, error: `API error: ${response.status}` };
+          }
+
+          const data = await response.json();
+          console.log('[ServiceWorker] PC resale analysis result:', data);
+          return { success: true, data: data.data };
+        } catch (error) {
+          console.error('[ServiceWorker] PC resale analysis error:', error);
+          return { success: false, error: error.message };
+        }
+      }
+
       default:
         console.warn('Unknown action:', request.action);
         return { success: false, error: 'Unknown action' };

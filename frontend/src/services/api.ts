@@ -562,6 +562,120 @@ export const postingsAPI = {
 };
 
 /**
+ * PC Resale Scanner API functions
+ */
+export const pcResaleAPI = {
+  /**
+   * Analyze a PC build listing for resale potential
+   */
+  analyzeListing: async (data: {
+    platform?: string;
+    platformListingUrl?: string;
+    title: string;
+    description?: string;
+    price: number;
+    imageUrls?: string[];
+    sellerLocation?: string;
+  }): Promise<any> => {
+    const response = await api.post<ApiResponse<any>>('/api/pc-resale/analyze', data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to analyze listing');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Analyze and save a listing as an opportunity
+   */
+  analyzeAndSave: async (data: {
+    platform?: string;
+    platformListingUrl?: string;
+    title: string;
+    description?: string;
+    price: number;
+    imageUrls?: string[];
+    sellerLocation?: string;
+  }): Promise<any> => {
+    const response = await api.post<ApiResponse<any>>('/api/pc-resale/analyze-and-save', data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to analyze and save listing');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Get user's saved PC resale opportunities
+   */
+  getOpportunities: async (filters?: {
+    recommendation?: 'BUY' | 'SKIP';
+    status?: string;
+    minRoi?: number;
+  }): Promise<any[]> => {
+    const response = await api.get<ApiResponse<any[]>>('/api/pc-resale/opportunities', { params: filters });
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch opportunities');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Get detailed opportunity info
+   */
+  getOpportunityDetails: async (id: string): Promise<any> => {
+    const response = await api.get<ApiResponse<any>>(`/api/pc-resale/opportunities/${id}`);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch opportunity details');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Update opportunity status
+   */
+  updateOpportunity: async (id: string, data: { status: string; notes?: string }): Promise<void> => {
+    const response = await api.patch<ApiResponse>(`/api/pc-resale/opportunities/${id}`, data);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to update opportunity');
+    }
+  },
+
+  /**
+   * Delete an opportunity
+   */
+  deleteOpportunity: async (id: string): Promise<void> => {
+    const response = await api.delete<ApiResponse>(`/api/pc-resale/opportunities/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to delete opportunity');
+    }
+  },
+
+  /**
+   * Get daily report summary
+   */
+  getReport: async (): Promise<any> => {
+    const response = await api.get<ApiResponse<any>>('/api/pc-resale/report');
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch report');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Check if text represents a PC build listing
+   */
+  checkPcBuild: async (title: string, description?: string): Promise<boolean> => {
+    const response = await api.post<ApiResponse<{ isPcBuild: boolean }>>('/api/pc-resale/check-pc-build', {
+      title,
+      description,
+    });
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to check PC build');
+    }
+    return response.data.data.isPcBuild;
+  },
+};
+
+/**
  * Generic API error handler
  */
 export const handleApiError = (error: AxiosError): string => {
