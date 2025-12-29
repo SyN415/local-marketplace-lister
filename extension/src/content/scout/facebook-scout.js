@@ -926,59 +926,53 @@
   }
 
   // NEW: Extract full description text from the listing page
-  // IMPROVED: Better targeting of description area and staleness prevention
   function extractFullDescription() {
     try {
       // Get the listing root - prefer modal/dialog if present (FB often shows listings in modals)
       const main = getListingRoot();
 
-      // Get the current listing title to validate description relevance
-      const currentTitle = (getMetaContent('og:title') || document.title || '').toLowerCase();
-      const titleWords = currentTitle.split(/\s+/).filter(w => w.length > 3);
-
       // Facebook marketplace listings typically have description in a specific area
       // Look for text blocks that contain spec-like content
       const descriptionCandidates = [];
 
-      // Strategy 1: Look for the main content area more specifically
-      // FB Marketplace descriptions are usually in span/div elements with dir="auto"
-      const allTextElements = main.querySelectorAll('span[dir="auto"], div[dir="auto"]');
+      // Strategy 1: Look for text in span and div elements
+      // Facebook's DOM structure varies, so we search broadly
+      const allTextElements = main.querySelectorAll('span, div');
+
+      // Track processed text to avoid duplicates (parent/child can have same text)
+      const processedTexts = new Set();
 
       for (const el of allTextElements) {
+        // Get only direct text content to avoid parent elements containing all child text
         const text = (el.textContent || '').trim();
+
+        // Skip if we've already seen this exact text
+        if (processedTexts.has(text)) continue;
+
+        // Skip short texts
+        if (text.length < 50) continue;
+
+        // Skip very long texts (likely parent containers with all nested text)
+        if (text.length > 3000) continue;
+
         const textLower = text.toLowerCase();
 
-        // Skip short texts, navigation elements, buttons
-        if (text.length < 50) continue;
+        // Skip navigation elements, buttons, and boilerplate
         if (textLower.includes('see more')) continue;
         if (textLower.includes('message seller')) continue;
         if (textLower.includes('is this available')) continue;
-        if (textLower.includes('pick up today')) continue;
-        if (textLower.includes('cash ready')) continue;
-        if (textLower.includes('bundle deal')) continue;
+        if (textLower.startsWith('listed')) continue;
+        if (textLower.startsWith('join facebook')) continue;
+        if (textLower.includes('report listing')) continue;
+        if (textLower.includes('similar listings')) continue;
+        if (textLower.includes('seller information')) continue;
 
-        // Skip if this looks like a previous listing's content
-        // (contains GPU/CPU specs that don't match any title keywords)
-        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gb|tb|mhz|ghz)/i.test(text);
-
-        // Validate: if text has specs, at least one title word should appear
-        // This helps filter out stale descriptions from previous listings
-        if (hasSpecs && titleWords.length > 0) {
-          const matchesTitleWord = titleWords.some(w => textLower.includes(w));
-          if (!matchesTitleWord) {
-            // Check if it contains the listing price - another relevance indicator
-            const priceMatch = main.querySelector('[data-testid="marketplace_pdp_price"]')?.textContent || '';
-            const priceInText = priceMatch && text.includes(priceMatch.replace('$', ''));
-            if (!priceInText) {
-              log(`Skipping potentially stale description (no title match): ${text.substring(0, 50)}...`);
-              continue;
-            }
-          }
-        }
-
+        // Good candidates: contains specs-like patterns
+        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gtx|rtx|rx\s*\d|gb|tb|mhz|ghz|ddr|nvme|motherboard|psu|power supply|cooling|cooler)/i.test(text);
         const hasDescription = text.length > 100 || hasSpecs;
 
         if (hasDescription) {
+          processedTexts.add(text);
           descriptionCandidates.push({
             text,
             score: text.length + (hasSpecs ? 500 : 0)
@@ -989,15 +983,16 @@
       // Sort by score and take the best candidates
       descriptionCandidates.sort((a, b) => b.score - a.score);
 
-      // Combine top candidates (may have title + description separately)
-      const combinedText = descriptionCandidates
-        .slice(0, 3)
-        .map(c => c.text)
-        .join('\n\n');
+      // Take top candidate only (best spec-containing description)
+      // Taking multiple can lead to duplicate/nested content
+      const bestCandidate = descriptionCandidates[0]?.text || '';
 
-      log(`extractFullDescription found ${descriptionCandidates.length} candidates, combined length: ${combinedText.length}`);
+      log(`extractFullDescription found ${descriptionCandidates.length} candidates, best length: ${bestCandidate.length}`);
+      if (bestCandidate) {
+        log(`Description preview: ${bestCandidate.substring(0, 100)}...`);
+      }
 
-      return combinedText.slice(0, 2000); // Cap at 2000 chars
+      return bestCandidate.slice(0, 2000); // Cap at 2000 chars
     } catch (e) {
       log('Error extracting description: ' + e?.message, 'warn');
       return '';
@@ -1920,19 +1915,23 @@
       'full pc', 'gaming pc', 'gaming rig', 'custom build', 'custom pc',
       'desktop tower', 'computer build', 'pc build', 'gaming computer',
       'full build', 'complete build', 'gaming setup', 'workstation',
-      'desktop computer', 'tower pc'
+      'desktop computer', 'tower pc', 'gaming desktop', 'portable gaming',
+      'itx build', 'atx build', 'mini pc', 'sff pc'
     ];
 
     const hasKeyword = pcKeywords.some(kw => combinedText.includes(kw));
 
     // Check for multiple component types
     const specs = listing?.extractedSpecs || {};
-    const hasGpu = specs.gpu || /(?:rtx|gtx|rx)\s*\d{3,4}/i.test(combinedText);
-    const hasCpu = specs.cpu || /(?:i[3579]-?\d{4,5}|ryzen\s*\d+)/i.test(combinedText);
-    const hasRam = specs.ram || /\d+\s*gb\s*(?:ddr|ram)/i.test(combinedText);
-    const hasStorage = specs.storage || /\d+\s*(?:tb|gb)\s*(?:ssd|hdd|nvme)/i.test(combinedText);
+    // Improved regex patterns for component detection
+    const hasGpu = specs.gpu || /(?:rtx|gtx|rx)\s*\d{3,4}/i.test(combinedText) || /(?:geforce|radeon)/i.test(combinedText);
+    const hasCpu = specs.cpu || /(?:i[3579]-?\d{4,5}|ryzen\s*\d+|\d{4,5}x)/i.test(combinedText) || /(?:intel|amd)\s*(?:core|ryzen)/i.test(combinedText);
+    const hasRam = specs.ram || /\d+\s*gb\s*(?:ddr|ram)/i.test(combinedText) || /ddr[345]\s*ram/i.test(combinedText);
+    const hasStorage = specs.storage || /\d+\s*(?:tb|gb)\s*(?:ssd|hdd|nvme|m\.?2)/i.test(combinedText);
 
     const componentCount = [hasGpu, hasCpu, hasRam, hasStorage].filter(Boolean).length;
+
+    log(`isPcBuildListing: keyword=${hasKeyword}, gpu=${hasGpu}, cpu=${hasCpu}, ram=${hasRam}, storage=${hasStorage}, count=${componentCount}`);
 
     // If 3+ component types are mentioned, likely a PC build
     return hasKeyword || componentCount >= 3;
