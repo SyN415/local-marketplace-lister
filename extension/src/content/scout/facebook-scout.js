@@ -1322,6 +1322,13 @@
     // Step 1: Use multi-modal identifier to generate optimized query
     (async () => {
       const listingForAnalysis = await getListingForAnalysis();
+      log('Sending MULTIMODAL_ANALYZE_LISTING request with:', {
+        url: listingForAnalysis?.url,
+        title: listingForAnalysis?.title,
+        hasImageDataUrls: !!(listingForAnalysis?.imageDataUrls && listingForAnalysis.imageDataUrls.length),
+        imageDataUrlCount: listingForAnalysis?.imageDataUrls?.length || 0
+      });
+      
       safeSendMessage({
         action: 'MULTIMODAL_ANALYZE_LISTING',
         listingData: listingForAnalysis
