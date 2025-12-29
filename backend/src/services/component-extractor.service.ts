@@ -25,28 +25,32 @@ export interface ComponentProfile {
 // Regex patterns for PC component detection
 const COMPONENT_PATTERNS: Record<string, RegExp> = {
   // CPU patterns - AMD Ryzen and Intel Core series
-  cpu: /(?:AMD\s+)?Ryzen\s+[3579]\s+\d{4}[A-Z]*|Intel\s+(?:Core\s+)?i[3579][-\s]?\d{4,5}[A-Z]*|Xeon\s+\w+[-\d]+|EPYC\s+\d+|Threadripper\s+\d+/gi,
-  
+  // Matches: Intel I9 9900k, Intel Core i9-9900K, Ryzen 7 5800X, AMD 9700X, etc.
+  cpu: /(?:AMD\s+)?Ryzen\s+[3579]\s+\d{4}[A-Z]*|(?:Intel\s+)?(?:Core\s+)?i[3579][-\s]?\d{4,5}[A-Z]*|AMD\s+\d{4,5}[A-Z]*|Xeon\s+\w+[-\d]+|EPYC\s+\d+|Threadripper\s+\d+/gi,
+
   // GPU patterns - NVIDIA and AMD
-  gpu: /(?:NVIDIA\s+)?(?:GeForce\s+)?(?:RTX|GTX)\s+\d{3,4}(?:\s+Ti|\s+Super)?|(?:AMD\s+)?(?:Radeon\s+)?RX\s+\d{3,4}(?:\s+XT)?|(?:Tesla|Quadro)\s+\w+\d+|A\d{2}0\d?/gi,
-  
+  // Matches: RTX 3080, GeForce GTX 1080, RX 6800 XT, Radeon RX 580, etc.
+  gpu: /(?:NVIDIA\s+)?(?:GeForce\s+)?(?:RTX|GTX)\s*\d{3,4}(?:\s*Ti|\s*Super)?|(?:AMD\s+)?(?:Radeon\s+)?RX\s*\d{3,4}(?:\s*XT)?|(?:Tesla|Quadro)\s+\w+\d+|A\d{2}0\d?/gi,
+
   // RAM patterns - DDR3/4/5 with capacity and speed
-  ram: /(\d{1,3})\s*GB?\s*(?:DDR[345])(?:[-\s]*(\d{3,4})\s*(?:MHz)?)?|\d{1,3}\s*GB\s+RAM/gi,
-  
+  // Matches: 32GB DDR4, 2x8GB DDR4 2400, 16GB RAM, 32GB DDR5 RAM, etc.
+  ram: /(\d+)\s*x?\s*(\d+)\s*GB\s*DDR[345](?:[-\s]*\d{3,4})?|(\d{1,3})\s*GB?\s*(?:DDR[345])(?:[-\s]*(\d{3,4})\s*(?:MHz)?)?|\d{1,3}\s*GB\s+RAM/gi,
+
   // Storage patterns - SSD, HDD, NVMe with capacity
   storage: /(\d+)\s*(?:TB|GB)\s*(?:SSD|HDD|NVMe|M\.2|SATA)/gi,
-  
+
   // PSU patterns - wattage
   psu: /(\d{3,4})\s*W(?:att)?\s*(?:PSU|Power\s+Supply)?|(?:PSU|Power\s+Supply)\s*[-:]?\s*(\d{3,4})\s*W/gi,
-  
-  // Motherboard patterns - Intel/AMD chipsets
-  motherboard: /(?:Z|X|H|B)\d{2,3}[A-Z]?(?:[-\s]?(?:M\.?2|DDR\d|Gaming|Pro|Elite))?|(?:MAG|ROG|TUF|Prime|AORUS)\s+\w+/gi,
-  
+
+  // Motherboard patterns - Intel/AMD chipsets and brand names
+  // Matches: Z390, Asrock Z390, B550, ROG Strix, TUF Gaming, etc.
+  motherboard: /(?:Asrock|ASUS|Gigabyte|MSI|EVGA|Biostar)?\s*(?:[ZXHBz]\d{2,3}[A-Z]?)(?:[-\s]?(?:Phantom|Gaming|M\.?2|DDR\d|Pro|Elite|Strix|Plus|\w+))*|(?:MAG|ROG|TUF|Prime|AORUS|Strix)\s+[\w\s]+/gi,
+
   // Case patterns
   case: /(?:NZXT|Corsair|Fractal|Lian\s*Li|Phanteks|Cooler\s*Master|be\s*quiet!?)\s+[\w\s]+(?:Tower|Case|ATX)/gi,
-  
+
   // Cooling patterns - AIO and air coolers
-  cooling: /(?:AIO|All[-\s]?in[-\s]?One)\s*\d{2,3}\s*mm|(?:Noctua|Corsair|NZXT|be\s*quiet!?)\s+\w+(?:[-\s]\w+)?|(?:\d{2,3}mm\s+)?(?:Liquid|Water)\s*Cool(?:er|ing)?/gi,
+  cooling: /(?:AIO|All[-\s]?in[-\s]?One)\s*\d{2,3}\s*mm|(?:Noctua|Corsair|NZXT|be\s*quiet!?|Kraken|iCUE)\s+\w+(?:[-\s]\w+)?|(?:\d{2,3}mm\s+)?(?:Liquid|Water)\s*Cool(?:er|ing)?/gi,
 };
 
 // High-end GPU models for tier estimation

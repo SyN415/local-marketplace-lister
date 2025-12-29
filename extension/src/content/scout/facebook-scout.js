@@ -928,37 +928,63 @@
   // NEW: Extract full description text from the listing page
   function extractFullDescription() {
     try {
-      // Get the listing root - prefer modal/dialog if present (FB often shows listings in modals)
-      const main = getListingRoot();
+      // Strategy 1: Find the listing content area by looking near the price element
+      // This is more reliable than getListingRoot() which can return the whole page
+      const priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
 
-      // Facebook marketplace listings typically have description in a specific area
-      // Look for text blocks that contain spec-like content
+      // Find the parent container that holds the listing details (not the whole page)
+      // Walk up from price to find a reasonable container
+      let listingContainer = null;
+      if (priceEl) {
+        let parent = priceEl.parentElement;
+        // Walk up to find a container that's not too big (likely the listing panel)
+        for (let i = 0; i < 10 && parent; i++) {
+          // Stop at role="main" or role="dialog" - we want something smaller
+          const role = parent.getAttribute?.('role');
+          if (role === 'main' || role === 'dialog') break;
+          // A good container is typically 300-1500px tall (listing details area)
+          const height = parent.getBoundingClientRect?.()?.height || 0;
+          if (height > 200 && height < 2000) {
+            listingContainer = parent;
+          }
+          parent = parent.parentElement;
+        }
+      }
+
+      // Fallback to searching near price element's ancestors
+      if (!listingContainer) {
+        listingContainer = priceEl?.closest('[class*="x"]')?.parentElement?.parentElement || getListingRoot();
+      }
+
+      log(`extractFullDescription: using container with ${listingContainer?.children?.length || 0} children`);
+
       const descriptionCandidates = [];
-
-      // Strategy 1: Look for text in span and div elements
-      // Facebook's DOM structure varies, so we search broadly
-      const allTextElements = main.querySelectorAll('span, div');
-
-      // Track processed text to avoid duplicates (parent/child can have same text)
       const processedTexts = new Set();
 
+      // Get all text elements in the listing area
+      const allTextElements = listingContainer?.querySelectorAll?.('span, div') || [];
+
       for (const el of allTextElements) {
-        // Get only direct text content to avoid parent elements containing all child text
         const text = (el.textContent || '').trim();
 
         // Skip if we've already seen this exact text
         if (processedTexts.has(text)) continue;
 
         // Skip short texts
-        if (text.length < 50) continue;
+        if (text.length < 30) continue;
 
-        // Skip very long texts (likely parent containers with all nested text)
-        if (text.length > 3000) continue;
+        // Skip very long texts (likely parent containers)
+        if (text.length > 2000) continue;
 
         const textLower = text.toLowerCase();
 
-        // Skip navigation elements, buttons, and boilerplate
-        if (textLower.includes('see more')) continue;
+        // CRITICAL: Skip Facebook sidebar/navigation content
+        if (textLower.includes('chats') && textLower.includes('groups')) continue;
+        if (textLower.includes('communities') && textLower.includes('unread')) continue;
+        if (textLower.includes('has new content')) continue;
+        if (textLower.includes('marketplace') && textLower.includes('groups') && textLower.includes('chats')) continue;
+
+        // Skip common boilerplate
         if (textLower.includes('message seller')) continue;
         if (textLower.includes('is this available')) continue;
         if (textLower.startsWith('listed')) continue;
@@ -966,33 +992,36 @@
         if (textLower.includes('report listing')) continue;
         if (textLower.includes('similar listings')) continue;
         if (textLower.includes('seller information')) continue;
+        if (textLower.includes('see more')) continue;
 
         // Good candidates: contains specs-like patterns
-        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gtx|rtx|rx\s*\d|gb|tb|mhz|ghz|ddr|nvme|motherboard|psu|power supply|cooling|cooler)/i.test(text);
-        const hasDescription = text.length > 100 || hasSpecs;
+        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gtx|rtx|rx\s*\d|gb|tb|mhz|ghz|ddr|nvme|motherboard|psu|power supply|cooling|cooler|asrock|gigabyte|asus|msi)/i.test(text);
+
+        // Boost score for text that looks like a parts list
+        const hasPartsList = /(?:cpu\s*[-:–]|gpu\s*[-:–]|ram\s*[-:–]|motherboard\s*[-:–]|psu\s*[-:–])/i.test(text);
+
+        const hasDescription = text.length > 80 || hasSpecs || hasPartsList;
 
         if (hasDescription) {
           processedTexts.add(text);
           descriptionCandidates.push({
             text,
-            score: text.length + (hasSpecs ? 500 : 0)
+            score: (hasPartsList ? 1000 : 0) + (hasSpecs ? 500 : 0) + Math.min(text.length, 500)
           });
         }
       }
 
-      // Sort by score and take the best candidates
+      // Sort by score and take the best candidate
       descriptionCandidates.sort((a, b) => b.score - a.score);
 
-      // Take top candidate only (best spec-containing description)
-      // Taking multiple can lead to duplicate/nested content
       const bestCandidate = descriptionCandidates[0]?.text || '';
 
       log(`extractFullDescription found ${descriptionCandidates.length} candidates, best length: ${bestCandidate.length}`);
       if (bestCandidate) {
-        log(`Description preview: ${bestCandidate.substring(0, 100)}...`);
+        log(`Description preview: ${bestCandidate.substring(0, 150)}...`);
       }
 
-      return bestCandidate.slice(0, 2000); // Cap at 2000 chars
+      return bestCandidate.slice(0, 2000);
     } catch (e) {
       log('Error extracting description: ' + e?.message, 'warn');
       return '';
@@ -1204,10 +1233,36 @@
 
     // Price - look for currency patterns
     // This is tricky on FB, often just text like "$123"
-    // We look for a span containing $ nearby the title or in main column
+    // IMPORTANT: Facebook SPA can leave stale price elements in DOM, so find ALL price elements
+    // and pick the one that's visible and in the current listing area
     const metaPrice = extractPriceFromMeta();
-    let priceEl = document.querySelector('[data-testid="marketplace_pdp_price"]') ||
-                    findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement?.parentElement || main : main);
+    let priceEl = null;
+
+    // Find ALL marketplace_pdp_price elements (there may be stale ones from previous listings)
+    const allPriceEls = Array.from(document.querySelectorAll('[data-testid="marketplace_pdp_price"]'));
+    log(`Found ${allPriceEls.length} price elements with data-testid`);
+
+    // Find the visible one that's in the current viewport
+    for (const el of allPriceEls) {
+      const rect = el.getBoundingClientRect();
+      // Element is visible if it has size and is within viewport
+      if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < window.innerHeight) {
+        priceEl = el;
+        log(`Selected visible price element: "${el.textContent?.trim()}"`);
+        break;
+      }
+    }
+
+    // If no visible one found, fall back to first one
+    if (!priceEl && allPriceEls.length > 0) {
+      priceEl = allPriceEls[0];
+      log(`Using first price element (none visible): "${priceEl.textContent?.trim()}"`);
+    }
+
+    // Fallback: find price element near the title
+    if (!priceEl) {
+      priceEl = findElementByContent(/^\$[\d,]+/, titleEl ? titleEl.parentElement?.parentElement || main : main);
+    }
 
     // Fallback: Look for price near the title more aggressively
     if (!priceEl && !Number.isFinite(metaPrice)) {
@@ -1219,15 +1274,17 @@
         priceEl = findElementByContent(/^\$[\d,]+(?:\.\d{2})?$/, rightColumn);
       }
 
-      // Last resort: search more broadly
+      // Last resort: search more broadly but prefer visible elements
       if (!priceEl) {
         const allPriceElements = Array.from(document.querySelectorAll('span, div'))
           .filter(el => {
             const text = el.textContent?.trim() || '';
-            return /^\$[\d,]+$/.test(text) && text.length < 15;
+            if (!/^\$[\d,]+$/.test(text) || text.length >= 15) return false;
+            // Check visibility
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
           });
         if (allPriceElements.length > 0) {
-          // Prefer the first one that's near the title
           priceEl = allPriceElements[0];
         }
       }
@@ -1283,15 +1340,22 @@
 
     // Determine final price with fallbacks
     let finalPrice = null;
+
+    // FRESH price extraction: Re-query the price element each time to avoid stale data
+    const freshPriceEl = document.querySelector('[data-testid="marketplace_pdp_price"]');
+    const freshPriceText = freshPriceEl?.textContent?.trim() || '';
+
     if (Number.isFinite(metaPrice)) {
       finalPrice = metaPrice;
+    } else if (freshPriceEl && freshPriceText) {
+      finalPrice = parsePrice(freshPriceText);
     } else if (priceEl) {
       finalPrice = parsePrice(priceEl.textContent);
     } else if (fallbackPrice) {
       finalPrice = fallbackPrice;
     }
 
-    log(`Price extraction result: metaPrice=${metaPrice}, priceEl=${!!priceEl}, fallbackPrice=${fallbackPrice}, final=${finalPrice}`);
+    log(`Price extraction result: metaPrice=${metaPrice}, priceEl=${!!priceEl}, freshPriceText="${freshPriceText}", fallbackPrice=${fallbackPrice}, final=${finalPrice}`);
 
     return {
       title,
