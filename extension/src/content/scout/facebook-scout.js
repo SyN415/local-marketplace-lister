@@ -1002,57 +1002,92 @@
       let bestTextBlock = '';
       let bestScore = 0;
 
-      const textBlocks = main.querySelectorAll('span, div');
-      for (const el of textBlocks) {
-        // Skip if it's a container with many children (we want leaf text nodes)
-        if (el.childElementCount > 3) continue;
+      // Also try to get the h1's containing section for more precision
+      // h1 was already queried above, reuse it
+      let h1Section = null;
+      if (h1) {
+        let h1Parent = h1.parentElement;
+        for (let i = 0; i < 8 && h1Parent; i++) {
+          const rect = h1Parent.getBoundingClientRect?.();
+          // Stop when we find a section-like container
+          if (rect && rect.height > 200 && rect.width < 700) {
+            h1Section = h1Parent;
+          }
+          if (h1Parent.getAttribute?.('role') === 'main') break;
+          h1Parent = h1Parent.parentElement;
+        }
+      }
 
-        const text = el.textContent?.trim() || '';
+      // Prioritized search: h1Section > listingColumn > main
+      const searchContainers = [h1Section, listingColumn, main].filter(Boolean);
 
-        // Skip very short or very long text
-        if (text.length < 50 || text.length > 3000) continue;
+      for (const container of searchContainers) {
+        const textBlocks = container.querySelectorAll('span, div');
+        for (const el of textBlocks) {
+          // Skip if it's a container with many children (we want leaf text nodes)
+          if (el.childElementCount > 3) continue;
 
-        // Skip "Today's picks" content
-        if (text.includes("Today's picks")) continue;
+          const text = el.textContent?.trim() || '';
 
-        // Skip if contains multiple dollar amounts (recommendation section)
-        const priceMatches = text.match(/\$\d+/g) || [];
-        if (priceMatches.length > 3) continue;
+          // Skip very short or very long text
+          if (text.length < 50 || text.length > 3000) continue;
 
-        // Score based on PC component keywords
-        const lowerText = text.toLowerCase();
-        let score = 0;
+          // Skip "Today's picks" content
+          if (text.includes("Today's picks")) continue;
 
-        // High-value keywords (specific components)
-        const highValueKeywords = [
-          'ryzen', 'intel', 'i5', 'i7', 'i9', 'cpu:',
-          'rtx', 'gtx', 'radeon', 'rx ', 'gpu:',
-          'ddr4', 'ddr5', 'ram:',
-          'ssd', 'nvme', 'storage:',
-          'psu', 'watt', '650w', '750w', '850w',
-          'motherboard', 'matx', 'atx',
-          'geforce', 'nvidia', 'amd'
-        ];
+          // Skip if contains multiple dollar amounts (recommendation section)
+          const priceMatches = text.match(/\$\d+/g) || [];
+          if (priceMatches.length > 3) continue;
 
-        for (const kw of highValueKeywords) {
-          if (lowerText.includes(kw)) score += 100;
+          // Skip sponsored content, ads, and third-party retailers
+          const skipPatterns = [
+            'sponsored', 'temu', 'amazon', 'walmart', 'best buy', 'newegg',
+            'shop now', 'free shipping', 'add to cart', 'buy now',
+            'advertisement', 'promoted', 'suggested for you'
+          ];
+          const lowerForSkip = text.toLowerCase();
+          if (skipPatterns.some(p => lowerForSkip.includes(p))) continue;
+
+          // Score based on PC component keywords
+          const lowerText = text.toLowerCase();
+          let score = 0;
+
+          // High-value keywords (specific components)
+          const highValueKeywords = [
+            'ryzen', 'intel', 'i5', 'i7', 'i9', 'cpu:',
+            'rtx', 'gtx', 'radeon', 'rx ', 'gpu:',
+            'ddr4', 'ddr5', 'ram:',
+            'ssd', 'nvme', 'storage:',
+            'psu', 'watt', '650w', '750w', '850w',
+            'motherboard', 'matx', 'atx',
+            'geforce', 'nvidia', 'amd'
+          ];
+
+          for (const kw of highValueKeywords) {
+            if (lowerText.includes(kw)) score += 100;
+          }
+
+          // Medium-value keywords
+          const mediumKeywords = ['gaming', 'pc', 'computer', 'desktop', 'build'];
+          for (const kw of mediumKeywords) {
+            if (lowerText.includes(kw)) score += 20;
+          }
+
+          // Prefer text that looks like a spec list (has colons or line breaks)
+          if (text.includes(':') || text.includes('\n')) score += 50;
+
+          // Length bonus (but not too much)
+          score += Math.min(text.length / 10, 30);
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestTextBlock = text;
+          }
         }
 
-        // Medium-value keywords
-        const mediumKeywords = ['gaming', 'pc', 'computer', 'desktop', 'build'];
-        for (const kw of mediumKeywords) {
-          if (lowerText.includes(kw)) score += 20;
-        }
-
-        // Prefer text that looks like a spec list (has colons or line breaks)
-        if (text.includes(':') || text.includes('\n')) score += 50;
-
-        // Length bonus (but not too much)
-        score += Math.min(text.length / 10, 30);
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestTextBlock = text;
+        // If we found good results in this container, use them (prefer narrower search)
+        if (bestScore >= 100) {
+          break;
         }
       }
 
@@ -1562,11 +1597,62 @@
     // Extract price from description as final fallback
     let fallbackPrice = null;
     if (!priceEl && !Number.isFinite(metaPrice)) {
-      const descText = main?.textContent || document.body.textContent || '';
-      const priceMatch = descText.match(/\$\s*([\d,]+)/);
-      if (priceMatch) {
-        fallbackPrice = parsePrice(priceMatch[0]);
-        priceSource = 'text-fallback';
+      // Method 6: More aggressive search - find ALL text nodes with $ amounts
+      // and prioritize ones near the title or at top of page
+      const h1El = main?.querySelector('h1');
+
+      if (h1El) {
+        // Get h1's bounding box to find elements near it
+        const h1Rect = h1El.getBoundingClientRect();
+
+        // Search for text nodes with prices
+        const walker = document.createTreeWalker(main || document.body, NodeFilter.SHOW_TEXT);
+        const priceCandidates = [];
+        let node;
+
+        while (node = walker.nextNode()) {
+          const text = node.textContent?.trim() || '';
+          const match = text.match(/^\$\s*([\d,]+)$/);
+          if (!match) continue;
+
+          const parent = node.parentElement;
+          if (!parent) continue;
+
+          const rect = parent.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) continue;
+
+          // Calculate distance from h1
+          const distFromH1 = Math.abs(rect.top - h1Rect.top) + Math.abs(rect.left - h1Rect.left);
+
+          // Skip if it's below 600px (likely recommendations)
+          if (rect.top > 600) continue;
+
+          priceCandidates.push({
+            price: parsePrice(text),
+            distance: distFromH1,
+            top: rect.top,
+            el: parent
+          });
+        }
+
+        // Sort by distance from h1 (closest first)
+        priceCandidates.sort((a, b) => a.distance - b.distance);
+
+        if (priceCandidates.length > 0) {
+          fallbackPrice = priceCandidates[0].price;
+          priceSource = 'h1-proximity';
+          log(`Found price via h1 proximity: $${fallbackPrice} (distance: ${priceCandidates[0].distance}px)`);
+        }
+      }
+
+      // Ultimate fallback: first $ amount on the page
+      if (!fallbackPrice) {
+        const descText = main?.textContent || document.body.textContent || '';
+        const priceMatch = descText.match(/\$\s*([\d,]+)/);
+        if (priceMatch) {
+          fallbackPrice = parsePrice(priceMatch[0]);
+          priceSource = 'text-fallback';
+        }
       }
     }
 

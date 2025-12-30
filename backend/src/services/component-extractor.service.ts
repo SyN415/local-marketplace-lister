@@ -25,41 +25,80 @@ export interface ComponentProfile {
 // Regex patterns for PC component detection
 const COMPONENT_PATTERNS: Record<string, RegExp> = {
   // CPU patterns - AMD Ryzen and Intel Core series
-  // Matches: Intel I9 9900k, Intel Core i9-9900K, Ryzen 7 5800X, R7 7800X3D, AMD 9700X, etc.
+  // Matches: Intel I9 9900k, Intel Core i9-9900K, Ryzen 7 5800X, R7 7800X3D, AMD 9700X, i9-11900k, etc.
   cpu: /(?:AMD\s+)?(?:Ryzen\s+)?[Rr][3579]\s+\d{4}[A-Z0-9]*|(?:AMD\s+)?Ryzen\s+[3579]\s+\d{4}[A-Z0-9]*|(?:Intel\s+)?(?:Core\s+)?i[3579][-\s]?\d{4,5}[A-Z]*|AMD\s+\d{4,5}[A-Z]*|Xeon\s+\w+[-\d]+|EPYC\s+\d+|Threadripper\s+\d+/gi,
 
   // GPU patterns - NVIDIA and AMD
-  // Matches: RTX 3080, RTX 5070 Ti, GeForce GTX 1080, RX 6800 XT, Radeon RX 580, etc.
-  gpu: /(?:NVIDIA\s+)?(?:GeForce\s+)?(?:RTX|GTX)\s*\d{3,4}(?:\s*Ti|\s*Super)?|(?:AMD\s+)?(?:Radeon\s+)?RX\s*\d{3,4}(?:\s*XT)?|(?:Tesla|Quadro)\s+\w+\d+|A\d{2}0\d?/gi,
+  // Matches: RTX 3080, 3080Ti, EVGA 3080ti, GTX 1080, RX 6800 XT, Radeon RX 580, etc.
+  // For standalone numbers (no RTX/GTX prefix), require brand prefix OR Ti/Super suffix
+  gpu: /(?:NVIDIA\s+)?(?:GeForce\s+)?(?:RTX|GTX)\s*\d{3,4}(?:\s*Ti|\s*Super)?|(?:EVGA|ASUS|MSI|Gigabyte|Zotac|PNY)\s+\d{4}\s*(?:Ti|Super)?|\d{4}\s*(?:Ti|Super)|(?:AMD\s+)?(?:Radeon\s+)?RX\s*\d{3,4}(?:\s*XT)?|(?:Tesla|Quadro)\s+\w+\d+|A\d{2}0\d?/gi,
 
   // RAM patterns - DDR3/4/5 with capacity and speed
-  // Matches: 32GB DDR4, 2x8GB DDR4 2400, 16GB RAM, 32GB DDR5 @6400, etc.
-  ram: /(\d+)\s*x?\s*(\d+)\s*GB\s*DDR[345](?:[-\s@]*\d{3,4})?|(\d{1,3})\s*GB?\s*(?:DDR[345])(?:[-\s@]*(\d{3,4})\s*(?:MHz|MTs)?)?|\d{1,3}\s*GB\s+RAM/gi,
+  // Matches: 32GB DDR4, 2x8GB DDR4 2400, 16GB RAM, DDR4 2X16(3600), 16x2, Corsair DDR4, etc.
+  // Added: DDR before capacity format, formats like 2X16, 16x2
+  ram: /\d+\s*[xX]\s*\d+\s*GB\s*DDR[345](?:[-\s@(]*\d{3,4})?|\d{1,3}\s*GB?\s*DDR[345](?:[-\s@(]*\d{3,4})?|DDR[345]\s*\d*[xX]?\d+(?:\s*GB)?(?:[-\s@(]*\d{3,4})?|\d{1,3}\s*GB\s+RAM|\d{1,2}\s*[xX]\s*\d{1,2}(?=\s|$|[,\n])/gi,
 
   // Storage patterns - SSD, HDD, NVMe with capacity
-  // Matches: 2TB NVMe, 1TB SSD, 500GB M.2, 2TB Gen 4, etc.
-  storage: /(\d+)\s*(?:TB|GB)\s*(?:SSD|HDD|NVMe|M\.2|SATA|Gen\s*\d)/gi,
+  // Matches: 2TB NVMe, 1TB SSD, 500GB M.2, 980 Pro 1TB, Samsung 970 Evo 2TB, etc.
+  // Added: model name before capacity (980 Pro, 970 Evo, etc.)
+  storage: /\d+\s*(?:TB|GB)\s*(?:SSD|HDD|NVMe|M\.?2|SATA|Gen\s*\d)|(?:980\s*Pro|970\s*Evo|870\s*Evo|860\s*Evo|SN\d{3}|P\d{1,2}|Firecuda|Barracuda)\s*\d+\s*(?:TB|GB)(?:\s*[xX]\s*\d+)?|\d+\s*(?:TB|GB)\s*[xX]\s*\d+/gi,
 
   // PSU patterns - wattage
-  // Matches: 850W, 850w Gold, PSU 750W, etc.
-  psu: /(\d{3,4})\s*[Ww](?:att)?(?:\s*(?:Gold|Bronze|Platinum|Titanium|PSU|Power\s+Supply))?|(?:PSU|Power\s+Supply)\s*[-:]?\s*(\d{3,4})\s*[Ww]/gi,
+  // Matches: 850W, 850w Gold, PSU 750W, Corsair 850W PSU, etc.
+  psu: /\d{3,4}\s*[Ww](?:att)?(?:\s*(?:Gold|Bronze|Platinum|Titanium|80\+|Plus))?(?:\s*PSU)?|(?:PSU|Power\s+Supply)\s*[-:]?\s*\d{3,4}\s*[Ww]/gi,
 
-  // Motherboard patterns - Intel/AMD chipsets and brand names
-  // Matches: Z390, B650, Asrock Z390, Gigabyte B650 Eagle, ROG Strix, TUF Gaming, etc.
-  motherboard: /(?:Asrock|ASUS|Gigabyte|MSI|EVGA|Biostar)?\s*[ZXHBzxhb]\d{2,3}[A-Za-z]?(?:[-\s]?(?:Phantom|Gaming|Eagle|M\.?2|DDR\d|Pro|Elite|Strix|Plus|AX|\w+))*|(?:MAG|ROG|TUF|Prime|AORUS|Strix)\s+[\w\s]+/gi,
+  // Motherboard patterns - Intel/AMD chipsets
+  // Matches: Z590, B650, X570, H670, ROG Maximus XIII Hero Z590, etc.
+  // MUST include chipset identifier (Z/X/H/B + 3 digits)
+  motherboard: /(?:ROG\s+)?(?:Maximus|Strix|Crosshair)\s+(?:XIII|XII|XI|X|Hero|Extreme)?\s*[ZXHBzxhb]\d{3}|(?:TUF|Prime|MAG|AORUS|Taichi)\s+(?:Gaming\s+)?[ZXHBzxhb]\d{3}|(?:Asrock|ASUS|Gigabyte|MSI|Biostar)\s+[ZXHBzxhb]\d{3}|[ZXHBzxhb]\d{3}(?:\s+(?:Pro|Plus|Gaming|Elite|Wifi|AX))?/gi,
 
-  // Case patterns
+  // Case patterns - specific model patterns to avoid over-matching
   // Matches: NZXT H510, Corsair 4000D, Hyte Y40, Lian Li O11, etc.
-  case: /(?:NZXT|Corsair|Fractal|Lian\s*Li|Phanteks|Cooler\s*Master|be\s*quiet!?|Hyte)\s+[\w\d\s]+(?:Tower|Case|ATX)?/gi,
+  case: /(?:NZXT)\s+[HhSs]\d{3,4}\w?|(?:Corsair)\s+\d{4}[DdXx]?|(?:Fractal)\s+(?:Design\s+)?(?:Define|Meshify|Pop|North)\s*\w*|(?:Lian\s*Li)\s+(?:O\d{2}|Lancool)\w*|(?:Phanteks)\s+(?:Eclipse|Enthoo|Evolv)\s*\w*|(?:Cooler\s*Master)\s+(?:MasterBox|MasterCase|H500)\w*|(?:be\s*quiet!?)\s+(?:Pure|Silent|Dark)\s*Base\s*\w*|(?:Hyte)\s+[Yy]\d{2}\w?/gi,
 
-  // Cooling patterns - AIO and air coolers
-  // Matches: 360mm AIO, Noctua NH-D15, Thermalright 360, Kraken X63, etc.
-  cooling: /(?:AIO|All[-\s]?in[-\s]?One)\s*\d{2,3}\s*mm|(?:Noctua|Corsair|NZXT|be\s*quiet!?|Kraken|iCUE|Thermalright)\s+[\w\d]+(?:[-\s][\w\d]+)*|\d{2,3}\s*mm\s*(?:Liquid|Water|AIO)\s*Cool(?:er|ing)?/gi,
+  // Cooling patterns - AIO and air coolers (specific models)
+  // Matches: 360mm AIO, Noctua NH-D15, Corsair elite 360, Kraken X63, liquid cooling, etc.
+  cooling: /\d{2,3}\s*mm\s*(?:AIO|Liquid|Water)(?:\s*Cool(?:er|ing)?)?|(?:Noctua)\s+NH[-]?[A-Z]?\d+\w*|(?:Corsair)\s+(?:H\d{2,3}i?|[Ee]lite\s+\d{3})|(?:NZXT)\s+(?:Kraken)\s*[XZ]?\d*|(?:be\s*quiet!?)\s+(?:Pure|Dark)\s*Rock\s*\w*|(?:Thermalright)\s+(?:Peerless|Assassin)\s*\w*|(?:liquid|water)\s+cool(?:ing|er)/gi,
 };
 
-// High-end GPU models for tier estimation
-const HIGH_END_GPU_PATTERNS = /RTX\s*40[789]0|RTX\s*30[789]0|RX\s*7[89]00|RX\s*6[89]00/i;
-const MID_RANGE_GPU_PATTERNS = /RTX\s*40[56]0|RTX\s*30[56]0|RTX\s*20[678]0|RX\s*7[67]00|RX\s*6[67]00|RX\s*5[67]00/i;
+// Post-process extracted components to clean up and validate
+function cleanExtractedComponents(components: ExtractedComponents): ExtractedComponents {
+  const cleaned: ExtractedComponents = {};
+
+  for (const [type, values] of Object.entries(components)) {
+    if (!values || values.length === 0) continue;
+
+    // Filter out values that are too short or clearly wrong
+    const filtered = values.filter((v: string) => {
+      const val = v.trim();
+      if (val.length < 3) return false;
+
+      // For RAM, filter out standalone numbers like "16x2" that might be mismatched
+      if (type === 'ram' && /^\d+\s*[xX]\s*\d+$/.test(val)) {
+        // Only keep if it looks like RAM capacity (e.g., 16x2 = 32GB total makes sense)
+        const match = val.match(/(\d+)\s*[xX]\s*(\d+)/);
+        if (match) {
+          const [, a, b] = match;
+          const total = parseInt(a) * parseInt(b);
+          // Common RAM totals: 16, 32, 64, 128
+          if (![16, 32, 64, 128, 8].includes(total)) return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (filtered.length > 0) {
+      cleaned[type as keyof ExtractedComponents] = filtered;
+    }
+  }
+
+  return cleaned;
+}
+
+// High-end GPU models for tier estimation (now matches with or without RTX prefix)
+const HIGH_END_GPU_PATTERNS = /(?:RTX\s*)?40[789]0|(?:RTX\s*)?30[789]0\s*Ti?|RX\s*7[89]00|RX\s*6[89]00/i;
+const MID_RANGE_GPU_PATTERNS = /(?:RTX\s*)?40[56]0|(?:RTX\s*)?30[56]0|(?:RTX\s*)?20[678]0|RX\s*7[67]00|RX\s*6[67]00|RX\s*5[67]00/i;
 
 export class ComponentExtractorService {
   /**
@@ -80,7 +119,8 @@ export class ComponentExtractorService {
       }
     }
 
-    return components;
+    // Apply post-processing cleanup
+    return cleanExtractedComponents(components);
   }
 
   /**
