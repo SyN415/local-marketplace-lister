@@ -944,7 +944,10 @@
       // Facebook's listing page structure:
       // - Left side: images
       // - Right side: title (h1), price, details section with description
-      // - Below: "Today's picks" with other listings (must avoid!)
+      // - Below/Side: "Today's picks" with other listings (MUST AVOID!)
+
+      // The KEY insight: We need to find the listing panel that contains the H1,
+      // and ONLY search within that panel. Never search the full page.
 
       const main = document.querySelector('[role="main"]');
       if (!main) {
@@ -952,239 +955,119 @@
         return '';
       }
 
-      // Strategy 1: Find "Details" or "Condition" heading and extract nearby text
-      // These headings are spans with specific text on Facebook
-      const allSpans = main.querySelectorAll('span');
-      let detailsContainer = null;
-
-      for (const span of allSpans) {
-        const text = span.textContent?.trim()?.toLowerCase() || '';
-        // Look for section headers like "Details", "Condition", "Description"
-        if ((text === 'details' || text === 'condition' || text === 'description') &&
-            span.textContent?.trim().length < 20) {
-          // Found a section header - go up to find the container
-          let parent = span.parentElement;
-          for (let i = 0; i < 8 && parent; i++) {
-            // Stop at reasonable container size
-            const rect = parent.getBoundingClientRect?.();
-            if (rect && rect.height > 100 && rect.height < 800) {
-              detailsContainer = parent;
-              log(`Found details container via "${text}" header`);
-              break;
-            }
-            parent = parent.parentElement;
-          }
-          if (detailsContainer) break;
-        }
-      }
-
-      // Strategy 2: Find the h1 (title) and look in its column/section
+      // Step 1: Find the H1 title element - this is our anchor
       const h1 = main.querySelector('h1');
-      let listingColumn = null;
-
-      if (h1) {
-        // Facebook uses a column layout - find the column containing h1
-        let parent = h1.parentElement;
-        for (let i = 0; i < 10 && parent; i++) {
-          // A good listing column is narrow (right side panel)
-          const rect = parent.getBoundingClientRect?.();
-          if (rect && rect.width > 200 && rect.width < 600 && rect.height > 300) {
-            listingColumn = parent;
-          }
-          // Stop before we hit role="main"
-          if (parent.getAttribute?.('role') === 'main') break;
-          parent = parent.parentElement;
-        }
-      }
-
-      // Strategy 3: Look for text blocks with PC component keywords directly
-      // This is the most reliable for our use case
-      let bestTextBlock = '';
-      let bestScore = 0;
-
-      // Also try to get the h1's containing section for more precision
-      // h1 was already queried above, reuse it
-      let h1Section = null;
-      if (h1) {
-        let h1Parent = h1.parentElement;
-        for (let i = 0; i < 8 && h1Parent; i++) {
-          const rect = h1Parent.getBoundingClientRect?.();
-          // Stop when we find a section-like container
-          if (rect && rect.height > 200 && rect.width < 700) {
-            h1Section = h1Parent;
-          }
-          if (h1Parent.getAttribute?.('role') === 'main') break;
-          h1Parent = h1Parent.parentElement;
-        }
-      }
-
-      // Prioritized search: h1Section > listingColumn > main
-      const searchContainers = [h1Section, listingColumn, main].filter(Boolean);
-
-      for (const container of searchContainers) {
-        const textBlocks = container.querySelectorAll('span, div');
-        for (const el of textBlocks) {
-          // Skip if it's a container with many children (we want leaf text nodes)
-          if (el.childElementCount > 3) continue;
-
-          const text = el.textContent?.trim() || '';
-
-          // Skip very short or very long text
-          if (text.length < 50 || text.length > 3000) continue;
-
-          // Skip "Today's picks" content
-          if (text.includes("Today's picks")) continue;
-
-          // Skip if contains multiple dollar amounts (recommendation section)
-          const priceMatches = text.match(/\$\d+/g) || [];
-          if (priceMatches.length > 3) continue;
-
-          // Skip sponsored content, ads, and third-party retailers
-          const skipPatterns = [
-            'sponsored', 'temu', 'amazon', 'walmart', 'best buy', 'newegg',
-            'shop now', 'free shipping', 'add to cart', 'buy now',
-            'advertisement', 'promoted', 'suggested for you'
-          ];
-          const lowerForSkip = text.toLowerCase();
-          if (skipPatterns.some(p => lowerForSkip.includes(p))) continue;
-
-          // Score based on PC component keywords
-          const lowerText = text.toLowerCase();
-          let score = 0;
-
-          // High-value keywords (specific components)
-          const highValueKeywords = [
-            'ryzen', 'intel', 'i5', 'i7', 'i9', 'cpu:',
-            'rtx', 'gtx', 'radeon', 'rx ', 'gpu:',
-            'ddr4', 'ddr5', 'ram:',
-            'ssd', 'nvme', 'storage:',
-            'psu', 'watt', '650w', '750w', '850w',
-            'motherboard', 'matx', 'atx',
-            'geforce', 'nvidia', 'amd'
-          ];
-
-          for (const kw of highValueKeywords) {
-            if (lowerText.includes(kw)) score += 100;
-          }
-
-          // Medium-value keywords
-          const mediumKeywords = ['gaming', 'pc', 'computer', 'desktop', 'build'];
-          for (const kw of mediumKeywords) {
-            if (lowerText.includes(kw)) score += 20;
-          }
-
-          // Prefer text that looks like a spec list (has colons or line breaks)
-          if (text.includes(':') || text.includes('\n')) score += 50;
-
-          // Length bonus (but not too much)
-          score += Math.min(text.length / 10, 30);
-
-          if (score > bestScore) {
-            bestScore = score;
-            bestTextBlock = text;
-          }
-        }
-
-        // If we found good results in this container, use them (prefer narrower search)
-        if (bestScore >= 100) {
-          break;
-        }
-      }
-
-      // Use the best text block we found
-      if (bestScore >= 100) {
-        log(`extractFullDescription: Found via keyword scoring (score: ${bestScore})`);
-        log(`Preview: ${bestTextBlock.substring(0, 200)}...`);
-        return bestTextBlock.slice(0, 2000);
-      }
-
-      // Fallback: Use detailsContainer or listingColumn if we found one
-      const searchContainer = detailsContainer || listingColumn;
-
-      if (!searchContainer) {
-        log('extractFullDescription: No valid container found, trying full page scan');
-        // Last resort: return bestTextBlock even with low score
-        if (bestTextBlock) {
-          log(`Using best text block with score ${bestScore}`);
-          return bestTextBlock.slice(0, 2000);
-        }
+      if (!h1) {
+        log('extractFullDescription: No h1 found');
         return '';
       }
 
-      log(`extractFullDescription: using container with ${searchContainer?.children?.length || 0} children`);
+      // Step 2: Find the listing panel - the narrower column containing the H1
+      // This panel is typically 300-500px wide on the right side
+      let listingPanel = null;
+      let parent = h1.parentElement;
 
-      const descriptionCandidates = [];
-      const processedTexts = new Set();
+      for (let i = 0; i < 12 && parent; i++) {
+        const rect = parent.getBoundingClientRect?.();
+        if (rect) {
+          // The listing panel is narrow (not full width) and reasonably tall
+          // It should be less than half the viewport width
+          const isNarrow = rect.width > 250 && rect.width < Math.min(700, window.innerWidth * 0.6);
+          const isTall = rect.height > 300;
 
-      // Get all text elements in the listing area
-      const allTextElements = searchContainer?.querySelectorAll?.('span, div') || [];
-
-      for (const el of allTextElements) {
-        const text = (el.textContent || '').trim();
-
-        // Skip if we've already seen this exact text
-        if (processedTexts.has(text)) continue;
-
-        // Skip short texts
-        if (text.length < 30) continue;
-
-        // Skip very long texts (likely parent containers)
-        if (text.length > 2000) continue;
-
-        const textLower = text.toLowerCase();
-
-        // CRITICAL: Skip "Today's picks" content - these contain OTHER listings
-        if (textLower.includes("today's picks")) continue;
-        if (textLower.includes('san francisco') && textLower.includes('mi') && text.includes('$')) continue;
-        // Skip if text looks like multiple listing titles/prices concatenated
-        const priceCount = (text.match(/\$\d+/g) || []).length;
-        if (priceCount > 3) continue; // Multiple prices = recommendation section
-
-        // Skip Facebook sidebar/navigation content
-        if (textLower.includes('chats') && textLower.includes('groups')) continue;
-        if (textLower.includes('communities') && textLower.includes('unread')) continue;
-        if (textLower.includes('yousell') || textLower.includes('all categories')) continue;
-        if (textLower.includes('has new content')) continue;
-        if (textLower.includes('marketplace') && textLower.includes('groups') && textLower.includes('chats')) continue;
-
-        // Skip common boilerplate
-        if (textLower.includes('message seller')) continue;
-        if (textLower.includes('is this available')) continue;
-        if (textLower.startsWith('listed')) continue;
-        if (textLower.startsWith('join facebook')) continue;
-        if (textLower.includes('report listing')) continue;
-        if (textLower.includes('similar listings')) continue;
-        if (textLower.includes('seller information')) continue;
-        if (textLower.includes('see more') && text.length < 50) continue;
-
-        // Good candidates: contains specs-like patterns
-        const hasSpecs = /(?:cpu|gpu|ram|storage|processor|memory|ssd|hdd|nvidia|amd|intel|ryzen|geforce|radeon|gtx|rtx|rx\s*\d|gb|tb|mhz|ghz|ddr|nvme|motherboard|psu|power supply|cooling|cooler|asrock|gigabyte|asus|msi|arc\s*a\d{3})/i.test(text);
-
-        // Boost score for text that looks like a parts list
-        const hasPartsList = /(?:cpu\s*[-:–]|gpu\s*[-:–]|ram\s*[-:–]|motherboard\s*[-:–]|psu\s*[-:–])/i.test(text);
-
-        const hasDescription = text.length > 80 || hasSpecs || hasPartsList;
-
-        if (hasDescription) {
-          processedTexts.add(text);
-          descriptionCandidates.push({
-            text,
-            score: (hasPartsList ? 1000 : 0) + (hasSpecs ? 500 : 0) + Math.min(text.length, 500)
-          });
+          if (isNarrow && isTall) {
+            listingPanel = parent;
+            // Keep going to find a slightly larger container if possible
+          }
         }
+        if (parent.getAttribute?.('role') === 'main') break;
+        parent = parent.parentElement;
       }
 
-      // Sort by score and take the best candidate
-      descriptionCandidates.sort((a, b) => b.score - a.score);
-
-      const bestCandidate = descriptionCandidates[0]?.text || '';
-
-      log(`extractFullDescription found ${descriptionCandidates.length} candidates, best length: ${bestCandidate.length}`);
-      if (bestCandidate) {
-        log(`Description preview: ${bestCandidate.substring(0, 150)}...`);
+      if (!listingPanel) {
+        log('extractFullDescription: Could not find listing panel, using h1 parent');
+        // Fallback: use a few levels up from h1
+        listingPanel = h1.parentElement?.parentElement?.parentElement || h1.parentElement;
       }
 
-      return bestCandidate.slice(0, 2000);
+      log(`extractFullDescription: Using listing panel with ${listingPanel?.children?.length || 0} children`);
+
+      // Step 3: Extract text ONLY from within the listing panel
+      // Walk through text nodes and collect description content
+      const textParts = [];
+      const seenTexts = new Set();
+
+      // Get the bounding box of the listing panel to filter by position
+      const panelRect = listingPanel.getBoundingClientRect();
+
+      // Find all text-containing elements in the panel
+      const textElements = listingPanel.querySelectorAll('span, div');
+
+      for (const el of textElements) {
+        // Skip elements with many children (containers)
+        if (el.childElementCount > 2) continue;
+
+        const text = el.textContent?.trim() || '';
+
+        // Skip empty, too short, or already seen
+        if (!text || text.length < 10 || seenTexts.has(text)) continue;
+
+        // Skip if it's a parent of something we already processed
+        let isParent = false;
+        for (const seen of seenTexts) {
+          if (text.includes(seen) && text.length > seen.length * 1.5) {
+            isParent = true;
+            break;
+          }
+        }
+        if (isParent) continue;
+
+        // Check element position - must be within the panel
+        const elRect = el.getBoundingClientRect();
+        if (elRect.left < panelRect.left - 50 || elRect.right > panelRect.right + 50) continue;
+
+        // Skip "Today's picks" and similar sections
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes("today's picks") ||
+            lowerText.includes("you may also like") ||
+            lowerText.includes("similar listings") ||
+            lowerText.includes("see more listings")) continue;
+
+        // Skip if contains multiple dollar amounts (aggregated recommendations)
+        const priceMatches = text.match(/\$\d/g) || [];
+        if (priceMatches.length > 2) continue;
+
+        // Skip sponsored/ad content
+        if (lowerText.includes('sponsored') || lowerText.includes('temu') ||
+            lowerText.includes('amazon') || lowerText.includes('shop now')) continue;
+
+        seenTexts.add(text);
+        textParts.push(text);
+      }
+
+      // Combine all text parts
+      let description = textParts.join('\n');
+
+      // If we got a reasonable description, return it
+      if (description.length >= 50) {
+        log(`extractFullDescription: Found ${textParts.length} text parts, total ${description.length} chars`);
+        log(`Preview: ${description.substring(0, 200)}...`);
+        return description.slice(0, 2000);
+      }
+
+      // Fallback: Get all visible text in the panel
+      log('extractFullDescription: Trying full panel text extraction');
+      const allText = listingPanel.textContent || '';
+
+      // Try to extract just the details section
+      const detailsMatch = allText.match(/Details[\s\S]*?(?=Today's picks|Similar|You may also|$)/i);
+      if (detailsMatch && detailsMatch[0].length > 50) {
+        log(`extractFullDescription: Found via Details section match`);
+        return detailsMatch[0].slice(0, 2000);
+      }
+
+      return allText.slice(0, 2000);
+
     } catch (e) {
       log('Error extracting description: ' + e?.message, 'warn');
       return '';
@@ -1597,51 +1480,85 @@
     // Extract price from description as final fallback
     let fallbackPrice = null;
     if (!priceEl && !Number.isFinite(metaPrice)) {
-      // Method 6: More aggressive search - find ALL text nodes with $ amounts
-      // and prioritize ones near the title or at top of page
+      // Method 6: More aggressive search - find price in listing panel
+      // Key insight: search within the same panel as the H1, not the whole page
       const h1El = main?.querySelector('h1');
 
       if (h1El) {
-        // Get h1's bounding box to find elements near it
-        const h1Rect = h1El.getBoundingClientRect();
-
-        // Search for text nodes with prices
-        const walker = document.createTreeWalker(main || document.body, NodeFilter.SHOW_TEXT);
-        const priceCandidates = [];
-        let node;
-
-        while (node = walker.nextNode()) {
-          const text = node.textContent?.trim() || '';
-          const match = text.match(/^\$\s*([\d,]+)$/);
-          if (!match) continue;
-
-          const parent = node.parentElement;
-          if (!parent) continue;
-
-          const rect = parent.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) continue;
-
-          // Calculate distance from h1
-          const distFromH1 = Math.abs(rect.top - h1Rect.top) + Math.abs(rect.left - h1Rect.left);
-
-          // Skip if it's below 600px (likely recommendations)
-          if (rect.top > 600) continue;
-
-          priceCandidates.push({
-            price: parsePrice(text),
-            distance: distFromH1,
-            top: rect.top,
-            el: parent
-          });
+        // Find the listing panel (same logic as description extraction)
+        let listingPanel = null;
+        let parent = h1El.parentElement;
+        for (let i = 0; i < 12 && parent; i++) {
+          const rect = parent.getBoundingClientRect?.();
+          if (rect) {
+            const isNarrow = rect.width > 250 && rect.width < Math.min(700, window.innerWidth * 0.6);
+            const isTall = rect.height > 300;
+            if (isNarrow && isTall) listingPanel = parent;
+          }
+          if (parent.getAttribute?.('role') === 'main') break;
+          parent = parent.parentElement;
         }
 
-        // Sort by distance from h1 (closest first)
-        priceCandidates.sort((a, b) => a.distance - b.distance);
+        const searchArea = listingPanel || h1El.parentElement?.parentElement?.parentElement;
+        const h1Rect = h1El.getBoundingClientRect();
+        const priceCandidates = [];
+
+        if (searchArea) {
+          // Search for elements containing $ amounts
+          const allElements = searchArea.querySelectorAll('span, div');
+
+          for (const el of allElements) {
+            // Skip containers with children
+            if (el.childElementCount > 1) continue;
+
+            const text = el.textContent?.trim() || '';
+
+            // Match prices: exact "$X,XXX" or text starting with "$X,XXX"
+            // But NOT text with multiple prices (recommendations)
+            const priceMatch = text.match(/^\$\s*([\d,]+)/);
+            if (!priceMatch) continue;
+
+            // Skip if multiple prices in same element (recommendations)
+            const allPrices = text.match(/\$\d+/g) || [];
+            if (allPrices.length > 2) continue;
+
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) continue;
+
+            // Calculate distance from h1
+            const distFromH1 = Math.abs(rect.top - h1Rect.top) + Math.abs(rect.left - h1Rect.left);
+
+            // Prefer prices close to the h1 (within 200px vertically)
+            const isNearH1 = Math.abs(rect.top - h1Rect.top) < 200;
+
+            priceCandidates.push({
+              price: parsePrice(priceMatch[0]),
+              distance: distFromH1,
+              top: rect.top,
+              isExact: /^\$[\d,]+$/.test(text), // Bonus for exact match
+              isNearH1,
+              el
+            });
+          }
+        }
+
+        // Sort by: nearH1 first, then exact matches, then by distance
+        priceCandidates.sort((a, b) => {
+          // Prefer prices near the H1
+          if (a.isNearH1 !== b.isNearH1) return a.isNearH1 ? -1 : 1;
+          // Prefer exact price matches (just "$X,XXX" vs "$X,XXX something else")
+          if (a.isExact !== b.isExact) return a.isExact ? -1 : 1;
+          // Then by distance from H1
+          return a.distance - b.distance;
+        });
 
         if (priceCandidates.length > 0) {
           fallbackPrice = priceCandidates[0].price;
-          priceSource = 'h1-proximity';
-          log(`Found price via h1 proximity: $${fallbackPrice} (distance: ${priceCandidates[0].distance}px)`);
+          priceSource = 'listing-panel';
+          log(`Found price via listing panel search: $${fallbackPrice} (distance: ${priceCandidates[0].distance}px, nearH1: ${priceCandidates[0].isNearH1})`);
+          if (priceCandidates.length > 1) {
+            log(`Other price candidates: ${priceCandidates.slice(1, 4).map(p => `$${p.price}`).join(', ')}`);
+          }
         }
       }
 
