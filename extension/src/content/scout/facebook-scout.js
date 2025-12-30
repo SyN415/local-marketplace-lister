@@ -343,6 +343,19 @@
     if (t === "today's picks" || t.includes("today's picks")) return true;
     if (t.includes('top picks')) return true;
     if (t.includes('browse all')) return true;
+    // Facebook system messages / UI prompts
+    if (t.includes('create a pin')) return true;
+    if (t.includes('chat history')) return true;
+    if (t.includes('losing chat')) return true;
+    if (t.includes('log in')) return true;
+    if (t.includes('sign up')) return true;
+    if (t.includes('message seller')) return true;
+    if (t.includes('is this available')) return true;
+    if (t.includes('send seller')) return true;
+    // Generic UI elements
+    if (t.includes('all categories')) return true;
+    if (t.includes('search marketplace')) return true;
+    if (t.includes('see more')) return true;
     return false;
   }
 
@@ -928,61 +941,138 @@
   // NEW: Extract full description text from the listing page
   function extractFullDescription() {
     try {
-      // CRITICAL: Facebook has "Today's picks" in the same [role="main"] as the listing
-      // We MUST find only the listing details section, NOT the recommendations
+      // Facebook's listing page structure:
+      // - Left side: images
+      // - Right side: title (h1), price, details section with description
+      // - Below: "Today's picks" with other listings (must avoid!)
 
-      // Strategy 1: Find the "Details" heading and extract text from that section
-      const h1 = document.querySelector('[role="main"] h1') || document.querySelector('h1');
-      let detailsSection = null;
+      const main = document.querySelector('[role="main"]');
+      if (!main) {
+        log('extractFullDescription: No [role="main"] found');
+        return '';
+      }
 
-      // Look for the "Details" section which contains the actual description
-      const allH2s = document.querySelectorAll('[role="main"] h2, [role="main"] [role="heading"]');
-      for (const h2 of allH2s) {
-        const text = h2.textContent?.trim()?.toLowerCase() || '';
-        if (text === 'details' || text.includes('details')) {
-          // Found "Details" heading - get its parent container
-          detailsSection = h2.closest('div')?.parentElement;
-          if (detailsSection) {
-            log(`Found Details section via h2`);
-            break;
+      // Strategy 1: Find "Details" or "Condition" heading and extract nearby text
+      // These headings are spans with specific text on Facebook
+      const allSpans = main.querySelectorAll('span');
+      let detailsContainer = null;
+
+      for (const span of allSpans) {
+        const text = span.textContent?.trim()?.toLowerCase() || '';
+        // Look for section headers like "Details", "Condition", "Description"
+        if ((text === 'details' || text === 'condition' || text === 'description') &&
+            span.textContent?.trim().length < 20) {
+          // Found a section header - go up to find the container
+          let parent = span.parentElement;
+          for (let i = 0; i < 8 && parent; i++) {
+            // Stop at reasonable container size
+            const rect = parent.getBoundingClientRect?.();
+            if (rect && rect.height > 100 && rect.height < 800) {
+              detailsContainer = parent;
+              log(`Found details container via "${text}" header`);
+              break;
+            }
+            parent = parent.parentElement;
           }
+          if (detailsContainer) break;
         }
       }
 
-      // Strategy 2: Find container that has h1 (title) but STOP before "Today's picks"
-      let listingContainer = null;
+      // Strategy 2: Find the h1 (title) and look in its column/section
+      const h1 = main.querySelector('h1');
+      let listingColumn = null;
+
       if (h1) {
-        // The listing details are usually in a specific column/section
-        // Find the closest ancestor that's a direct child of role="main"
+        // Facebook uses a column layout - find the column containing h1
         let parent = h1.parentElement;
-        for (let i = 0; i < 15 && parent; i++) {
-          // Stop if we hit "Today's picks" section
-          const textContent = parent.textContent || '';
-          if (textContent.includes("Today's picks")) {
-            break;
+        for (let i = 0; i < 10 && parent; i++) {
+          // A good listing column is narrow (right side panel)
+          const rect = parent.getBoundingClientRect?.();
+          if (rect && rect.width > 200 && rect.width < 600 && rect.height > 300) {
+            listingColumn = parent;
           }
-
-          // Check if parent is direct child of role="main" container
-          const grandparent = parent.parentElement;
-          if (grandparent?.getAttribute?.('role') === 'main') {
-            listingContainer = parent;
-            break;
-          }
-
-          // Keep track of reasonable containers
-          const height = parent.getBoundingClientRect?.()?.height || 0;
-          if (height > 200 && height < 1500) {
-            listingContainer = parent;
-          }
+          // Stop before we hit role="main"
+          if (parent.getAttribute?.('role') === 'main') break;
           parent = parent.parentElement;
         }
       }
 
-      // Use detailsSection if found, otherwise listingContainer
-      const searchContainer = detailsSection || listingContainer;
+      // Strategy 3: Look for text blocks with PC component keywords directly
+      // This is the most reliable for our use case
+      let bestTextBlock = '';
+      let bestScore = 0;
+
+      const textBlocks = main.querySelectorAll('span, div');
+      for (const el of textBlocks) {
+        // Skip if it's a container with many children (we want leaf text nodes)
+        if (el.childElementCount > 3) continue;
+
+        const text = el.textContent?.trim() || '';
+
+        // Skip very short or very long text
+        if (text.length < 50 || text.length > 3000) continue;
+
+        // Skip "Today's picks" content
+        if (text.includes("Today's picks")) continue;
+
+        // Skip if contains multiple dollar amounts (recommendation section)
+        const priceMatches = text.match(/\$\d+/g) || [];
+        if (priceMatches.length > 3) continue;
+
+        // Score based on PC component keywords
+        const lowerText = text.toLowerCase();
+        let score = 0;
+
+        // High-value keywords (specific components)
+        const highValueKeywords = [
+          'ryzen', 'intel', 'i5', 'i7', 'i9', 'cpu:',
+          'rtx', 'gtx', 'radeon', 'rx ', 'gpu:',
+          'ddr4', 'ddr5', 'ram:',
+          'ssd', 'nvme', 'storage:',
+          'psu', 'watt', '650w', '750w', '850w',
+          'motherboard', 'matx', 'atx',
+          'geforce', 'nvidia', 'amd'
+        ];
+
+        for (const kw of highValueKeywords) {
+          if (lowerText.includes(kw)) score += 100;
+        }
+
+        // Medium-value keywords
+        const mediumKeywords = ['gaming', 'pc', 'computer', 'desktop', 'build'];
+        for (const kw of mediumKeywords) {
+          if (lowerText.includes(kw)) score += 20;
+        }
+
+        // Prefer text that looks like a spec list (has colons or line breaks)
+        if (text.includes(':') || text.includes('\n')) score += 50;
+
+        // Length bonus (but not too much)
+        score += Math.min(text.length / 10, 30);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestTextBlock = text;
+        }
+      }
+
+      // Use the best text block we found
+      if (bestScore >= 100) {
+        log(`extractFullDescription: Found via keyword scoring (score: ${bestScore})`);
+        log(`Preview: ${bestTextBlock.substring(0, 200)}...`);
+        return bestTextBlock.slice(0, 2000);
+      }
+
+      // Fallback: Use detailsContainer or listingColumn if we found one
+      const searchContainer = detailsContainer || listingColumn;
 
       if (!searchContainer) {
-        log('extractFullDescription: No valid container found, skipping');
+        log('extractFullDescription: No valid container found, trying full page scan');
+        // Last resort: return bestTextBlock even with low score
+        if (bestTextBlock) {
+          log(`Using best text block with score ${bestScore}`);
+          return bestTextBlock.slice(0, 2000);
+        }
         return '';
       }
 
@@ -1122,45 +1212,111 @@
 
     const extractGpuModelToken = (text) => {
       const s = String(text || '');
+      // Match RTX/GTX/RX followed by model number, with optional Ti/Super/XT suffix
+      // Examples: RTX 3070, GTX 1080 Ti, RX 5700 XT, RX 6500 XT
       const m = s.match(/\b(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?\b/i);
       return m ? m[0].toUpperCase().replace(/\s+/g, ' ') : '';
     };
 
     const extractCpuModelToken = (text) => {
       const s = String(text || '');
-      const m = s.match(/\b(?:i[3579]-?\d{4,5}[a-z]*|ryzen\s*\d+\s*\d{4}[a-z]*)\b/i);
-      return m ? m[0].toUpperCase().replace(/\s+/g, ' ') : '';
+      // Match Intel: i3/i5/i7/i9 followed by model number
+      // Examples: i7 11700K, i5-12400F, i9-13900K
+      let m = s.match(/\b(i[3579][-\s]?\d{4,5}[a-z]*)\b/i);
+      if (m) return m[1].toUpperCase().replace(/\s+/g, ' ');
+
+      // Match AMD Ryzen: Ryzen [3/5/7/9] followed by model
+      // Examples: Ryzen 5 5600X, Ryzen 7 5800X, Ryzen 5 2600X, Ryzen 5 5500
+      m = s.match(/\bryzen\s*[3579]\s*\d{4}[a-z]*/i);
+      if (m) return m[0].toUpperCase().replace(/\s+/g, ' ');
+
+      return '';
     };
-    
+
     try {
-      // CPU patterns (reduce to model token only)
-      const cpuRaw = (description.match(/(?:cpu|processor)[:\s]*([^\n•,]+)/i)?.[1]) ||
-                     (description.match(/\b(i[3579]-?\d{4,5}[a-z]*)\b/i)?.[1]) ||
-                     (description.match(/\b(ryzen\s*\d+\s*\d{4}[a-z]*)\b/i)?.[1]) ||
-                     '';
-      const cpuTok = extractCpuModelToken(cpuRaw);
+      // CPU patterns - be more aggressive in finding CPU mentions
+      let cpuTok = '';
+
+      // Pattern 1: Look for "CPU:" label first (most reliable)
+      const cpuLabelMatch = description.match(/cpu[:\s]+([^\n•,]+)/i);
+      if (cpuLabelMatch) {
+        cpuTok = extractCpuModelToken(cpuLabelMatch[1]);
+      }
+
+      // Pattern 2: Look for AMD Ryzen anywhere
+      if (!cpuTok) {
+        const ryzenMatch = description.match(/\b((?:amd\s+)?ryzen\s*[3579]\s*\d{4}[a-z]*)\b/i);
+        if (ryzenMatch) cpuTok = extractCpuModelToken(ryzenMatch[1]);
+      }
+
+      // Pattern 3: Look for Intel Core anywhere
+      if (!cpuTok) {
+        const intelMatch = description.match(/\b((?:intel\s+)?(?:core\s+)?i[3579][-\s]?\d{4,5}[a-z]*)\b/i);
+        if (intelMatch) cpuTok = extractCpuModelToken(intelMatch[1]);
+      }
+
       if (cpuTok) specs.cpu = cpuTok;
-      
-      // GPU patterns (reduce to model token only)
-      const gpuRaw = (description.match(/(?:gpu|graphics)[:\s]*([^\n•,]+)/i)?.[1]) ||
-                     (description.match(/\b((?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?)\b/i)?.[1]) ||
-                     '';
-      const gpuTok = extractGpuModelToken(gpuRaw);
+
+      // GPU patterns - be more aggressive
+      let gpuTok = '';
+
+      // Pattern 1: Look for "GPU:" label first
+      const gpuLabelMatch = description.match(/gpu[:\s]+([^\n•,]+)/i);
+      if (gpuLabelMatch) {
+        gpuTok = extractGpuModelToken(gpuLabelMatch[1]);
+      }
+
+      // Pattern 2: Look for Nvidia/AMD GPU models anywhere
+      if (!gpuTok) {
+        // Match RTX, GTX, RX with model numbers
+        const gpuMatch = description.match(/\b(?:(?:nvidia|amd|geforce|radeon)\s+)?((?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?)\b/i);
+        if (gpuMatch) gpuTok = extractGpuModelToken(gpuMatch[1]);
+      }
+
       if (gpuTok) specs.gpu = gpuTok;
-      
+
       // RAM patterns
-      const ramRaw = (description.match(/(?:ram|memory)[:\s]*([^\n•,]+)/i)?.[1]) ||
-                     (description.match(/\b(\d+\s*gb)\b/i)?.[1]) ||
-                     '';
-      const ramTok = ramRaw.match(/\b\d+\s*gb\b/i)?.[0] || '';
-      if (ramTok) specs.ram = ramTok.toUpperCase();
-      
+      let ramTok = '';
+
+      // Pattern 1: "RAM:" label
+      const ramLabelMatch = description.match(/ram[:\s]+([^\n•,]+)/i);
+      if (ramLabelMatch) {
+        const ramVal = ramLabelMatch[1].match(/\b(\d+)\s*gb\b/i);
+        if (ramVal) ramTok = ramVal[0].toUpperCase();
+      }
+
+      // Pattern 2: "XX GB" followed by DDR
+      if (!ramTok) {
+        const ramDdrMatch = description.match(/\b(\d+)\s*gb\s*ddr[45]/i);
+        if (ramDdrMatch) ramTok = `${ramDdrMatch[1]}GB`;
+      }
+
+      // Pattern 3: Just "XX GB" (less reliable, could be storage)
+      if (!ramTok) {
+        // Only match common RAM sizes to avoid confusion with storage
+        const ramSizeMatch = description.match(/\b(8|16|32|64)\s*gb\s*(?:ram|memory|ddr)/i);
+        if (ramSizeMatch) ramTok = `${ramSizeMatch[1]}GB`;
+      }
+
+      if (ramTok) specs.ram = ramTok;
+
       // Storage patterns
-      const storageRaw = (description.match(/(?:storage|ssd|hdd)[:\s]*([^\n•,]+)/i)?.[1]) ||
-                         (description.match(/\b(\d+\s*(?:gb|tb)\s*(?:ssd|hdd|nvme|m\.2))\b/i)?.[1]) ||
-                         '';
-      const storageTok = storageRaw.match(/\b\d+\s*(?:gb|tb)\b/i)?.[0] || '';
-      if (storageTok) specs.storage = storageTok.toUpperCase();
+      let storageTok = '';
+
+      // Pattern 1: Explicit storage labels
+      const storageLabelMatch = description.match(/(?:storage|ssd|hdd|nvme)[:\s]+([^\n•,]+)/i);
+      if (storageLabelMatch) {
+        const storageVal = storageLabelMatch[1].match(/\b(\d+)\s*(?:gb|tb)\b/i);
+        if (storageVal) storageTok = storageVal[0].toUpperCase();
+      }
+
+      // Pattern 2: "X TB" or "XXX GB" followed by SSD/HDD/NVME
+      if (!storageTok) {
+        const storageMatch = description.match(/\b(\d+)\s*(tb|gb)\s*(?:ssd|hdd|nvme|m\.2)\b/i);
+        if (storageMatch) storageTok = `${storageMatch[1]}${storageMatch[2].toUpperCase()}`;
+      }
+
+      if (storageTok) specs.storage = storageTok;
       
       // Screen size for monitors/TVs
       const screenMatch = description.match(/\b(\d{2,3})\s*(?:"|″|in\b|inch\b)/i);
@@ -1338,16 +1494,39 @@
       if (priceEl) priceSource = 'findElementByContent';
     }
 
-    // Method 5: Broad search for visible price elements
-    // IMPORTANT: Handle crossed-out prices - prefer non-strikethrough prices
+    // Method 5: Search for price near the h1 title (in the listing panel only)
+    // IMPORTANT: Don't search the entire page - "Today's picks" has many prices
     if (!priceEl && !Number.isFinite(metaPrice)) {
-      const allPriceElements = Array.from(document.querySelectorAll('span, div'))
+      const h1 = main?.querySelector('h1');
+      let searchArea = null;
+
+      if (h1) {
+        // Find the listing panel - it's an ancestor of h1 but not role="main"
+        let parent = h1.parentElement;
+        for (let i = 0; i < 8 && parent; i++) {
+          if (parent.getAttribute?.('role') === 'main') break;
+          const rect = parent.getBoundingClientRect?.();
+          // Listing panel is typically 300-600px wide on right side
+          if (rect && rect.width > 250 && rect.width < 700 && rect.height > 200) {
+            searchArea = parent;
+          }
+          parent = parent.parentElement;
+        }
+      }
+
+      // Fallback: use a limited area around top of viewport
+      if (!searchArea) {
+        searchArea = main;
+      }
+
+      const allPriceElements = Array.from(searchArea.querySelectorAll('span, div'))
         .filter(el => {
           const text = el.textContent?.trim() || '';
           if (!/^\$[\d,]+$/.test(text) || text.length >= 15) return false;
           if (el.childElementCount > 0) return false; // Avoid containers
           const rect = el.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < window.innerHeight;
+          // Must be in viewport AND in upper portion (listing price is near top)
+          return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < 500;
         })
         .map(el => {
           // Check if price is crossed out (strikethrough)
@@ -1355,15 +1534,16 @@
           const parentStyle = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
           const isCrossedOut = style.textDecoration.includes('line-through') ||
                               (parentStyle && parentStyle.textDecoration.includes('line-through'));
-          return { el, isCrossedOut, price: parsePrice(el.textContent) };
+          const rect = el.getBoundingClientRect();
+          return { el, isCrossedOut, price: parsePrice(el.textContent), top: rect.top };
         })
         .sort((a, b) => {
           // Prefer non-crossed-out prices first
           if (a.isCrossedOut !== b.isCrossedOut) {
             return a.isCrossedOut ? 1 : -1;
           }
-          // If both crossed out or both not, prefer lower price (active price is usually lower)
-          return (a.price || 0) - (b.price || 0);
+          // If same crossed-out status, prefer the one closer to top (main price is first)
+          return a.top - b.top;
         });
 
       if (allPriceElements.length > 0) {
@@ -1372,9 +1552,9 @@
         priceSource = best.isCrossedOut ? 'broad-search-crossed' : 'broad-search';
         log(`Found price via broad search: "${priceEl.textContent?.trim()}" (crossedOut: ${best.isCrossedOut})`);
 
-        // If we found multiple prices and first is NOT crossed out, log it
+        // If we found multiple prices, log them
         if (allPriceElements.length > 1) {
-          log(`Multiple prices found: ${allPriceElements.map(p => `$${p.price}(${p.isCrossedOut ? 'X' : 'OK'})`).join(', ')}`);
+          log(`Multiple prices found: ${allPriceElements.slice(0, 5).map(p => `$${p.price}(${p.isCrossedOut ? 'X' : 'OK'})`).join(', ')}`);
         }
       }
     }
@@ -2240,7 +2420,7 @@
           Confidence: ${(confidence * 100).toFixed(0)}%
         </div>
 
-        <a class="scout-link" href="${APP_URL}/pc-resale" target="_blank" style="margin-top: 12px;">
+        <a class="scout-link" id="full-analysis-link" href="#" target="_blank" style="margin-top: 12px;">
           View Full Analysis →
         </a>
       </div>
@@ -2249,6 +2429,18 @@
     shadow.querySelector('.close-btn').addEventListener('click', () => {
       overlayElement.remove();
       overlayElement = null;
+    });
+
+    // Build URL with listing data for Jiggly form pre-fill
+    shadow.querySelector('#full-analysis-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams();
+      if (listing.title) params.set('title', listing.title);
+      if (listing.description) params.set('description', listing.description.substring(0, 2000));
+      if (listing.price) params.set('price', String(listing.price));
+      if (listing.url) params.set('url', listing.url);
+      const fullUrl = `${APP_URL}/pc-resale?${params.toString()}`;
+      window.open(fullUrl, '_blank');
     });
   }
 

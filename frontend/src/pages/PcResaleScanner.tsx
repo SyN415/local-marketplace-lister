@@ -63,6 +63,25 @@ export default function PcResaleScannerPage() {
   const [price, setPrice] = useState('');
   const [listingUrl, setListingUrl] = useState('');
 
+  // Read URL parameters to pre-fill form from extension
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlTitle = params.get('title');
+    const urlDescription = params.get('description');
+    const urlPrice = params.get('price');
+    const urlListingUrl = params.get('url');
+
+    if (urlTitle) setTitle(decodeURIComponent(urlTitle));
+    if (urlDescription) setDescription(decodeURIComponent(urlDescription));
+    if (urlPrice) setPrice(urlPrice);
+    if (urlListingUrl) setListingUrl(decodeURIComponent(urlListingUrl));
+
+    // Clear URL params after reading to prevent re-fill on refresh
+    if (urlTitle || urlPrice) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (tab === 1) {
       fetchOpportunities();
@@ -256,6 +275,32 @@ export default function PcResaleScannerPage() {
                   <Alert severity="warning" className="mb-4">
                     Missing specs: {analysis.componentProfile.missingSpecs.join(', ')}
                   </Alert>
+                )}
+
+                {/* Component Valuations - Individual part prices */}
+                {analysis.componentValuation?.componentBreakdown &&
+                 Object.keys(analysis.componentValuation.componentBreakdown).length > 0 && (
+                  <>
+                    <Typography variant="subtitle2" className="mb-2">Component Valuations (eBay)</Typography>
+                    <Table size="small" className="mb-4">
+                      <TableBody>
+                        {Object.entries(analysis.componentValuation.componentBreakdown).map(([component, value]) => (
+                          <TableRow key={component}>
+                            <TableCell sx={{ textTransform: 'capitalize' }}>{component}</TableCell>
+                            <TableCell align="right" sx={{ color: value > 0 ? 'success.main' : 'text.secondary' }}>
+                              {value > 0 ? `$${value.toFixed(2)}` : 'No data'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow>
+                          <TableCell><strong>Total Parts Value</strong></TableCell>
+                          <TableCell align="right" sx={{ color: 'primary.main' }}>
+                            <strong>${analysis.aggregateComponentValue.toFixed(2)}</strong>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </>
                 )}
 
                 {/* Cost Breakdown */}
