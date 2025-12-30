@@ -938,16 +938,67 @@
     return details;
   }
 
+  // Helper: Find the title element on the listing page
+  // Facebook uses various elements, NOT necessarily h1
+  function findTitleElement() {
+    const main = document.querySelector('[role="main"]') || document.body;
+
+    // Priority 1: Facebook's specific data-testid for listing title
+    const pdpTitle = main.querySelector('[data-testid="marketplace_pdp_title"]');
+    if (pdpTitle) {
+      log('findTitleElement: Found via marketplace_pdp_title');
+      return pdpTitle;
+    }
+
+    // Priority 2: h1 element
+    const h1 = main.querySelector('h1');
+    if (h1) {
+      log('findTitleElement: Found via h1');
+      return h1;
+    }
+
+    // Priority 3: [role="heading"] elements
+    const headings = main.querySelectorAll('[role="heading"]');
+    for (const heading of headings) {
+      const text = heading.textContent?.trim() || '';
+      // Skip navigation/sidebar headings
+      if (text.length >= 5 && text.length <= 200 &&
+          !text.toLowerCase().includes('marketplace') &&
+          !text.toLowerCase().includes("today's picks")) {
+        log(`findTitleElement: Found via role=heading: "${text.substring(0, 50)}..."`);
+        return heading;
+      }
+    }
+
+    // Priority 4: Large, prominent text near top of page
+    const allSpans = main.querySelectorAll('span[dir="auto"]');
+    for (const span of allSpans) {
+      const rect = span.getBoundingClientRect();
+      const text = span.textContent?.trim() || '';
+      // Title is usually in upper part of viewport, moderate length, not a container
+      if (rect.top < 300 && rect.top > 50 && text.length >= 10 && text.length <= 150 &&
+          span.childElementCount === 0) {
+        const style = window.getComputedStyle(span);
+        const fontSize = parseFloat(style.fontSize);
+        // Title usually has larger font
+        if (fontSize >= 18) {
+          log(`findTitleElement: Found via prominent span: "${text.substring(0, 50)}..." (fontSize: ${fontSize})`);
+          return span;
+        }
+      }
+    }
+
+    log('findTitleElement: No title element found');
+    return null;
+  }
+
   // NEW: Extract full description text from the listing page
   function extractFullDescription() {
     try {
       // Facebook's listing page structure:
       // - Left side: images
-      // - Right side: title (h1), price, details section with description
+      // - Right side: title, price, details section with description
       // - Below/Side: "Today's picks" with other listings (MUST AVOID!)
-
-      // The KEY insight: We need to find the listing panel that contains the H1,
-      // and ONLY search within that panel. Never search the full page.
 
       const main = document.querySelector('[role="main"]');
       if (!main) {
@@ -955,29 +1006,29 @@
         return '';
       }
 
-      // Step 1: Find the H1 title element - this is our anchor
-      const h1 = main.querySelector('h1');
-      if (!h1) {
-        log('extractFullDescription: No h1 found');
-        return '';
+      // Step 1: Find the title element - this is our anchor
+      const titleEl = findTitleElement();
+      if (!titleEl) {
+        log('extractFullDescription: No title element found, trying alternative approach');
+        // Alternative: search the entire main area but with strict filtering
+        return extractDescriptionFallback(main);
       }
 
-      // Step 2: Find the listing panel - the narrower column containing the H1
-      // This panel is typically 300-500px wide on the right side
+      log(`extractFullDescription: Title element found, text="${titleEl.textContent?.substring(0, 50)}..."`);
+
+      // Step 2: Find the listing panel - the narrower column containing the title
       let listingPanel = null;
-      let parent = h1.parentElement;
+      let parent = titleEl.parentElement;
 
       for (let i = 0; i < 12 && parent; i++) {
         const rect = parent.getBoundingClientRect?.();
         if (rect) {
           // The listing panel is narrow (not full width) and reasonably tall
-          // It should be less than half the viewport width
           const isNarrow = rect.width > 250 && rect.width < Math.min(700, window.innerWidth * 0.6);
           const isTall = rect.height > 300;
 
           if (isNarrow && isTall) {
             listingPanel = parent;
-            // Keep going to find a slightly larger container if possible
           }
         }
         if (parent.getAttribute?.('role') === 'main') break;
@@ -985,20 +1036,17 @@
       }
 
       if (!listingPanel) {
-        log('extractFullDescription: Could not find listing panel, using h1 parent');
-        // Fallback: use a few levels up from h1
-        listingPanel = h1.parentElement?.parentElement?.parentElement || h1.parentElement;
+        log('extractFullDescription: Could not find listing panel, using title parent chain');
+        listingPanel = titleEl.parentElement?.parentElement?.parentElement?.parentElement || titleEl.parentElement;
       }
 
-      log(`extractFullDescription: Using listing panel with ${listingPanel?.children?.length || 0} children`);
+      const panelRect = listingPanel?.getBoundingClientRect?.();
+      log(`extractFullDescription: Using listing panel (${panelRect?.width?.toFixed(0)}x${panelRect?.height?.toFixed(0)}px) with ${listingPanel?.children?.length || 0} children`);
 
       // Step 3: Extract text ONLY from within the listing panel
       // Walk through text nodes and collect description content
       const textParts = [];
       const seenTexts = new Set();
-
-      // Get the bounding box of the listing panel to filter by position
-      const panelRect = listingPanel.getBoundingClientRect();
 
       // Find all text-containing elements in the panel
       const textElements = listingPanel.querySelectorAll('span, div');
@@ -1072,6 +1120,89 @@
       log('Error extracting description: ' + e?.message, 'warn');
       return '';
     }
+  }
+
+  // Fallback description extraction when title element isn't found
+  function extractDescriptionFallback(main) {
+    log('extractDescriptionFallback: Starting fallback approach');
+
+    // Look for "Details" or "Condition" section headers
+    const allSpans = main.querySelectorAll('span');
+    let detailsSection = null;
+
+    for (const span of allSpans) {
+      const text = span.textContent?.trim()?.toLowerCase() || '';
+      if ((text === 'details' || text === 'condition') && span.textContent?.trim().length < 15) {
+        // Found a section header - look for content nearby
+        let parent = span.parentElement;
+        for (let i = 0; i < 6 && parent; i++) {
+          const rect = parent.getBoundingClientRect?.();
+          if (rect && rect.height > 100 && rect.width < 600) {
+            detailsSection = parent;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        if (detailsSection) {
+          log(`extractDescriptionFallback: Found via "${text}" header`);
+          break;
+        }
+      }
+    }
+
+    if (detailsSection) {
+      const text = detailsSection.textContent || '';
+      // Clean up and return
+      const cleaned = text.replace(/\s+/g, ' ').trim();
+      if (cleaned.length > 30) {
+        log(`extractDescriptionFallback: Found ${cleaned.length} chars from details section`);
+        return cleaned.slice(0, 2000);
+      }
+    }
+
+    // Last resort: find text blocks with PC specs
+    const candidates = [];
+    const allDivs = main.querySelectorAll('div, span');
+
+    for (const el of allDivs) {
+      if (el.childElementCount > 3) continue;
+
+      const text = el.textContent?.trim() || '';
+      if (text.length < 50 || text.length > 1500) continue;
+
+      const lowerText = text.toLowerCase();
+
+      // Skip navigation/sidebar content
+      if (lowerText.includes("today's picks") ||
+          lowerText.includes("similar listings") ||
+          lowerText.includes("you may also like")) continue;
+
+      // Skip if too many prices (recommendation section)
+      const priceCount = (text.match(/\$\d/g) || []).length;
+      if (priceCount > 2) continue;
+
+      // Score based on PC keywords
+      let score = 0;
+      const keywords = ['ryzen', 'intel', 'nvidia', 'amd', 'rtx', 'gtx', 'radeon',
+                        'ddr4', 'ddr5', 'ssd', 'nvme', 'ram', 'gpu', 'cpu', 'ghz', 'gb', 'tb'];
+      for (const kw of keywords) {
+        if (lowerText.includes(kw)) score += 10;
+      }
+
+      if (score > 0) {
+        candidates.push({ text, score });
+      }
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+
+    if (candidates.length > 0) {
+      log(`extractDescriptionFallback: Found ${candidates.length} candidates, best score: ${candidates[0].score}`);
+      return candidates[0].text.slice(0, 2000);
+    }
+
+    log('extractDescriptionFallback: No description found');
+    return '';
   }
 
   // NEW: Extract image URLs from the listing
@@ -1481,13 +1612,15 @@
     let fallbackPrice = null;
     if (!priceEl && !Number.isFinite(metaPrice)) {
       // Method 6: More aggressive search - find price in listing panel
-      // Key insight: search within the same panel as the H1, not the whole page
-      const h1El = main?.querySelector('h1');
+      // Key insight: search within the same panel as the title, not the whole page
+      const titleEl = findTitleElement();
 
-      if (h1El) {
+      log(`Price fallback: titleEl=${titleEl ? 'found' : 'not found'}`);
+
+      if (titleEl) {
         // Find the listing panel (same logic as description extraction)
         let listingPanel = null;
-        let parent = h1El.parentElement;
+        let parent = titleEl.parentElement;
         for (let i = 0; i < 12 && parent; i++) {
           const rect = parent.getBoundingClientRect?.();
           if (rect) {
@@ -1499,9 +1632,11 @@
           parent = parent.parentElement;
         }
 
-        const searchArea = listingPanel || h1El.parentElement?.parentElement?.parentElement;
-        const h1Rect = h1El.getBoundingClientRect();
+        const searchArea = listingPanel || titleEl.parentElement?.parentElement?.parentElement || main;
+        const titleRect = titleEl.getBoundingClientRect();
         const priceCandidates = [];
+
+        log(`Price search: using ${listingPanel ? 'listingPanel' : 'fallback'} area, titleRect.top=${titleRect.top?.toFixed(0)}`);
 
         if (searchArea) {
           // Search for elements containing $ amounts
@@ -1525,50 +1660,68 @@
             const rect = el.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) continue;
 
-            // Calculate distance from h1
-            const distFromH1 = Math.abs(rect.top - h1Rect.top) + Math.abs(rect.left - h1Rect.left);
+            // Calculate distance from title
+            const distFromTitle = Math.abs(rect.top - titleRect.top) + Math.abs(rect.left - titleRect.left);
 
-            // Prefer prices close to the h1 (within 200px vertically)
-            const isNearH1 = Math.abs(rect.top - h1Rect.top) < 200;
+            // Prefer prices close to the title (within 200px vertically)
+            const isNearTitle = Math.abs(rect.top - titleRect.top) < 200;
 
             priceCandidates.push({
               price: parsePrice(priceMatch[0]),
-              distance: distFromH1,
+              distance: distFromTitle,
               top: rect.top,
               isExact: /^\$[\d,]+$/.test(text), // Bonus for exact match
-              isNearH1,
+              isNearTitle,
               el
             });
           }
         }
 
-        // Sort by: nearH1 first, then exact matches, then by distance
+        log(`Price search: found ${priceCandidates.length} candidates`);
+
+        // Sort by: nearTitle first, then exact matches, then by distance
         priceCandidates.sort((a, b) => {
-          // Prefer prices near the H1
-          if (a.isNearH1 !== b.isNearH1) return a.isNearH1 ? -1 : 1;
+          // Prefer prices near the title
+          if (a.isNearTitle !== b.isNearTitle) return a.isNearTitle ? -1 : 1;
           // Prefer exact price matches (just "$X,XXX" vs "$X,XXX something else")
           if (a.isExact !== b.isExact) return a.isExact ? -1 : 1;
-          // Then by distance from H1
+          // Then by distance from title
           return a.distance - b.distance;
         });
 
         if (priceCandidates.length > 0) {
           fallbackPrice = priceCandidates[0].price;
           priceSource = 'listing-panel';
-          log(`Found price via listing panel search: $${fallbackPrice} (distance: ${priceCandidates[0].distance}px, nearH1: ${priceCandidates[0].isNearH1})`);
+          log(`Found price via listing panel search: $${fallbackPrice} (distance: ${priceCandidates[0].distance?.toFixed(0)}px, nearTitle: ${priceCandidates[0].isNearTitle})`);
           if (priceCandidates.length > 1) {
             log(`Other price candidates: ${priceCandidates.slice(1, 4).map(p => `$${p.price}`).join(', ')}`);
           }
         }
       }
 
-      // Ultimate fallback: first $ amount on the page
+      // Ultimate fallback: first $ amount on the page (in upper portion)
       if (!fallbackPrice) {
-        const descText = main?.textContent || document.body.textContent || '';
-        const priceMatch = descText.match(/\$\s*([\d,]+)/);
-        if (priceMatch) {
-          fallbackPrice = parsePrice(priceMatch[0]);
-          priceSource = 'text-fallback';
+        log('Price search: trying ultimate fallback - scanning upper portion of page');
+        // Look for any $ amount in elements near the top of the viewport
+        const allElements = main?.querySelectorAll('span, div') || [];
+        for (const el of allElements) {
+          const text = el.textContent?.trim() || '';
+          const priceMatch = text.match(/^\$\s*([\d,]+)/);
+          if (!priceMatch) continue;
+          if (el.childElementCount > 1) continue;
+
+          const rect = el.getBoundingClientRect();
+          // Must be visible and in upper half of viewport
+          if (rect.width > 0 && rect.height > 0 && rect.top > 0 && rect.top < 400) {
+            // Skip if multiple prices (recommendation section)
+            const allPrices = text.match(/\$\d/g) || [];
+            if (allPrices.length <= 2) {
+              fallbackPrice = parsePrice(priceMatch[0]);
+              priceSource = 'text-fallback';
+              log(`Price search: found via ultimate fallback: $${fallbackPrice} at y=${rect.top?.toFixed(0)}`);
+              break;
+            }
+          }
         }
       }
     }
