@@ -62,6 +62,7 @@
       dialogs: [],
       headings: [],
       prices: [],
+      dollarElements: [],
       dataTestids: []
     };
 
@@ -80,13 +81,32 @@
       }
     });
 
-    // Find price-like text
+    // Find price-like text (exact match)
     document.querySelectorAll('span, div').forEach(el => {
       const text = el.textContent?.trim() || '';
       if (/^\$[\d,]+$/.test(text) && el.childElementCount === 0) {
         const rect = el.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0 && rect.top < 600) {
           results.prices.push({ text, tag: el.tagName, top: rect.top, left: rect.left });
+        }
+      }
+    });
+
+    // Find ANY element containing $ (more permissive search)
+    document.querySelectorAll('span, div').forEach(el => {
+      const text = el.textContent?.trim() || '';
+      // Look for $ anywhere in text, or currency-like patterns
+      if ((text.includes('$') || text.includes('＄') || /\d{2,}/.test(text)) &&
+          el.childElementCount <= 1 && text.length < 30) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < 600) {
+          results.dollarElements.push({
+            text,
+            tag: el.tagName,
+            top: rect.top?.toFixed(0),
+            children: el.childElementCount,
+            className: el.className?.substring?.(0, 30) || ''
+          });
         }
       }
     });
@@ -487,13 +507,38 @@
     // Sometimes available on product-like pages
     const p = getMetaContent('product:price:amount') || getMetaContent('og:price:amount');
     const n = p ? Number(p) : NaN;
-    if (Number.isFinite(n)) return n;
+    if (Number.isFinite(n)) {
+      log(`Meta price found: ${n} from product:price:amount or og:price:amount`);
+      return n;
+    }
 
     // Fall back to parsing og:description for a $ price
     const desc = getMetaContent('og:description') || '';
     const m = desc.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-    if (!m) return null;
-    return parsePrice(m[0]);
+    if (m) {
+      log(`Meta price found in og:description: ${m[0]}`);
+      return parsePrice(m[0]);
+    }
+
+    // Try JSON-LD structured data (Facebook sometimes uses this)
+    try {
+      const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const script of ldScripts) {
+        const data = JSON.parse(script.textContent);
+        // Check for Product schema
+        if (data['@type'] === 'Product' || data['@type'] === 'Offer') {
+          const price = data.offers?.price || data.price;
+          if (price) {
+            log(`JSON-LD price found: ${price}`);
+            return Number(price);
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+
+    return null;
   }
 
   // Active Search Scanner
@@ -1909,14 +1954,22 @@
         let debugMatchCount = 0;
         let debugRectFailCount = 0;
         let debugChildFailCount = 0;
+        let debugSamples = [];
 
         for (const el of allElements) {
           const text = el.textContent?.trim() || '';
-          // Match price at start - handles "$650" and "$650$800"
-          const priceMatch = text.match(/^\$\s*([\d,]+)/);
+
+          // RELAXED: Match $ anywhere in text, not just at start
+          // This catches cases where the price might have leading text
+          const priceMatch = text.match(/\$\s*([\d,]+)/);
           if (!priceMatch) continue;
 
           debugMatchCount++;
+
+          // Collect samples for debugging
+          if (debugSamples.length < 5) {
+            debugSamples.push({ text: text.substring(0, 40), children: el.childElementCount });
+          }
 
           if (el.childElementCount > 1) {
             debugChildFailCount++;
@@ -1941,6 +1994,67 @@
 
         if (!fallbackPrice) {
           log(`Ultimate fallback failed: ${debugMatchCount} regex matches, ${debugChildFailCount} failed childCount, ${debugRectFailCount} failed rect check`);
+          if (debugSamples.length > 0) {
+            log(`Sample $ elements: ${JSON.stringify(debugSamples)}`);
+          }
+          // Dump page structure for debugging
+          log('Dumping page structure for debugging...');
+          dumpPageStructure();
+        }
+      }
+
+      // Super aggressive fallback: search ALL elements for ANY price pattern
+      // This handles cases where Facebook renders prices in unexpected ways
+      if (!fallbackPrice) {
+        log('Price search: trying super aggressive fallback - ALL elements');
+        const allPageElements = document.querySelectorAll('*');
+        let foundPrices = [];
+
+        for (const el of allPageElements) {
+          // Skip elements with many children (containers)
+          if (el.childElementCount > 2) continue;
+
+          const text = el.textContent?.trim() || '';
+          if (text.length > 50) continue; // Skip long text
+
+          // Match various price patterns including unicode dollar signs
+          // Also match patterns like "Price: $500" or "500 dollars"
+          const pricePatterns = [
+            /[\$＄]\s*([\d,]+)/,           // Standard or fullwidth dollar sign
+            /(\d{2,})\s*(?:dollars?|USD)/i, // "500 dollars"
+            /price[:\s]+[\$＄]?\s*([\d,]+)/i // "Price: $500" or "Price 500"
+          ];
+
+          for (const pattern of pricePatterns) {
+            const match = text.match(pattern);
+            if (match) {
+              const rect = el.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < 600) {
+                const priceVal = parsePrice(match[0]);
+                if (priceVal > 0 && priceVal < 100000) {
+                  foundPrices.push({
+                    price: priceVal,
+                    top: rect.top,
+                    text: text.substring(0, 30),
+                    tag: el.tagName
+                  });
+                }
+              }
+              break;
+            }
+          }
+
+          if (foundPrices.length >= 5) break;
+        }
+
+        if (foundPrices.length > 0) {
+          // Sort by position (prefer elements near top)
+          foundPrices.sort((a, b) => a.top - b.top);
+          fallbackPrice = foundPrices[0].price;
+          priceSource = 'aggressive-fallback';
+          log(`Found price via aggressive fallback: $${fallbackPrice} (tag: ${foundPrices[0].tag}, top: ${foundPrices[0].top?.toFixed(0)})`);
+        } else {
+          log('Super aggressive fallback: no prices found');
         }
       }
 
@@ -1950,16 +2064,15 @@
         const descForPrice = extractFullDescription();
         log(`Description-text fallback: desc length=${descForPrice?.length || 0}`);
         if (descForPrice) {
-          // Look for price pattern in first 500 chars of description (near title)
-          const descStart = descForPrice.substring(0, 500);
+          // Look for price pattern in ENTIRE description (not just first 500 chars)
           // Match prices like "$700", "$1,200", "$700$800" (sale+original)
-          const priceInDesc = descStart.match(/\$\s*([\d,]+)/);
+          const priceInDesc = descForPrice.match(/\$\s*([\d,]+)/);
           if (priceInDesc) {
             fallbackPrice = parsePrice(priceInDesc[0]);
             priceSource = 'description-text';
             log(`Price search: extracted from description text: $${fallbackPrice} from "${priceInDesc[0]}"`);
           } else {
-            log(`Description-text fallback: no price match in first 200 chars: "${descStart.substring(0, 200)}..."`);
+            log(`Description-text fallback: no price match. First 200 chars: "${descForPrice.substring(0, 200)}..."`);
           }
         }
       }
