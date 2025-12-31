@@ -2961,7 +2961,9 @@
       e.preventDefault();
       const params = new URLSearchParams();
       if (listing.title) params.set('title', listing.title);
-      if (listing.description) params.set('description', listing.description.substring(0, 2000));
+      // Note: listing uses fullDescription, not description
+      const desc = listing.fullDescription || listing.description || '';
+      if (desc) params.set('description', desc.substring(0, 2000));
       if (listing.price) params.set('price', String(listing.price));
       if (listing.url) params.set('url', listing.url);
       const fullUrl = `${APP_URL}/pc-resale?${params.toString()}`;
