@@ -55,6 +55,57 @@
     }
   }
 
+  // Debug helper: dump information about visible elements for troubleshooting
+  // Call this from browser console: window.__smartScoutDump()
+  function dumpPageStructure() {
+    const results = {
+      dialogs: [],
+      headings: [],
+      prices: [],
+      dataTestids: []
+    };
+
+    // Find dialogs
+    document.querySelectorAll('[role="dialog"]').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      results.dialogs.push({ tag: el.tagName, width: rect.width, height: rect.height });
+    });
+
+    // Find headings
+    document.querySelectorAll('h1, h2, [role="heading"]').forEach(el => {
+      const text = el.textContent?.trim().substring(0, 60) || '';
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        results.headings.push({ tag: el.tagName, role: el.getAttribute('role'), text, top: rect.top });
+      }
+    });
+
+    // Find price-like text
+    document.querySelectorAll('span, div').forEach(el => {
+      const text = el.textContent?.trim() || '';
+      if (/^\$[\d,]+$/.test(text) && el.childElementCount === 0) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0 && rect.top < 600) {
+          results.prices.push({ text, tag: el.tagName, top: rect.top, left: rect.left });
+        }
+      }
+    });
+
+    // Find data-testid elements
+    document.querySelectorAll('[data-testid]').forEach(el => {
+      const testid = el.getAttribute('data-testid');
+      if (testid.includes('marketplace') || testid.includes('pdp') || testid.includes('price') || testid.includes('title')) {
+        results.dataTestids.push({ testid, tag: el.tagName, text: el.textContent?.substring(0, 40) });
+      }
+    });
+
+    console.log('[SmartScout DEBUG] Page structure:', results);
+    return results;
+  }
+
+  // Expose debug function globally
+  window.__smartScoutDump = dumpPageStructure;
+
   function safeSendMessage(payload, callback) {
     if (!isExtensionContextValid()) {
       // Avoid throwing errors that show up in chrome://extensions/?errors
@@ -940,50 +991,113 @@
 
   // Helper: Find the title element on the listing page
   // Facebook uses various elements, NOT necessarily h1
+  // Updated 2025-12: Facebook changed their DOM structure, data-testid selectors may no longer exist
   function findTitleElement() {
-    const main = document.querySelector('[role="main"]') || document.body;
+    // Try both dialog (modal view) and main content areas
+    const dialog = document.querySelector('[role="dialog"]');
+    const mainArea = document.querySelector('[role="main"]');
+    const roots = [dialog, mainArea, document.body].filter(Boolean);
 
-    // Priority 1: Facebook's specific data-testid for listing title
-    const pdpTitle = main.querySelector('[data-testid="marketplace_pdp_title"]');
-    if (pdpTitle) {
-      log('findTitleElement: Found via marketplace_pdp_title');
-      return pdpTitle;
-    }
+    for (const root of roots) {
+      // Priority 1: Facebook's specific data-testid for listing title (legacy, may not exist)
+      const pdpTitle = root.querySelector('[data-testid="marketplace_pdp_title"]');
+      if (pdpTitle) {
+        log('findTitleElement: Found via marketplace_pdp_title');
+        return pdpTitle;
+      }
 
-    // Priority 2: h1 element
-    const h1 = main.querySelector('h1');
-    if (h1) {
-      log('findTitleElement: Found via h1');
-      return h1;
-    }
+      // Priority 2: h1 element - most reliable semantic indicator
+      const h1 = root.querySelector('h1');
+      if (h1) {
+        const text = h1.textContent?.trim() || '';
+        // Skip generic h1s like "Marketplace"
+        if (text.length >= 5 && !text.toLowerCase().includes('marketplace') && text.toLowerCase() !== 'chats') {
+          log(`findTitleElement: Found via h1: "${text.substring(0, 50)}..."`);
+          return h1;
+        }
+      }
 
-    // Priority 3: [role="heading"] elements
-    const headings = main.querySelectorAll('[role="heading"]');
-    for (const heading of headings) {
-      const text = heading.textContent?.trim() || '';
-      // Skip navigation/sidebar headings
-      if (text.length >= 5 && text.length <= 200 &&
-          !text.toLowerCase().includes('marketplace') &&
-          !text.toLowerCase().includes("today's picks")) {
-        log(`findTitleElement: Found via role=heading: "${text.substring(0, 50)}..."`);
-        return heading;
+      // Priority 3: [role="heading"] elements with aria-level
+      const headings = root.querySelectorAll('[role="heading"]');
+      for (const heading of headings) {
+        const text = heading.textContent?.trim() || '';
+        const ariaLevel = heading.getAttribute('aria-level');
+        // Skip navigation/sidebar headings
+        if (text.length >= 5 && text.length <= 200 &&
+            !text.toLowerCase().includes('marketplace') &&
+            !text.toLowerCase().includes("today's picks") &&
+            !text.toLowerCase().includes('chats') &&
+            !text.toLowerCase().includes('messages')) {
+          log(`findTitleElement: Found via role=heading (level=${ariaLevel}): "${text.substring(0, 50)}..."`);
+          return heading;
+        }
       }
     }
 
-    // Priority 4: Large, prominent text near top of page
-    const allSpans = main.querySelectorAll('span[dir="auto"]');
-    for (const span of allSpans) {
-      const rect = span.getBoundingClientRect();
-      const text = span.textContent?.trim() || '';
-      // Title is usually in upper part of viewport, moderate length, not a container
-      if (rect.top < 300 && rect.top > 50 && text.length >= 10 && text.length <= 150 &&
-          span.childElementCount === 0) {
-        const style = window.getComputedStyle(span);
-        const fontSize = parseFloat(style.fontSize);
-        // Title usually has larger font
-        if (fontSize >= 18) {
-          log(`findTitleElement: Found via prominent span: "${text.substring(0, 50)}..." (fontSize: ${fontSize})`);
-          return span;
+    // Priority 4: Look for title based on document.title match
+    // If we have a document.title, search for an element containing that text
+    const docTitle = sanitizeTitle(document.title);
+    if (docTitle && docTitle.length >= 10) {
+      // Take first meaningful part of title (before common separators)
+      const titlePart = docTitle.split(/[|\-–—]/)[0].trim();
+      if (titlePart.length >= 8) {
+        for (const root of roots) {
+          const allElements = root.querySelectorAll('span, div');
+          for (const el of allElements) {
+            const text = el.textContent?.trim() || '';
+            // Element text should match title closely and be a leaf or near-leaf node
+            if (text.length >= 8 && text.length <= 250 && el.childElementCount <= 2) {
+              // Check if this element's text closely matches the title
+              const lowerText = text.toLowerCase();
+              const lowerTitle = titlePart.toLowerCase();
+              if (lowerText.includes(lowerTitle.substring(0, Math.min(30, lowerTitle.length))) ||
+                  lowerTitle.includes(lowerText.substring(0, Math.min(30, lowerText.length)))) {
+                const rect = el.getBoundingClientRect();
+                // Must be visible and in reasonable position
+                if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < 500) {
+                  log(`findTitleElement: Found via document.title match: "${text.substring(0, 50)}..."`);
+                  return el;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Priority 5: Large, prominent text near top of page (expanded search)
+    for (const root of roots) {
+      const allSpans = root.querySelectorAll('span[dir="auto"], span');
+      for (const span of allSpans) {
+        const rect = span.getBoundingClientRect();
+        const text = span.textContent?.trim() || '';
+        // Title is usually in upper part of viewport, moderate length, not a container
+        if (rect.top < 400 && rect.top > 30 && rect.width > 0 && rect.height > 0 &&
+            text.length >= 8 && text.length <= 200 &&
+            span.childElementCount <= 1) {
+          // Skip common non-title text
+          const lowerText = text.toLowerCase();
+          if (lowerText.includes('today') || lowerText.includes('picks') ||
+              lowerText.includes('similar') || lowerText.includes('message') ||
+              lowerText.includes('chats') || lowerText.includes('available') ||
+              lowerText.includes('share') || lowerText === 'details' ||
+              lowerText === 'description' || lowerText === 'condition') {
+            continue;
+          }
+
+          try {
+            const style = window.getComputedStyle(span);
+            const fontSize = parseFloat(style.fontSize);
+            const fontWeight = parseInt(style.fontWeight) || 400;
+            // Title usually has larger font (>= 16px) and may be bold
+            if (fontSize >= 16 || fontWeight >= 600) {
+              log(`findTitleElement: Found via prominent span: "${text.substring(0, 50)}..." (fontSize: ${fontSize}, weight: ${fontWeight})`);
+              return span;
+            }
+          } catch (e) {
+            // getComputedStyle can fail for detached elements
+            continue;
+          }
         }
       }
     }
@@ -1126,13 +1240,17 @@
   function extractDescriptionFallback(main) {
     log('extractDescriptionFallback: Starting fallback approach');
 
+    // IMPORTANT: Try to get the current listing title to verify we're extracting from the right listing
+    const currentDocTitle = sanitizeTitle(document.title);
+    const titlePart = currentDocTitle.split(/[|\-–—]/)[0].trim().toLowerCase();
+
     // Look for "Details" or "Condition" section headers
     const allSpans = main.querySelectorAll('span');
     let detailsSection = null;
 
     for (const span of allSpans) {
       const text = span.textContent?.trim()?.toLowerCase() || '';
-      if ((text === 'details' || text === 'condition') && span.textContent?.trim().length < 15) {
+      if ((text === 'details' || text === 'condition' || text === 'description') && span.textContent?.trim().length < 15) {
         // Found a section header - look for content nearby
         let parent = span.parentElement;
         for (let i = 0; i < 6 && parent; i++) {
@@ -1161,6 +1279,7 @@
     }
 
     // Last resort: find text blocks with PC specs
+    // IMPROVED: Also check element position to avoid "Today's Picks" and other listings
     const candidates = [];
     const allDivs = main.querySelectorAll('div, span');
 
@@ -1175,11 +1294,24 @@
       // Skip navigation/sidebar content
       if (lowerText.includes("today's picks") ||
           lowerText.includes("similar listings") ||
-          lowerText.includes("you may also like")) continue;
+          lowerText.includes("you may also like") ||
+          lowerText.includes("seller's other items") ||
+          lowerText.includes("more from this seller") ||
+          lowerText.includes("related items") ||
+          lowerText.includes("browse all")) continue;
 
       // Skip if too many prices (recommendation section)
       const priceCount = (text.match(/\$\d/g) || []).length;
       if (priceCount > 2) continue;
+
+      // Check element position - should be in upper/middle part of page
+      const rect = el.getBoundingClientRect?.();
+      if (rect) {
+        // Skip elements that are very low on the page (likely recommendations)
+        if (rect.top > 800) continue;
+        // Skip very wide elements (likely full-page containers)
+        if (rect.width > window.innerWidth * 0.9) continue;
+      }
 
       // Score based on PC keywords
       let score = 0;
@@ -1189,12 +1321,21 @@
         if (lowerText.includes(kw)) score += 10;
       }
 
+      // Bonus points if the text contains part of the document title (likely same listing)
+      if (titlePart && titlePart.length >= 8 && lowerText.includes(titlePart.substring(0, Math.min(15, titlePart.length)))) {
+        score += 50;
+      }
+
       if (score > 0) {
-        candidates.push({ text, score });
+        candidates.push({ text, score, top: rect?.top || 0 });
       }
     }
 
-    candidates.sort((a, b) => b.score - a.score);
+    // Sort by score first, then by position (prefer elements closer to top)
+    candidates.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.top - b.top;
+    });
 
     if (candidates.length > 0) {
       log(`extractDescriptionFallback: Found ${candidates.length} candidates, best score: ${candidates[0].score}`);
@@ -1237,15 +1378,14 @@
     }
   }
 
-  // NEW: Extract structured specs from description text
+  // NEW: Extract structured specs from description text (also works with titles)
   // FIXED: Make spec extraction more conservative to avoid false positives from stale descriptions
-  function extractSpecsFromDescription(description) {
+  function extractSpecsFromDescription(text) {
     const specs = {};
-    
-    // Only extract specs if description is substantial and contains spec-like patterns
-    // This prevents extracting specs from short descriptions or unrelated text
-    if (!description || description.length < 50) {
-      return specs; // Return empty for short descriptions
+
+    // Accept shorter text (for titles) - minimum 10 chars to have any meaningful content
+    if (!text || text.length < 10) {
+      return specs; // Return empty for very short text
     }
     
     const isValidSpecValue = (v) => {
@@ -1287,20 +1427,20 @@
       let cpuTok = '';
 
       // Pattern 1: Look for "CPU:" label first (most reliable)
-      const cpuLabelMatch = description.match(/cpu[:\s]+([^\n•,]+)/i);
+      const cpuLabelMatch = text.match(/cpu[:\s]+([^\n•,]+)/i);
       if (cpuLabelMatch) {
         cpuTok = extractCpuModelToken(cpuLabelMatch[1]);
       }
 
       // Pattern 2: Look for AMD Ryzen anywhere
       if (!cpuTok) {
-        const ryzenMatch = description.match(/\b((?:amd\s+)?ryzen\s*[3579]\s*\d{4}[a-z]*)\b/i);
+        const ryzenMatch = text.match(/\b((?:amd\s+)?ryzen\s*[3579]\s*\d{4}[a-z]*)\b/i);
         if (ryzenMatch) cpuTok = extractCpuModelToken(ryzenMatch[1]);
       }
 
       // Pattern 3: Look for Intel Core anywhere
       if (!cpuTok) {
-        const intelMatch = description.match(/\b((?:intel\s+)?(?:core\s+)?i[3579][-\s]?\d{4,5}[a-z]*)\b/i);
+        const intelMatch = text.match(/\b((?:intel\s+)?(?:core\s+)?i[3579][-\s]?\d{4,5}[a-z]*)\b/i);
         if (intelMatch) cpuTok = extractCpuModelToken(intelMatch[1]);
       }
 
@@ -1310,7 +1450,7 @@
       let gpuTok = '';
 
       // Pattern 1: Look for "GPU:" label first
-      const gpuLabelMatch = description.match(/gpu[:\s]+([^\n•,]+)/i);
+      const gpuLabelMatch = text.match(/gpu[:\s]+([^\n•,]+)/i);
       if (gpuLabelMatch) {
         gpuTok = extractGpuModelToken(gpuLabelMatch[1]);
       }
@@ -1318,7 +1458,7 @@
       // Pattern 2: Look for Nvidia/AMD GPU models anywhere
       if (!gpuTok) {
         // Match RTX, GTX, RX with model numbers
-        const gpuMatch = description.match(/\b(?:(?:nvidia|amd|geforce|radeon)\s+)?((?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?)\b/i);
+        const gpuMatch = text.match(/\b(?:(?:nvidia|amd|geforce|radeon)\s+)?((?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?)\b/i);
         if (gpuMatch) gpuTok = extractGpuModelToken(gpuMatch[1]);
       }
 
@@ -1328,7 +1468,7 @@
       let ramTok = '';
 
       // Pattern 1: "RAM:" label
-      const ramLabelMatch = description.match(/ram[:\s]+([^\n•,]+)/i);
+      const ramLabelMatch = text.match(/ram[:\s]+([^\n•,]+)/i);
       if (ramLabelMatch) {
         const ramVal = ramLabelMatch[1].match(/\b(\d+)\s*gb\b/i);
         if (ramVal) ramTok = ramVal[0].toUpperCase();
@@ -1336,14 +1476,14 @@
 
       // Pattern 2: "XX GB" followed by DDR
       if (!ramTok) {
-        const ramDdrMatch = description.match(/\b(\d+)\s*gb\s*ddr[45]/i);
+        const ramDdrMatch = text.match(/\b(\d+)\s*gb\s*ddr[45]/i);
         if (ramDdrMatch) ramTok = `${ramDdrMatch[1]}GB`;
       }
 
       // Pattern 3: Just "XX GB" (less reliable, could be storage)
       if (!ramTok) {
         // Only match common RAM sizes to avoid confusion with storage
-        const ramSizeMatch = description.match(/\b(8|16|32|64)\s*gb\s*(?:ram|memory|ddr)/i);
+        const ramSizeMatch = text.match(/\b(8|16|32|64)\s*gb\s*(?:ram|memory|ddr)/i);
         if (ramSizeMatch) ramTok = `${ramSizeMatch[1]}GB`;
       }
 
@@ -1353,7 +1493,7 @@
       let storageTok = '';
 
       // Pattern 1: Explicit storage labels
-      const storageLabelMatch = description.match(/(?:storage|ssd|hdd|nvme)[:\s]+([^\n•,]+)/i);
+      const storageLabelMatch = text.match(/(?:storage|ssd|hdd|nvme)[:\s]+([^\n•,]+)/i);
       if (storageLabelMatch) {
         const storageVal = storageLabelMatch[1].match(/\b(\d+)\s*(?:gb|tb)\b/i);
         if (storageVal) storageTok = storageVal[0].toUpperCase();
@@ -1361,16 +1501,16 @@
 
       // Pattern 2: "X TB" or "XXX GB" followed by SSD/HDD/NVME
       if (!storageTok) {
-        const storageMatch = description.match(/\b(\d+)\s*(tb|gb)\s*(?:ssd|hdd|nvme|m\.2)\b/i);
+        const storageMatch = text.match(/\b(\d+)\s*(tb|gb)\s*(?:ssd|hdd|nvme|m\.2)\b/i);
         if (storageMatch) storageTok = `${storageMatch[1]}${storageMatch[2].toUpperCase()}`;
       }
 
       if (storageTok) specs.storage = storageTok;
-      
+
       // Screen size for monitors/TVs
-      const screenMatch = description.match(/\b(\d{2,3})\s*(?:"|″|in\b|inch\b)/i);
+      const screenMatch = text.match(/\b(\d{2,3})\s*(?:"|″|in\b|inch\b)/i);
       if (screenMatch) specs.screenSize = `${screenMatch[1]}"`;
-      
+
     } catch (e) {
       log('Error extracting specs: ' + e?.message, 'warn');
     }
@@ -1472,7 +1612,16 @@
       return null;
     }
 
-    const titleEl = best?.el || pdpTitle || null;
+    // Get title element for price anchoring - use findTitleElement() as fallback
+    // This is important because we may have gotten the title from document.title but need
+    // a DOM element to anchor price search
+    let titleEl = best?.el || pdpTitle || null;
+    if (!titleEl) {
+      titleEl = findTitleElement();
+      if (titleEl) {
+        log(`Using findTitleElement() for price anchoring`);
+      }
+    }
 
     // Price - look for currency patterns
     // Facebook's DOM structure: title (h1) and price are siblings in a container
@@ -1481,7 +1630,7 @@
     let priceEl = null;
     let priceSource = '';
 
-    // Method 1: Try data-testid (may not exist on logged-out pages)
+    // Method 1: Try data-testid (may not exist on current FB layout)
     const allPriceEls = Array.from(document.querySelectorAll('[data-testid="marketplace_pdp_price"]'));
     log(`Found ${allPriceEls.length} price elements with data-testid`);
 
@@ -1492,6 +1641,34 @@
         priceSource = 'data-testid';
         log(`Selected visible price element: "${el.textContent?.trim()}"`);
         break;
+      }
+    }
+
+    // Method 1b: Search in dialog (modal view) - FB often renders listings in dialogs
+    if (!priceEl) {
+      const dialog = document.querySelector('[role="dialog"]');
+      if (dialog) {
+        // Look for price pattern in dialog
+        const candidates = Array.from(dialog.querySelectorAll('span, div'))
+          .filter(el => {
+            const text = el.textContent?.trim() || '';
+            // Match exact price pattern
+            if (!/^\$[\d,]+$/.test(text)) return false;
+            if (el.childElementCount > 0) return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          })
+          .map(el => {
+            const rect = el.getBoundingClientRect();
+            return { el, top: rect.top };
+          })
+          .sort((a, b) => a.top - b.top);
+
+        if (candidates.length > 0) {
+          priceEl = candidates[0].el;
+          priceSource = 'dialog-search';
+          log(`Found price in dialog: "${priceEl.textContent?.trim()}"`);
+        }
       }
     }
 
@@ -1613,8 +1790,7 @@
     if (!priceEl && !Number.isFinite(metaPrice)) {
       // Method 6: More aggressive search - find price in listing panel
       // Key insight: search within the same panel as the title, not the whole page
-      const titleEl = findTitleElement();
-
+      // Note: titleEl was already set earlier, reuse it
       log(`Price fallback: titleEl=${titleEl ? 'found' : 'not found'}`);
 
       if (titleEl) {
@@ -1744,9 +1920,20 @@
 
     // NEW: Extract full description and specs for AI-powered search term generation
     const fullDescription = extractFullDescription();
-    const extractedSpecs = extractSpecsFromDescription(fullDescription);
+
+    // IMPORTANT: Extract specs from BOTH title AND description
+    // Title is more reliable as it's less likely to be from stale/cached content
+    const specsFromTitle = extractSpecsFromDescription(title);
+    const specsFromDescription = extractSpecsFromDescription(fullDescription);
+
+    // Prioritize title specs over description specs (title is more reliable)
+    const extractedSpecs = {
+      ...specsFromDescription, // Start with description specs
+      ...specsFromTitle,       // Override with title specs (more reliable)
+    };
+
     const imageUrls = extractImageUrls();
-    
+
     // Merge extracted specs with marketplace details (prefer marketplace if available)
     const mergedSpecs = {
       ...extractedSpecs,
@@ -1759,8 +1946,14 @@
     if (fullDescription) {
       log(`Description length: ${fullDescription.length} chars`);
     }
+    if (Object.keys(specsFromTitle).length > 0) {
+      log(`Specs from title: ${JSON.stringify(specsFromTitle)}`);
+    }
+    if (Object.keys(specsFromDescription).length > 0) {
+      log(`Specs from description: ${JSON.stringify(specsFromDescription)}`);
+    }
     if (Object.keys(extractedSpecs).length > 0) {
-      log(`Extracted specs: ${JSON.stringify(extractedSpecs)}`);
+      log(`Final merged specs: ${JSON.stringify(extractedSpecs)}`);
     }
 
     // Determine final price with fallbacks
