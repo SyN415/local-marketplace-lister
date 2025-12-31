@@ -3024,14 +3024,65 @@
       e.preventDefault();
       const params = new URLSearchParams();
       if (listing.title) params.set('title', listing.title);
-      // Note: listing uses fullDescription, not description
-      const desc = listing.fullDescription || listing.description || '';
+
+      // Re-extract description NOW (DOM should be fully loaded by now)
+      // This fixes timing issues where initial extraction happened too early
+      let desc = extractFullDescription();
+      if (!desc || desc.length < 50) {
+        // Fall back to stored description if re-extraction fails
+        desc = listing.fullDescription || listing.description || '';
+      }
+
+      // Clean description of UI noise before sending
+      desc = cleanDescription(desc);
+
       if (desc) params.set('description', desc.substring(0, 2000));
       if (listing.price) params.set('price', String(listing.price));
       if (listing.url) params.set('url', listing.url);
       const fullUrl = `${APP_URL}/pc-resale?${params.toString()}`;
       window.open(fullUrl, '_blank');
     });
+  }
+
+  // Clean description of Facebook UI noise
+  function cleanDescription(text) {
+    if (!text) return '';
+
+    return text
+      // Remove quick reply buttons
+      .replace(/Is it available\??/gi, '')
+      .replace(/Pick up today\??/gi, '')
+      .replace(/Cash ready\??/gi, '')
+      .replace(/Bundle deal\??/gi, '')
+      // Remove messaging UI
+      .replace(/Send seller a message/gi, '')
+      .replace(/is this still available\??/gi, '')
+      .replace(/Hi [^,]+, is this still available\??/gi, '')
+      // Remove seller info
+      .replace(/Seller information/gi, '')
+      .replace(/Seller details/gi, '')
+      .replace(/Joined Facebook in \d{4}/gi, '')
+      .replace(/Highly rated on Marketplace/gi, '')
+      .replace(/\(\d+\)\s*$/gm, '') // Remove rating like "(3)" at end of names
+      // Remove location meta
+      .replace(/Location is approximate/gi, '')
+      .replace(/Public meetup/gi, '')
+      .replace(/Door pickup or dropoff/gi, '')
+      // Remove ads and sponsored content
+      .replace(/Shopify/gi, '')
+      .replace(/Bring your idea to life/gi, '')
+      .replace(/Step up and stand out\.?/gi, '')
+      .replace(/Northeastern University[^.]*\.?/gi, '')
+      // Remove duplicate listings of time/location
+      .replace(/Listed \d+ (?:days?|weeks?|months?) ago in [^.]+\./gi, '')
+      .replace(/\d+ (?:days?|weeks?|months?) ago\s+[A-Z][a-z]+,?\s*[A-Z]{2}/g, '')
+      // Remove common FB boilerplate
+      .replace(/Message\s*$/gm, '')
+      .replace(/Send\s*$/gm, '')
+      // Clean up excessive whitespace and newlines
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   // Quick Reply Chip Injection
