@@ -1160,6 +1160,153 @@
     return null;
   }
 
+  // Find the "Details" section on the page and extract its content
+  function findDetailsSection(root) {
+    try {
+      // Look for elements that say "Details" or "Condition" as section headers
+      const allElements = root.querySelectorAll('span, div');
+
+      for (const el of allElements) {
+        const text = el.textContent?.trim() || '';
+        const lowerText = text.toLowerCase();
+
+        // Look for "Details" header (usually a small span)
+        if ((lowerText === 'details' || lowerText === 'description') && text.length < 15) {
+          // Found a Details header - now find its content container
+          // The content is usually in a sibling or parent's sibling
+
+          // Strategy 1: Look at next siblings
+          let sibling = el.nextElementSibling;
+          for (let i = 0; i < 5 && sibling; i++) {
+            const siblingText = sibling.textContent?.trim() || '';
+            // Check if this sibling has substantial content
+            if (siblingText.length > 100 && !siblingText.toLowerCase().includes("today's picks")) {
+              // Check it doesn't have too many prices (would indicate other listings)
+              const priceCount = (siblingText.match(/\$\d/g) || []).length;
+              if (priceCount <= 3) {
+                log(`findDetailsSection: Found via sibling of "${text}" header`);
+                return cleanDescriptionContent(siblingText);
+              }
+            }
+            sibling = sibling.nextElementSibling;
+          }
+
+          // Strategy 2: Look at parent's content after this element
+          let parent = el.parentElement;
+          for (let depth = 0; depth < 6 && parent; depth++) {
+            const parentRect = parent.getBoundingClientRect?.();
+            // Look for a reasonably sized container
+            if (parentRect && parentRect.height > 150 && parentRect.width < 600) {
+              const parentText = parent.textContent?.trim() || '';
+              // Make sure it's not too short and doesn't have many prices
+              const priceCount = (parentText.match(/\$\d/g) || []).length;
+              if (parentText.length > 100 && priceCount <= 3) {
+                // Extract content AFTER "Details" or "Condition"
+                const detailsIndex = parentText.indexOf('Details');
+                const conditionIndex = parentText.indexOf('Condition');
+                const startIndex = Math.max(detailsIndex, conditionIndex);
+
+                if (startIndex > -1) {
+                  let content = parentText.substring(startIndex);
+                  // Stop at known section boundaries
+                  const stopPatterns = [
+                    /Seller information/i,
+                    /Today's picks/i,
+                    /Similar listings/i,
+                    /You may also like/i,
+                    /See more/i
+                  ];
+                  for (const pattern of stopPatterns) {
+                    const match = content.match(pattern);
+                    if (match) {
+                      content = content.substring(0, match.index);
+                    }
+                  }
+
+                  if (content.length > 50) {
+                    log(`findDetailsSection: Found via parent of "${text}" header at depth ${depth}`);
+                    return cleanDescriptionContent(content);
+                  }
+                }
+              }
+            }
+            parent = parent.parentElement;
+          }
+        }
+      }
+
+      // Strategy 3: Look for "Condition" followed by content
+      for (const el of allElements) {
+        const text = el.textContent?.trim() || '';
+        if (text.toLowerCase().startsWith('condition') && text.length < 30) {
+          // This might be a condition label - look for parent with more content
+          let parent = el.parentElement;
+          for (let depth = 0; depth < 8 && parent; depth++) {
+            const parentText = parent.textContent?.trim() || '';
+            const priceCount = (parentText.match(/\$\d/g) || []).length;
+
+            // Look for container with description content
+            if (parentText.length > 200 && priceCount <= 3) {
+              const conditionIndex = parentText.indexOf('Condition');
+              if (conditionIndex > -1) {
+                let content = parentText.substring(conditionIndex);
+                // Stop at known boundaries
+                const stopPatterns = [/Seller information/i, /Today's picks/i, /Similar/i];
+                for (const pattern of stopPatterns) {
+                  const match = content.match(pattern);
+                  if (match) content = content.substring(0, match.index);
+                }
+
+                if (content.length > 100) {
+                  log(`findDetailsSection: Found via Condition section at depth ${depth}`);
+                  return cleanDescriptionContent(content);
+                }
+              }
+            }
+            parent = parent.parentElement;
+          }
+        }
+      }
+
+      return '';
+    } catch (e) {
+      log('findDetailsSection error: ' + e?.message, 'warn');
+      return '';
+    }
+  }
+
+  // Clean extracted description content
+  function cleanDescriptionContent(text) {
+    if (!text) return '';
+
+    return text
+      // Remove common headers we might have captured
+      .replace(/^Details\s*/i, '')
+      .replace(/^Description\s*/i, '')
+      // Remove condition prefix duplication
+      .replace(/^Condition\s*(New|Used[^.]*)\s*\1/i, 'Condition $1')
+      // Remove quick reply buttons
+      .replace(/Is it available\??/gi, '')
+      .replace(/Pick up today\??/gi, '')
+      .replace(/Cash ready\??/gi, '')
+      .replace(/Bundle deal\??/gi, '')
+      // Remove messaging UI
+      .replace(/Send seller a message/gi, '')
+      .replace(/is this still available\??/gi, '')
+      .replace(/Hi [^,]+, is this still available\??/gi, '')
+      // Remove seller info section
+      .replace(/Seller information.*$/is, '')
+      .replace(/Seller details.*$/is, '')
+      // Remove ads
+      .replace(/Shopify.*$/gim, '')
+      .replace(/Thrivent.*$/gim, '')
+      .replace(/Sponsored.*$/gim, '')
+      // Clean up
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2000);
+  }
+
   // NEW: Extract full description text from the listing page
   function extractFullDescription() {
     try {
@@ -1169,22 +1316,33 @@
       // - Below/Side: "Today's picks" with other listings (MUST AVOID!)
 
       const main = document.querySelector('[role="main"]');
-      if (!main) {
-        log('extractFullDescription: No [role="main"] found');
+      const dialog = document.querySelector('[role="dialog"]');
+      const searchRoot = dialog || main;
+
+      if (!searchRoot) {
+        log('extractFullDescription: No search root found');
         return '';
       }
 
-      // Step 1: Find the title element - this is our anchor
+      // PRIORITY 1: Find the "Details" section specifically
+      // This is the most reliable way to get the actual listing description
+      const detailsContent = findDetailsSection(searchRoot);
+      if (detailsContent && detailsContent.length > 50) {
+        log(`extractFullDescription: Found via Details section: ${detailsContent.length} chars`);
+        log(`Preview: ${detailsContent.substring(0, 200)}...`);
+        return detailsContent;
+      }
+
+      // PRIORITY 2: Find the title element and extract from listing panel
       const titleEl = findTitleElement();
       if (!titleEl) {
         log('extractFullDescription: No title element found, trying alternative approach');
-        // Alternative: search the entire main area but with strict filtering
-        return extractDescriptionFallback(main);
+        return extractDescriptionFallback(searchRoot);
       }
 
       log(`extractFullDescription: Title element found, text="${titleEl.textContent?.substring(0, 50)}..."`);
 
-      // Step 2: Find the listing panel - the narrower column containing the title
+      // Find the listing panel - the narrower column containing the title
       let listingPanel = null;
       let parent = titleEl.parentElement;
 
@@ -1378,7 +1536,7 @@
 
       const lowerText = text.toLowerCase();
 
-      // Skip navigation/sidebar content
+      // Skip navigation/sidebar content and other listings
       if (lowerText.includes("today's picks") ||
           lowerText.includes("similar listings") ||
           lowerText.includes("you may also like") ||
@@ -1387,11 +1545,23 @@
           lowerText.includes("related items") ||
           lowerText.includes("browse all") ||
           lowerText.includes("shopify") ||
-          lowerText.includes("bring your idea")) continue;
+          lowerText.includes("bring your idea") ||
+          lowerText.includes("thrivent") ||
+          lowerText.includes("sponsored") ||
+          lowerText.includes("graduate admissions") ||
+          lowerText.includes("step up and stand out") ||
+          lowerText.includes("preschool to") ||
+          lowerText.includes("chinese american international") ||
+          lowerText.includes("where money means")) continue;
 
       // Skip if too many prices (recommendation section)
+      // Multiple prices indicate we're grabbing a list of listings
       const priceCount = (text.match(/\$\d/g) || []).length;
-      if (priceCount > 3) continue;
+      if (priceCount > 2) continue;
+
+      // Skip if there are multiple city/state patterns (multiple listings)
+      const locationMatches = text.match(/[A-Z][a-z]+,?\s*[A-Z]{2}\b/g) || [];
+      if (locationMatches.length > 2) continue;
 
       // Check element position - should be in upper/middle part of page
       const rect = el.getBoundingClientRect?.();
