@@ -882,7 +882,7 @@
           const isSameUrlAsLast = previousListingUrl && previousListingUrl === currentUrl;
           const isSameTitleAsPrevious = previousListingTitle &&
             normalizeForComparison(listingData.title) === normalizeForComparison(previousListingTitle);
-          
+
           // If we're on a NEW listing page (different URL) but got the SAME title as the previous listing,
           // this is likely stale og:title data - keep polling
           if (!isSameUrlAsLast && isSameTitleAsPrevious && (now - startedAt < 6000)) {
@@ -890,15 +890,24 @@
             listingPollTimeout = setTimeout(poll, 400);
             return;
           }
-          
+
+          // FIX: If we don't have a price yet and we're still early in polling, keep trying
+          // The DOM might not be fully rendered yet
+          const hasPrice = listingData.price !== null && listingData.price !== undefined;
+          if (!hasPrice && (now - startedAt < 4000)) {
+            log(`Got listing without price (elapsed: ${now - startedAt}ms), retrying...`);
+            listingPollTimeout = setTimeout(poll, 500);
+            return;
+          }
+
           log('Listing data found:', listingData.title);
           observerActive = false;
           currentListingData = listingData;
-          
+
           // Track this listing for stale detection on next navigation
           previousListingUrl = currentUrl;
           previousListingTitle = listingData.title;
-          
+
           requestPriceIntelligence(listingData);
           return;
         }
@@ -1895,12 +1904,24 @@
           allElements.push(...root.querySelectorAll('span, div'));
         }
 
+        log(`Ultimate fallback: searching ${allElements.length} elements from ${searchRoots.length} roots`);
+
+        let debugMatchCount = 0;
+        let debugRectFailCount = 0;
+        let debugChildFailCount = 0;
+
         for (const el of allElements) {
           const text = el.textContent?.trim() || '';
           // Match price at start - handles "$650" and "$650$800"
           const priceMatch = text.match(/^\$\s*([\d,]+)/);
           if (!priceMatch) continue;
-          if (el.childElementCount > 1) continue;
+
+          debugMatchCount++;
+
+          if (el.childElementCount > 1) {
+            debugChildFailCount++;
+            continue;
+          }
 
           const rect = el.getBoundingClientRect();
           // Must be visible and in upper portion of viewport (changed > 0 to >= 0)
@@ -1910,9 +1931,35 @@
             if (allPrices.length <= 2) {
               fallbackPrice = parsePrice(priceMatch[0]);
               priceSource = 'text-fallback';
-              log(`Price search: found via ultimate fallback: $${fallbackPrice} at y=${rect.top?.toFixed(0)}, text="${text}"`);
+              log(`Price search: found via ultimate fallback: $${fallbackPrice} at y=${rect.top?.toFixed(0)}, text="${text.substring(0, 50)}"`);
               break;
             }
+          } else {
+            debugRectFailCount++;
+          }
+        }
+
+        if (!fallbackPrice) {
+          log(`Ultimate fallback failed: ${debugMatchCount} regex matches, ${debugChildFailCount} failed childCount, ${debugRectFailCount} failed rect check`);
+        }
+      }
+
+      // NEW: Extract price from description text as absolute last resort
+      // This catches cases where the price element isn't separately identifiable
+      if (!fallbackPrice) {
+        const descForPrice = extractFullDescription();
+        log(`Description-text fallback: desc length=${descForPrice?.length || 0}`);
+        if (descForPrice) {
+          // Look for price pattern in first 500 chars of description (near title)
+          const descStart = descForPrice.substring(0, 500);
+          // Match prices like "$700", "$1,200", "$700$800" (sale+original)
+          const priceInDesc = descStart.match(/\$\s*([\d,]+)/);
+          if (priceInDesc) {
+            fallbackPrice = parsePrice(priceInDesc[0]);
+            priceSource = 'description-text';
+            log(`Price search: extracted from description text: $${fallbackPrice} from "${priceInDesc[0]}"`);
+          } else {
+            log(`Description-text fallback: no price match in first 200 chars: "${descStart.substring(0, 200)}..."`);
           }
         }
       }
