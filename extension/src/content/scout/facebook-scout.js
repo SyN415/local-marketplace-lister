@@ -1255,7 +1255,22 @@
 
         // Skip sponsored/ad content
         if (lowerText.includes('sponsored') || lowerText.includes('temu') ||
-            lowerText.includes('amazon') || lowerText.includes('shop now')) continue;
+            lowerText.includes('amazon') || lowerText.includes('shop now') ||
+            lowerText.includes('shopify') || lowerText.includes('bring your idea')) continue;
+
+        // Skip quick reply buttons and messaging UI
+        if (lowerText.includes('is it available') || lowerText.includes('pick up today') ||
+            lowerText.includes('cash ready') || lowerText.includes('bundle deal') ||
+            lowerText.includes('send seller a message') || lowerText.includes('is this still available') ||
+            lowerText.includes('message') && text.length < 20) continue;
+
+        // Skip seller information section
+        if (lowerText.includes('seller information') || lowerText.includes('seller details') ||
+            lowerText.includes('joined facebook') || lowerText.includes('highly rated on marketplace') ||
+            lowerText.includes('rated on marketplace')) continue;
+
+        // Skip meta info that's not part of description
+        if (lowerText.includes('location is approximate')) continue;
 
         seenTexts.add(text);
         textParts.push(text);
@@ -1299,32 +1314,48 @@
     const titlePart = currentDocTitle.split(/[|\-–—]/)[0].trim().toLowerCase();
 
     // Look for "Details" or "Condition" section headers
-    const allSpans = main.querySelectorAll('span');
+    const allSpans = main.querySelectorAll('span, div');
     let detailsSection = null;
+    let detailsSectionScore = 0;
 
     for (const span of allSpans) {
       const text = span.textContent?.trim()?.toLowerCase() || '';
       if ((text === 'details' || text === 'condition' || text === 'description') && span.textContent?.trim().length < 15) {
         // Found a section header - look for content nearby
         let parent = span.parentElement;
-        for (let i = 0; i < 6 && parent; i++) {
+        for (let i = 0; i < 8 && parent; i++) {
           const rect = parent.getBoundingClientRect?.();
-          if (rect && rect.height > 100 && rect.width < 600) {
-            detailsSection = parent;
-            break;
+          if (rect && rect.height > 80 && rect.width < 700 && rect.width > 200) {
+            const parentText = parent.textContent || '';
+            const score = parentText.length;
+            if (score > detailsSectionScore) {
+              detailsSection = parent;
+              detailsSectionScore = score;
+            }
           }
           parent = parent.parentElement;
-        }
-        if (detailsSection) {
-          log(`extractDescriptionFallback: Found via "${text}" header`);
-          break;
         }
       }
     }
 
-    if (detailsSection) {
-      const text = detailsSection.textContent || '';
-      // Clean up and return
+    if (detailsSection && detailsSectionScore > 100) {
+      let text = detailsSection.textContent || '';
+
+      // Clean up the text - remove UI elements
+      text = text.replace(/Is it available\?/g, '')
+                 .replace(/Pick up today\?/g, '')
+                 .replace(/Cash ready/g, '')
+                 .replace(/Bundle deal\?/g, '')
+                 .replace(/Send seller a message/g, '')
+                 .replace(/is this still available\??/gi, '')
+                 .replace(/Seller information/g, '')
+                 .replace(/Seller details/g, '')
+                 .replace(/Joined Facebook in \d{4}/g, '')
+                 .replace(/Highly rated on Marketplace/g, '')
+                 .replace(/Location is approximate/g, '')
+                 .replace(/Message/g, '')
+                 .replace(/Send/g, '');
+
       const cleaned = text.replace(/\s+/g, ' ').trim();
       if (cleaned.length > 30) {
         log(`extractDescriptionFallback: Found ${cleaned.length} chars from details section`);
@@ -1338,10 +1369,12 @@
     const allDivs = main.querySelectorAll('div, span');
 
     for (const el of allDivs) {
-      if (el.childElementCount > 3) continue;
+      // Allow up to 5 child elements for container divs
+      if (el.childElementCount > 5) continue;
 
       const text = el.textContent?.trim() || '';
-      if (text.length < 50 || text.length > 1500) continue;
+      // Lowered minimum to 30 chars, raised max to 3000
+      if (text.length < 30 || text.length > 3000) continue;
 
       const lowerText = text.toLowerCase();
 
@@ -1352,17 +1385,19 @@
           lowerText.includes("seller's other items") ||
           lowerText.includes("more from this seller") ||
           lowerText.includes("related items") ||
-          lowerText.includes("browse all")) continue;
+          lowerText.includes("browse all") ||
+          lowerText.includes("shopify") ||
+          lowerText.includes("bring your idea")) continue;
 
       // Skip if too many prices (recommendation section)
       const priceCount = (text.match(/\$\d/g) || []).length;
-      if (priceCount > 2) continue;
+      if (priceCount > 3) continue;
 
       // Check element position - should be in upper/middle part of page
       const rect = el.getBoundingClientRect?.();
       if (rect) {
         // Skip elements that are very low on the page (likely recommendations)
-        if (rect.top > 800) continue;
+        if (rect.top > 900) continue;
         // Skip very wide elements (likely full-page containers)
         if (rect.width > window.innerWidth * 0.9) continue;
       }
@@ -1370,30 +1405,58 @@
       // Score based on PC keywords
       let score = 0;
       const keywords = ['ryzen', 'intel', 'nvidia', 'amd', 'rtx', 'gtx', 'radeon',
-                        'ddr4', 'ddr5', 'ssd', 'nvme', 'ram', 'gpu', 'cpu', 'ghz', 'gb', 'tb'];
+                        'ddr4', 'ddr5', 'ssd', 'nvme', 'ram', 'gpu', 'cpu', 'ghz', 'gb', 'tb',
+                        'core i5', 'core i7', 'core i9', 'geforce', 'specs', 'gaming'];
       for (const kw of keywords) {
         if (lowerText.includes(kw)) score += 10;
       }
+
+      // Bonus for longer descriptions (more likely to be the actual content)
+      if (text.length > 200) score += 20;
+      if (text.length > 500) score += 30;
 
       // Bonus points if the text contains part of the document title (likely same listing)
       if (titlePart && titlePart.length >= 8 && lowerText.includes(titlePart.substring(0, Math.min(15, titlePart.length)))) {
         score += 50;
       }
 
+      // Bonus if contains "condition" or "details" - likely the right section
+      if (lowerText.includes('condition') || lowerText.includes('details')) {
+        score += 30;
+      }
+
       if (score > 0) {
-        candidates.push({ text, score, top: rect?.top || 0 });
+        candidates.push({ text, score, top: rect?.top || 0, length: text.length });
       }
     }
 
-    // Sort by score first, then by position (prefer elements closer to top)
+    // Sort by score first, then by length (prefer longer descriptions), then by position
     candidates.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
+      if (b.length !== a.length) return b.length - a.length;
       return a.top - b.top;
     });
 
     if (candidates.length > 0) {
       log(`extractDescriptionFallback: Found ${candidates.length} candidates, best score: ${candidates[0].score}`);
-      return candidates[0].text.slice(0, 2000);
+
+      // Clean the result
+      let result = candidates[0].text;
+      result = result.replace(/Is it available\?/g, '')
+                     .replace(/Pick up today\?/g, '')
+                     .replace(/Cash ready/g, '')
+                     .replace(/Bundle deal\?/g, '')
+                     .replace(/Send seller a message/g, '')
+                     .replace(/is this still available\??/gi, '')
+                     .replace(/Seller information/g, '')
+                     .replace(/Seller details/g, '')
+                     .replace(/Joined Facebook in \d{4}/g, '')
+                     .replace(/Highly rated on Marketplace/g, '')
+                     .replace(/Location is approximate/g, '')
+                     .replace(/\s+/g, ' ')
+                     .trim();
+
+      return result.slice(0, 2000);
     }
 
     log('extractDescriptionFallback: No description found');
