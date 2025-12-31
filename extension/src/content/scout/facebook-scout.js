@@ -1645,35 +1645,39 @@
     }
 
     // Method 1b: Search in dialog (modal view) - FB often renders listings in dialogs
+    // FIXED: Handle concatenated prices like "$650$800" (sale + original)
     if (!priceEl) {
       const dialog = document.querySelector('[role="dialog"]');
       if (dialog) {
-        // Look for price pattern in dialog
+        // Look for price pattern in dialog - handles both exact "$650" and concatenated "$650$800"
         const candidates = Array.from(dialog.querySelectorAll('span, div'))
           .filter(el => {
             const text = el.textContent?.trim() || '';
-            // Match exact price pattern
-            if (!/^\$[\d,]+$/.test(text)) return false;
+            // Match price at start: "$650" or "$650$800" (sale + original price)
+            if (!/^\$[\d,]+(?:\$[\d,]+)?$/.test(text)) return false;
             if (el.childElementCount > 0) return false;
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
           })
           .map(el => {
             const rect = el.getBoundingClientRect();
-            return { el, top: rect.top };
+            const text = el.textContent?.trim() || '';
+            // Extract first price (sale price) from "$650$800"
+            const priceMatch = text.match(/^\$([\d,]+)/);
+            return { el, top: rect.top, price: priceMatch ? parsePrice(priceMatch[0]) : 0 };
           })
           .sort((a, b) => a.top - b.top);
 
         if (candidates.length > 0) {
           priceEl = candidates[0].el;
           priceSource = 'dialog-search';
-          log(`Found price in dialog: "${priceEl.textContent?.trim()}"`);
+          log(`Found price in dialog: "${priceEl.textContent?.trim()}" (parsed: $${candidates[0].price})`);
         }
       }
     }
 
     // Method 2: Look for price as sibling of title (Facebook's current structure)
-    // The title is in an h1, and price is in a sibling div with just "$X,XXX"
+    // The title is in an h1, and price is in a sibling div with "$X,XXX" or "$X,XXX$Y,YYY" (sale + original)
     if (!priceEl && titleEl) {
       const titleContainer = titleEl.closest('div')?.parentElement;
       if (titleContainer) {
@@ -1682,8 +1686,8 @@
         let node;
         while (node = walker.nextNode()) {
           const text = node.textContent?.trim() || '';
-          // Match $XXX or $X,XXX patterns (not in middle of other text)
-          if (/^\$[\d,]+$/.test(text)) {
+          // Match $XXX or $X,XXX patterns - handle concatenated "$650$800"
+          if (/^\$[\d,]+(?:\$[\d,]+)?$/.test(text)) {
             priceEl = node.parentElement;
             priceSource = 'title-sibling';
             log(`Found price near title: "${text}"`);
@@ -1702,8 +1706,8 @@
           const divs = container.querySelectorAll('div, span');
           for (const div of divs) {
             const text = div.textContent?.trim() || '';
-            // Price is usually just "$X,XXX" with nothing else
-            if (/^\$[\d,]+$/.test(text) && div.childElementCount === 0) {
+            // Price is "$X,XXX" or "$X,XXX$Y,YYY" (sale + original price)
+            if (/^\$[\d,]+(?:\$[\d,]+)?$/.test(text) && div.childElementCount === 0) {
               priceEl = div;
               priceSource = 'h1-container';
               log(`Found price in h1 container: "${text}"`);
@@ -1716,7 +1720,8 @@
 
     // Method 4: Fallback to findElementByContent
     if (!priceEl) {
-      priceEl = findElementByContent(/^\$[\d,]+$/, titleEl ? titleEl.parentElement?.parentElement || main : main);
+      // Also handle concatenated prices "$650$800"
+      priceEl = findElementByContent(/^\$[\d,]+(?:\$[\d,]+)?$/, titleEl ? titleEl.parentElement?.parentElement || main : main);
       if (priceEl) priceSource = 'findElementByContent';
     }
 
@@ -1748,7 +1753,8 @@
       const allPriceElements = Array.from(searchArea.querySelectorAll('span, div'))
         .filter(el => {
           const text = el.textContent?.trim() || '';
-          if (!/^\$[\d,]+$/.test(text) || text.length >= 15) return false;
+          // Match "$650" or "$650$800" (sale + original price)
+          if (!/^\$[\d,]+(?:\$[\d,]+)?$/.test(text) || text.length >= 20) return false;
           if (el.childElementCount > 0) return false; // Avoid containers
           const rect = el.getBoundingClientRect();
           // Must be in viewport AND in upper portion (listing price is near top)
@@ -1761,7 +1767,10 @@
           const isCrossedOut = style.textDecoration.includes('line-through') ||
                               (parentStyle && parentStyle.textDecoration.includes('line-through'));
           const rect = el.getBoundingClientRect();
-          return { el, isCrossedOut, price: parsePrice(el.textContent), top: rect.top };
+          // Extract first price from text (handles "$650$800" -> $650)
+          const text = el.textContent?.trim() || '';
+          const priceMatch = text.match(/^\$([\d,]+)/);
+          return { el, isCrossedOut, price: priceMatch ? parsePrice(priceMatch[0]) : 0, top: rect.top };
         })
         .sort((a, b) => {
           // Prefer non-crossed-out prices first
@@ -1776,7 +1785,7 @@
         const best = allPriceElements[0];
         priceEl = best.el;
         priceSource = best.isCrossedOut ? 'broad-search-crossed' : 'broad-search';
-        log(`Found price via broad search: "${priceEl.textContent?.trim()}" (crossedOut: ${best.isCrossedOut})`);
+        log(`Found price via broad search: "${priceEl.textContent?.trim()}" (crossedOut: ${best.isCrossedOut}, parsed: $${best.price})`);
 
         // If we found multiple prices, log them
         if (allPriceElements.length > 1) {
@@ -1879,22 +1888,29 @@
       if (!fallbackPrice) {
         log('Price search: trying ultimate fallback - scanning upper portion of page');
         // Look for any $ amount in elements near the top of the viewport
-        const allElements = main?.querySelectorAll('span, div') || [];
+        // Also search dialogs explicitly
+        const searchRoots = [main, document.querySelector('[role="dialog"]')].filter(Boolean);
+        const allElements = [];
+        for (const root of searchRoots) {
+          allElements.push(...root.querySelectorAll('span, div'));
+        }
+
         for (const el of allElements) {
           const text = el.textContent?.trim() || '';
+          // Match price at start - handles "$650" and "$650$800"
           const priceMatch = text.match(/^\$\s*([\d,]+)/);
           if (!priceMatch) continue;
           if (el.childElementCount > 1) continue;
 
           const rect = el.getBoundingClientRect();
-          // Must be visible and in upper half of viewport
-          if (rect.width > 0 && rect.height > 0 && rect.top > 0 && rect.top < 400) {
-            // Skip if multiple prices (recommendation section)
+          // Must be visible and in upper portion of viewport (changed > 0 to >= 0)
+          if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top < 500) {
+            // Skip if more than 2 prices (recommendation section with many listings)
             const allPrices = text.match(/\$\d/g) || [];
             if (allPrices.length <= 2) {
               fallbackPrice = parsePrice(priceMatch[0]);
               priceSource = 'text-fallback';
-              log(`Price search: found via ultimate fallback: $${fallbackPrice} at y=${rect.top?.toFixed(0)}`);
+              log(`Price search: found via ultimate fallback: $${fallbackPrice} at y=${rect.top?.toFixed(0)}, text="${text}"`);
               break;
             }
           }
