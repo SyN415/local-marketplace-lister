@@ -22,6 +22,37 @@ type PriceIntelligenceOptions = {
   strictMode?: boolean;  // Enhanced: strict filtering mode
 };
 
+// Extended result type with additional fields used internally
+interface PriceIntelligenceResponse {
+  found: boolean;
+  error?: string;
+  message?: string;
+  avgPrice?: number;
+  medianPrice?: number;
+  lowPrice?: number;
+  highPrice?: number;
+  count?: number;
+  totalSearched?: number;
+  filteredOut?: number;
+  confidence?: ConfidenceLevel | string;
+  confidenceScore?: number;
+  confidenceReasons?: string[];
+  statistics?: any;
+  samples?: Array<{
+    score?: number;
+    title: string;
+    price: number;
+    image?: string;
+    url?: string;
+    condition?: string;
+    relevanceScore?: number;
+    exclusionReasons?: string[];
+  }>;
+  cached?: boolean;
+  stale?: boolean;
+  legacyFallback?: boolean;
+}
+
 export class ScoutService {
   private ebay: any;
   private ebayConfigured: boolean;
@@ -321,15 +352,15 @@ export class ScoutService {
   }
 
   // Price Intelligence Methods
-  async getPriceIntelligence(query: string, opts?: PriceIntelligenceOptions) {
+  async getPriceIntelligence(query: string, opts?: PriceIntelligenceOptions): Promise<PriceIntelligenceResponse> {
     // Validate query
     if (!query || typeof query !== 'string') {
       console.warn('getPriceIntelligence: Invalid query provided');
       return { found: false, error: 'Invalid query' };
     }
-    
+
     const normalizedQuery = this.normalizeQueryKey(query, opts);
-    
+
     if (normalizedQuery.length < 2) {
       console.warn('getPriceIntelligence: Query too short');
       return { found: false, error: 'Query too short' };
