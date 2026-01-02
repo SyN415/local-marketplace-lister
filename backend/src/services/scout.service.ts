@@ -1,5 +1,15 @@
 import { supabaseAdmin as supabase } from '../config/supabase';
 import EbayApi from 'ebay-api';
+import {
+  ComponentType,
+  PriceFilterOptions,
+  processEbayResults,
+  getComponentConfig,
+  filterItems,
+  calculateRobustPrice,
+  calculateConfidence,
+  ConfidenceLevel,
+} from './ebay-price-filter';
 
 type PriceIntelligenceOptions = {
   condition?: string;
@@ -8,6 +18,8 @@ type PriceIntelligenceOptions = {
   categoryId?: string;
   currentPrice?: number;
   specs?: Record<string, string>;
+  componentType?: ComponentType | string;  // Enhanced: support component type for better filtering
+  strictMode?: boolean;  // Enhanced: strict filtering mode
 };
 
 export class ScoutService {
@@ -435,46 +447,94 @@ export class ScoutService {
       );
 
       const items: any[] = results?.itemSummaries || [];
-      
+
       console.log(`getPriceIntelligence: eBay returned ${items.length} items`);
-      
+
       if (!items.length) {
         return { found: false, message: 'No comparable items found on eBay' };
       }
 
-      const ranked = this.rankAndFilterItems(items, query, opts);
-      const prices = ranked
-        .map((r) => parseFloat(r.item?.price?.value))
-        .filter((p) => !isNaN(p) && p > 0);
-
-      const filteredPrices = this.removeOutliers(prices);
-
-      if (filteredPrices.length === 0) {
-        return { found: false, message: 'No priced items found' };
-      }
-
-      const sorted = [...filteredPrices].sort((a: number, b: number) => a - b);
-      const avgPrice = filteredPrices.reduce((a: number, b: number) => a + b, 0) / filteredPrices.length;
-
-      const result = {
-        found: true,
-        avgPrice: Math.round(avgPrice * 100) / 100,
-        lowPrice: sorted[0],
-        highPrice: sorted[sorted.length - 1],
-        count: filteredPrices.length,
-        samples: ranked.slice(0, 5).map((r: any) => {
-          const item = r.item;
-          return {
-            score: Math.round((r.score || 0) * 100) / 100,
-            title: item.title,
-            price: parseFloat(item.price?.value || 0),
-            image: item.image?.imageUrl,
-            url: item.itemWebUrl
-          };
-        })
+      // Use enhanced filtering module for better accuracy
+      const filterOptions: PriceFilterOptions = {
+        componentType: opts?.componentType as ComponentType,
+        condition: opts?.condition as 'new' | 'used' | 'any',
+        brand: opts?.brand,
+        model: opts?.model,
+        specs: opts?.specs,
+        categoryId: opts?.categoryId,
+        currentPrice: opts?.currentPrice,
+        strictMode: opts?.strictMode,
+        maxResults: 50,
       };
 
-      // Cache result
+      // Process with enhanced filtering
+      const enhancedResult = processEbayResults(items, query, filterOptions);
+
+      if (!enhancedResult.found) {
+        // Fall back to legacy filtering if enhanced filtering finds nothing
+        console.log('getPriceIntelligence: Enhanced filtering found no results, trying legacy...');
+        const ranked = this.rankAndFilterItems(items, query, opts);
+        const prices = ranked
+          .map((r) => parseFloat(r.item?.price?.value))
+          .filter((p) => !isNaN(p) && p > 0);
+
+        const filteredPrices = this.removeOutliers(prices);
+
+        if (filteredPrices.length === 0) {
+          return { found: false, message: 'No priced items found' };
+        }
+
+        const sorted = [...filteredPrices].sort((a: number, b: number) => a - b);
+        const avgPrice = filteredPrices.reduce((a: number, b: number) => a + b, 0) / filteredPrices.length;
+
+        const legacyResult = {
+          found: true,
+          avgPrice: Math.round(avgPrice * 100) / 100,
+          lowPrice: sorted[0],
+          highPrice: sorted[sorted.length - 1],
+          count: filteredPrices.length,
+          samples: ranked.slice(0, 5).map((r: any) => {
+            const item = r.item;
+            return {
+              score: Math.round((r.score || 0) * 100) / 100,
+              title: item.title,
+              price: parseFloat(item.price?.value || 0),
+              image: item.image?.imageUrl,
+              url: item.itemWebUrl
+            };
+          }),
+          confidence: filteredPrices.length >= 10 ? 'HIGH' : filteredPrices.length >= 5 ? 'MEDIUM' : 'LOW',
+          legacyFallback: true,
+        };
+
+        return legacyResult;
+      }
+
+      // Use enhanced result
+      const result = {
+        found: true,
+        avgPrice: enhancedResult.avgPrice,
+        medianPrice: enhancedResult.medianPrice,
+        lowPrice: enhancedResult.lowPrice,
+        highPrice: enhancedResult.highPrice,
+        count: enhancedResult.count,
+        totalSearched: enhancedResult.totalSearched,
+        filteredOut: enhancedResult.filteredOut,
+        confidence: enhancedResult.confidence,
+        confidenceScore: enhancedResult.confidenceScore,
+        confidenceReasons: enhancedResult.confidenceReasons,
+        statistics: enhancedResult.statistics,
+        samples: enhancedResult.samples?.map(s => ({
+          score: s.relevanceScore,
+          title: s.title,
+          price: s.price,
+          image: s.image,
+          url: s.url,
+          condition: s.condition,
+        })) || [],
+      };
+
+      // Cache result with enhanced data
       try {
         await supabase.from('price_intelligence').upsert({
           search_query: query,
@@ -482,16 +542,19 @@ export class ScoutService {
           ebay_avg_price: result.avgPrice,
           ebay_low_price: result.lowPrice,
           ebay_high_price: result.highPrice,
-          // For now, "sold" is approximated by matched items count.
-          // If Marketplace Insights API access is granted later, replace with true sold history.
-          ebay_sold_count: filteredPrices.length,
+          ebay_median_price: result.medianPrice,
+          ebay_sold_count: result.count,
           ebay_sample_listings: result.samples,
+          confidence_level: result.confidence,
+          confidence_score: result.confidenceScore,
+          total_searched: result.totalSearched,
+          filtered_out: result.filteredOut,
           fetched_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         }, {
           onConflict: 'normalized_query'
         });
-        console.log('getPriceIntelligence: Cached result for:', normalizedQuery);
+        console.log('getPriceIntelligence: Cached enhanced result for:', normalizedQuery);
       } catch (cacheWriteErr) {
         // Non-critical - just log the error
         console.warn('Failed to cache price intelligence:', cacheWriteErr);

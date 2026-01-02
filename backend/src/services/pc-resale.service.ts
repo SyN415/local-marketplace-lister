@@ -8,6 +8,7 @@ import { supabaseAdmin as supabase } from '../config/supabase';
 import { ComponentExtractorService, ExtractedComponents, ComponentProfile } from './component-extractor.service';
 import { ProfitabilityCalculatorService, RoiAnalysis, ComponentValuation, ReportSummary } from './profitability-calculator.service';
 import { ScoutService } from './scout.service';
+import { mapComponentType, ComponentType } from './ebay-price-filter';
 
 export interface MarketplaceListing {
   platform: 'facebook' | 'craigslist';
@@ -106,16 +107,21 @@ export class PcResaleService {
           continue;
         }
 
-        // Query eBay via scout service
+        // Query eBay via scout service with component type for enhanced filtering
+        const mappedType = mapComponentType(compType);
         const priceData = await this.scoutService.getPriceIntelligence(componentName, {
           condition: 'used',
+          componentType: mappedType,  // Pass component type for better filtering
         });
 
         if (priceData.found && priceData.avgPrice) {
           breakdown[compType] = priceData.avgPrice;
           total += priceData.avgPrice;
           pricedCount++;
-          confidenceScores.push(Math.min((priceData.count || 1) / 50, 1));
+
+          // Use confidenceScore from enhanced filtering if available, otherwise fallback
+          const confidenceFromPriceData = priceData.confidenceScore ?? Math.min((priceData.count || 1) / 50, 1);
+          confidenceScores.push(confidenceFromPriceData);
 
           // Cache the result
           await this.cacheComponentValuation(compType, componentName, priceData);
