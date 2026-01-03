@@ -7,10 +7,11 @@
 export * from './types';
 
 // Export configuration
-export { 
-  getComponentConfig, 
+export {
+  getComponentConfig,
   mapComponentType,
   COMMON_EXCLUSION_KEYWORDS,
+  COMBO_BUNDLE_KEYWORDS,
   COMPONENT_CONFIGS,
   GPU_CONFIG,
   CPU_CONFIG,
@@ -57,10 +58,15 @@ export function processEbayResults(
 ): PriceIntelligenceResult {
   const config = getComponentConfig(options?.componentType);
   const totalSearched = items.length;
-  
+
+  console.log(`[PriceFilter] Processing ${totalSearched} items for query: "${query}", componentType: ${options?.componentType || 'GENERIC'}`);
+  console.log(`[PriceFilter] Config: minPrice=${config.minPrice}, maxPrice=${config.maxPrice}, minRelevance=${config.minRelevanceScore}`);
+
   // Apply filtering
   const filteredItems = filterItems(items, query, options);
   const filteredOut = totalSearched - filteredItems.length;
+
+  console.log(`[PriceFilter] After filtering: ${filteredItems.length} items remaining, ${filteredOut} excluded`);
   
   if (filteredItems.length === 0) {
     return {

@@ -11,24 +11,41 @@ export const COMMON_EXCLUSION_KEYWORDS = [
   'for parts', 'not working', 'broken', 'as-is', 'as is', 'defective',
   'faulty', 'dead', 'untested', 'powers on only', 'no display',
   'damaged', 'bent pins', 'cracked', 'water damage', 'burnt',
-  
+
   // Partial items
   'box only', 'manual only', 'cable only', 'bracket only', 'cables only',
   'mounting only', 'backplate only', 'shroud only', 'heatsink only',
   'fan only', 'fans only', 'cooler only', 'coolers only',
   'shell only', 'cover only', 'case only', 'housing only',
   'io shield only', 'accessories only', 'parts only',
-  
+
   // Bundles/lots (often skewed pricing)
   'lot of', 'bundle of', 'bulk lot', 'wholesale lot',
   'grab bag', 'mystery box', 'random',
-  
+
   // Replacement parts
   'replacement fan', 'replacement cooler', 'replacement shroud',
   'replacement heatsink', 'thermal pads only',
-  
+
   // Non-product listings
   'wanted', 'wtb', 'looking for', 'iso',
+];
+
+// Keywords that indicate a combo/bundle with multiple components
+export const COMBO_BUNDLE_KEYWORDS = [
+  // Explicit combos
+  'combo', 'bundle', 'kit', 'set',
+  // Multiple components
+  'cpu + motherboard', 'motherboard + cpu', 'cpu+motherboard', 'motherboard+cpu',
+  'with motherboard', 'with mobo', 'with ram', 'with memory', 'with cooler',
+  'and motherboard', 'and mobo', 'and ram', 'and memory',
+  '+ mobo', '+ motherboard', '+ ram', '+ memory',
+  // Complete systems
+  'gaming pc', 'desktop pc', 'computer', 'full system', 'complete system',
+  'build', 'custom build', 'gaming build', 'pc build',
+  'workstation', 'mini pc', 'sff pc',
+  // Part-out language
+  'parting out', 'part out', 'from pc', 'from system', 'pulled from',
 ];
 
 // Patterns that suggest the item might be an accessory, not the main product
@@ -61,8 +78,8 @@ export const STANDARD_CONDITIONS: EbayCondition[] = [
 // GPU-specific configuration
 export const GPU_CONFIG: ComponentFilterConfig = {
   componentType: 'GPU',
-  minPrice: 50,  // Even old GPUs shouldn't be below $50 if working
-  maxPrice: 3500,  // High-end GPUs can be expensive
+  minPrice: 40,  // Budget/older GPUs like RX580 can be around $50-70
+  maxPrice: 2500,  // High-end GPUs (reduced from 3500)
   ebayCategories: ['27386', '175673'],  // Video cards, Computer Components
   requiredKeywords: [],  // Handled by model matching
   excludePatterns: [
@@ -75,18 +92,25 @@ export const GPU_CONFIG: ComponentFilterConfig = {
     /\briser\s+(cable|card)\b/i,
     /\bmining\s+rig\b/i,
     /\bfor\s+mining\b/i,
+    // Combo/system patterns
+    /\bgaming\s*(pc|build|system|computer)\b/i,
+    /\bdesktop\s*(pc|computer|system)\b/i,
+    /\bcomplete\s*(system|build|pc)\b/i,
+    /\bcombo\b/i,
+    /\bbundle\b/i,
   ],
   excludeKeywords: [
     ...COMMON_EXCLUSION_KEYWORDS,
     'waterblock', 'water block', 'ek block',  // Water cooling blocks only
     'bios mod', 'bios flash', 'modded bios',
+    'gaming pc', 'desktop pc', 'full system', 'complete system',
   ],
-  minRelevanceScore: 0.35,
+  minRelevanceScore: 0.40,  // Slightly increased
   allowedConditions: STANDARD_CONDITIONS,
   typicalPriceRanges: {
-    budget: { min: 50, max: 200 },      // GT/GTX 10xx series, older
-    midRange: { min: 150, max: 500 },   // RTX 30 series lower tier
-    highEnd: { min: 400, max: 2500 },   // RTX 40 series, high-end
+    budget: { min: 40, max: 150 },      // RX 580, GT/GTX 10xx series, older
+    midRange: { min: 100, max: 400 },   // RTX 30 series lower tier, RX 6xxx
+    highEnd: { min: 300, max: 1500 },   // RTX 40 series, high-end
   },
 };
 
@@ -94,8 +118,8 @@ export const GPU_CONFIG: ComponentFilterConfig = {
 export const CPU_CONFIG: ComponentFilterConfig = {
   componentType: 'CPU',
   minPrice: 30,  // Budget CPUs
-  maxPrice: 1500,  // High-end workstation CPUs
-  ebayCategories: ['164', '175673'],  // CPUs/Processors, Computer Components  
+  maxPrice: 500,  // Cap at $500 - most desktop CPUs don't exceed this on resale (even i9/Ryzen 9)
+  ebayCategories: ['164', '175673'],  // CPUs/Processors, Computer Components
   requiredKeywords: [],
   excludePatterns: [
     /\bdelidded\b/i,  // Modified CPUs
@@ -104,19 +128,36 @@ export const CPU_CONFIG: ComponentFilterConfig = {
     /\bno\s+ihs\b/i,  // CPU without heat spreader
     /\bkeychain\b/i,  // Decorative items
     /\blaptop\s+cpu\b/i,  // Mobile processors (different pricing)
+    // Combo/bundle patterns - these indicate multiple parts
+    /\bcpu\s*\+\s*(motherboard|mobo|ram|memory)/i,
+    /\b(motherboard|mobo)\s*\+\s*cpu\b/i,
+    /\bwith\s+(motherboard|mobo|ram|memory|cooler)\b/i,
+    /\band\s+(motherboard|mobo|ram|memory)\b/i,
+    /\bcombo\b/i,
+    /\bbundle\b/i,
+    /\bkit\b/i,
+    /\bgaming\s*(pc|build|system|computer)\b/i,
+    /\bdesktop\s*(pc|computer|system)\b/i,
+    /\bcomplete\s*(system|build|pc)\b/i,
+    /\bfull\s*(system|build|pc)\b/i,
+    /\bcustom\s*(build|pc|system)\b/i,
+    /\bworkstation\b/i,
+    /\bmini\s*pc\b/i,
+    /\bsff\s*(pc|build)\b/i,
   ],
   excludeKeywords: [
     ...COMMON_EXCLUSION_KEYWORDS,
+    ...COMBO_BUNDLE_KEYWORDS,
     'tray only', 'oem tray',
     'es sample', 'engineering sample', 'qs sample',  // Engineering samples
     'delid tool', 'delidding',
   ],
-  minRelevanceScore: 0.40,
+  minRelevanceScore: 0.50,  // Increased from 0.40 - be stricter for CPUs
   allowedConditions: STANDARD_CONDITIONS,
   typicalPriceRanges: {
-    budget: { min: 30, max: 150 },      // i3/Ryzen 3
-    midRange: { min: 100, max: 350 },   // i5/Ryzen 5
-    highEnd: { min: 250, max: 800 },    // i7/i9/Ryzen 7/9
+    budget: { min: 30, max: 100 },      // i3/Ryzen 3, older i5s like 11400F
+    midRange: { min: 80, max: 200 },    // i5/Ryzen 5 current gen
+    highEnd: { min: 150, max: 400 },    // i7/i9/Ryzen 7/9
   },
 };
 

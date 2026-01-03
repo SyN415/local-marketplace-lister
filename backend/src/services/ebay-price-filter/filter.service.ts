@@ -11,7 +11,7 @@ import {
   MatchScore,
   PriceFilterOptions,
 } from './types';
-import { getComponentConfig, COMMON_EXCLUSION_KEYWORDS } from './config';
+import { getComponentConfig, COMMON_EXCLUSION_KEYWORDS, COMBO_BUNDLE_KEYWORDS } from './config';
 
 /**
  * Stop words to ignore during tokenization
@@ -129,6 +129,13 @@ export function checkExclusions(
     }
   }
 
+  // Check combo/bundle keywords - these are critical for CPUs/GPUs
+  for (const keyword of COMBO_BUNDLE_KEYWORDS) {
+    if (titleLower.includes(keyword.toLowerCase())) {
+      reasons.push(`Contains combo/bundle keyword: "${keyword}"`);
+    }
+  }
+
   // Check component-specific exclusion keywords
   for (const keyword of config.excludeKeywords) {
     if (titleLower.includes(keyword.toLowerCase())) {
@@ -145,12 +152,11 @@ export function checkExclusions(
     }
   }
 
-  // Soft exclusions (reduce score but don't exclude)
+  // Soft exclusions (reduce score but don't exclude completely, but log them)
   const softPatterns = [
-    { pattern: /\bbundle\b/i, reason: 'Bundle listing (price may be inflated)' },
-    { pattern: /\blot\b/i, reason: 'Lot listing (pricing unclear)' },
-    { pattern: /\bparts\b/i, reason: 'May be for parts' },
     { pattern: /\bread\b/i, reason: 'Has "read" - may have issues' },
+    { pattern: /\block\b/i, reason: 'Has "lock" - may be locked' },
+    { pattern: /\bsee\s+(pics|photos|description)\b/i, reason: 'Requires inspection' },
   ];
 
   for (const { pattern, reason } of softPatterns) {
@@ -286,30 +292,56 @@ export function filterItems(
 ): FilteredItem[] {
   const config = getComponentConfig(options?.componentType);
   const strictMode = options?.strictMode ?? false;
+  const debug = process.env.NODE_ENV !== 'production';  // Enable debug in non-production
 
   const filtered: FilteredItem[] = [];
+  let noPriceCount = 0;
+  let priceRangeExcluded = 0;
+  let exclusionKeywordCount = 0;
+  let lowRelevanceCount = 0;
 
   for (const item of items) {
     const title = String(item?.title || '');
     const price = parseFloat(item?.price?.value || '0');
 
     // Skip if no price
-    if (!price || price <= 0) continue;
+    if (!price || price <= 0) {
+      noPriceCount++;
+      continue;
+    }
 
     // Skip if outside price bounds
     const minPrice = options?.minPrice ?? config.minPrice;
     const maxPrice = options?.maxPrice ?? config.maxPrice;
-    if (price < minPrice || price > maxPrice) continue;
+    if (price < minPrice || price > maxPrice) {
+      if (debug) {
+        console.log(`[PriceFilter] Excluded (price ${price} outside ${minPrice}-${maxPrice}): "${title.slice(0, 60)}..."`);
+      }
+      priceRangeExcluded++;
+      continue;
+    }
 
     // Check exclusions
     const exclusion = checkExclusions(title, config, strictMode);
-    if (exclusion.excluded) continue;
+    if (exclusion.excluded) {
+      if (debug) {
+        console.log(`[PriceFilter] Excluded (keywords): "${title.slice(0, 60)}..." - Reasons: ${exclusion.reasons.slice(0, 2).join(', ')}`);
+      }
+      exclusionKeywordCount++;
+      continue;
+    }
 
     // Calculate match score
     const matchScore = calculateMatchScore(title, query, options);
 
     // Skip if below minimum relevance
-    if (matchScore.overall < config.minRelevanceScore) continue;
+    if (matchScore.overall < config.minRelevanceScore) {
+      if (debug && matchScore.overall > 0.2) {  // Only log items with some relevance
+        console.log(`[PriceFilter] Low relevance (${matchScore.overall.toFixed(2)} < ${config.minRelevanceScore}): "${title.slice(0, 50)}..." @ $${price}`);
+      }
+      lowRelevanceCount++;
+      continue;
+    }
 
     // Create filtered item
     filtered.push({
@@ -323,6 +355,14 @@ export function filterItems(
       itemId: item?.itemId,
       shippingCost: parseFloat(item?.shippingCost?.value || '0'),
     });
+  }
+
+  console.log(`[PriceFilter] Filtering summary: noPrice=${noPriceCount}, priceRange=${priceRangeExcluded}, exclusionKeyword=${exclusionKeywordCount}, lowRelevance=${lowRelevanceCount}, passed=${filtered.length}`);
+
+  // Log top 3 accepted items with prices
+  if (filtered.length > 0) {
+    const top3 = filtered.slice(0, 3).map(f => `"${f.title.slice(0, 40)}..." @ $${f.price} (rel: ${f.relevanceScore.toFixed(2)})`);
+    console.log(`[PriceFilter] Top accepted items: ${top3.join(' | ')}`);
   }
 
   // Sort by relevance score descending
