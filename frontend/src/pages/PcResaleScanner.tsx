@@ -185,25 +185,43 @@ export default function PcResaleScannerPage() {
             <CardHeader title="Listing Details" />
             <CardContent className="space-y-4">
               <TextField
-                fullWidth label="Listing Title" value={title}
+                fullWidth
+                label="Listing Title"
+                value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Gaming PC RTX 4070 Ryzen 7 5800X 32GB RAM"
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
               />
               <TextField
-                fullWidth label="Description" value={description}
+                fullWidth
+                label="Description"
+                value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                multiline rows={4}
+                multiline
+                rows={4}
                 placeholder="Paste the full listing description here..."
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
               />
               <TextField
-                fullWidth label="Price ($)" value={price} type="number"
+                fullWidth
+                label="Price ($)"
+                value={price}
+                type="number"
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="e.g., 800"
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
               />
               <TextField
-                fullWidth label="Listing URL (optional)" value={listingUrl}
+                fullWidth
+                label="Listing URL (optional)"
+                value={listingUrl}
                 onChange={(e) => setListingUrl(e.target.value)}
                 placeholder="https://facebook.com/marketplace/..."
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
               />
               <Button
                 variant="contained" fullWidth onClick={handleAnalyze}
@@ -240,23 +258,23 @@ export default function PcResaleScannerPage() {
               <CardContent>
                 {/* ROI Summary */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-center p-3 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
                     <Typography variant="caption" color="textSecondary">Listing Price</Typography>
-                    <Typography variant="h6">${analysis.listingPrice}</Typography>
+                    <Typography variant="h6" sx={{ color: 'text.primary' }}>${analysis.listingPrice}</Typography>
                   </div>
-                  <div className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-center p-3 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
                     <Typography variant="caption" color="textSecondary">Parts Value</Typography>
-                    <Typography variant="h6" color="primary">${analysis.aggregateComponentValue}</Typography>
+                    <Typography variant="h6" sx={{ color: '#2563eb' }}>${analysis.aggregateComponentValue}</Typography>
                   </div>
-                  <div className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-center p-3 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
                     <Typography variant="caption" color="textSecondary">Net Profit</Typography>
-                    <Typography variant="h6" color={analysis.netProfit > 0 ? 'success.main' : 'error.main'}>
+                    <Typography variant="h6" sx={{ color: analysis.netProfit > 0 ? '#16a34a' : '#dc2626' }}>
                       ${analysis.netProfit.toFixed(2)}
                     </Typography>
                   </div>
-                  <div className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-center p-3 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
                     <Typography variant="caption" color="textSecondary">ROI</Typography>
-                    <Typography variant="h6">{analysis.roiPercentage}%</Typography>
+                    <Typography variant="h6" sx={{ color: analysis.roiPercentage > 0 ? '#16a34a' : '#dc2626' }}>{analysis.roiPercentage}%</Typography>
                   </div>
                 </div>
 

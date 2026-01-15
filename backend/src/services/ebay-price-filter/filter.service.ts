@@ -11,7 +11,7 @@ import {
   MatchScore,
   PriceFilterOptions,
 } from './types';
-import { getComponentConfig, COMMON_EXCLUSION_KEYWORDS, COMBO_BUNDLE_KEYWORDS } from './config';
+import { getComponentConfig, COMMON_EXCLUSION_KEYWORDS, COMBO_BUNDLE_KEYWORDS, LOT_PATTERNS } from './config';
 
 /**
  * Stop words to ignore during tokenization
@@ -133,6 +133,15 @@ export function checkExclusions(
   for (const keyword of COMBO_BUNDLE_KEYWORDS) {
     if (titleLower.includes(keyword.toLowerCase())) {
       reasons.push(`Contains combo/bundle keyword: "${keyword}"`);
+    }
+  }
+
+  // Check lot patterns - critical for accurate single-item pricing
+  // These catch patterns like "(lot of 5)", "x10", "5 pcs", etc.
+  for (const pattern of LOT_PATTERNS) {
+    if (pattern.test(title)) {
+      reasons.push(`Matches lot pattern: ${pattern.source}`);
+      break;  // Only need one lot pattern match
     }
   }
 

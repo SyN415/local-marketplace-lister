@@ -2876,12 +2876,11 @@
       overlayElement = null;
     });
 
-    // Add PC Part-Out Analysis button handler
+    // Add PC Part-Out Analysis button handler - opens Jiggly directly
     const partoutBtn = shadow.querySelector('.pc-partout-btn');
     if (partoutBtn) {
       partoutBtn.addEventListener('click', () => {
-        partoutBtn.textContent = '⏳ Analyzing...';
-        partoutBtn.disabled = true;
+        partoutBtn.textContent = '🚀 Opening...';
         requestPcResaleAnalysis(listing);
       });
     }
@@ -2963,12 +2962,11 @@
       overlayElement = null;
     });
 
-    // Add PC Part-Out Analysis button handler
+    // Add PC Part-Out Analysis button handler - opens Jiggly directly
     const partoutBtn = shadow.querySelector('.pc-partout-btn');
     if (partoutBtn) {
       partoutBtn.addEventListener('click', () => {
-        partoutBtn.textContent = '⏳ Analyzing...';
-        partoutBtn.disabled = true;
+        partoutBtn.textContent = '🚀 Opening...';
         requestPcResaleAnalysis(listing);
       });
     }
@@ -3055,25 +3053,21 @@
       wasFreshExtract: !!freshListing
     });
 
-    safeSendMessage({
-      action: 'PC_RESALE_ANALYZE',
-      listingData: {
-        platform: 'facebook',
-        platformListingUrl: listingToAnalyze.url,
-        title: listingToAnalyze.title,
-        description: listingToAnalyze.fullDescription || '',
-        price: listingToAnalyze.price,
-        imageUrls: listingToAnalyze.imageUrls || [],
-        sellerLocation: listingToAnalyze.location || ''
-      }
-    }, (response) => {
-      if (response && response.success) {
-        renderPcResaleOverlay(listingToAnalyze, response.data);
-      } else {
-        log('PC resale analysis failed: ' + (response?.error || 'Unknown error'), 'warn');
-        alert(response?.error || 'PC Resale Analysis failed. Please try again.');
-      }
-    });
+    // Instead of analyzing in popup, redirect directly to Jiggly for full analysis
+    // This provides a better UX with editable prices and hyperlinks
+    const params = new URLSearchParams();
+    if (listingToAnalyze.title) params.set('title', listingToAnalyze.title);
+
+    // Get the description
+    let desc = listingToAnalyze.fullDescription || listingToAnalyze.description || '';
+    desc = cleanDescription(desc);
+    if (desc) params.set('description', desc.substring(0, 2000));
+
+    if (listingToAnalyze.price) params.set('price', String(listingToAnalyze.price));
+    if (listingToAnalyze.url) params.set('url', listingToAnalyze.url);
+
+    const fullUrl = `${APP_URL}/pc-resale?${params.toString()}`;
+    window.open(fullUrl, '_blank');
   }
 
   // Render PC Resale Analysis Overlay

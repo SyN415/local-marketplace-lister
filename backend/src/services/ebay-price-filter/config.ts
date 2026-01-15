@@ -19,9 +19,14 @@ export const COMMON_EXCLUSION_KEYWORDS = [
   'shell only', 'cover only', 'case only', 'housing only',
   'io shield only', 'accessories only', 'parts only',
 
-  // Bundles/lots (often skewed pricing)
-  'lot of', 'bundle of', 'bulk lot', 'wholesale lot',
+  // Bundles/lots (often skewed pricing - CRITICAL for accurate single-item pricing)
+  'lot of', 'lots of', 'bundle of', 'bulk lot', 'wholesale lot',
   'grab bag', 'mystery box', 'random',
+  'x lot', 'pc lot', 'mixed lot', 'assorted lot',
+  '2x', '3x', '4x', '5x', '6x', '8x', '10x',  // Multiple quantity indicators
+  'qty 2', 'qty 3', 'qty 4', 'qty 5', 'qty:',
+  'set of 2', 'set of 3', 'set of 4', 'pack of',
+  'pair of', 'pairs',
 
   // Replacement parts
   'replacement fan', 'replacement cooler', 'replacement shroud',
@@ -58,6 +63,25 @@ export const ACCESSORY_PATTERNS = [
   /\bno\s+(gpu|card|chip)\b/i,
   /\bshroud\s+only\b/i,
   /\bbackplate\s+only\b/i,
+];
+
+// Patterns that indicate lot/bulk listings (often in parentheses on eBay)
+export const LOT_PATTERNS = [
+  /\(lot\s*(of)?\s*\d+\)/i,           // (lot of 5), (lot 10)
+  /\(x\s*\d+\)/i,                      // (x5), (x 10)
+  /\(\d+\s*x\)/i,                      // (5x), (10 x)
+  /\(\d+\s*(pcs?|pieces?|units?)\)/i,  // (5 pcs), (10 pieces)
+  /\(\d+\s*lot\)/i,                    // (5 lot)
+  /\bx\s*\d+\b/i,                      // x5, x 10
+  /\b\d+\s*x\s+[a-z]/i,                // 5x Intel, 10x AMD (quantity prefix)
+  /\blot\s+of\s+\d+/i,                 // lot of 5
+  /\b\d+\s*-?\s*lot\b/i,               // 5 lot, 5-lot
+  /\b\d+\s*(pcs?|pieces?|units?)\b/i,  // 5 pcs, 10 pieces
+  /\bqty[\s:]*\d+/i,                   // qty: 5, qty 10
+  /\bmixed\s+lot\b/i,                  // mixed lot
+  /\bassorted\s+lot\b/i,               // assorted lot
+  /\bbulk\b/i,                         // bulk
+  /\bwholesale\b/i,                    // wholesale
 ];
 
 // Standard allowed conditions (excludes "For Parts")
