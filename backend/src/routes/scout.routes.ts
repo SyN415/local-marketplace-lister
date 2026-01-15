@@ -138,9 +138,9 @@ router.get('/ebay-notifications', async (req, res) => {
 
 // Handle incoming notifications (POST)
 router.post('/ebay-notifications', async (req, res) => {
-    // Determine if we need to process this notification
-    // For now, just acknowledge receipt
-    console.log('Received eBay notification:', JSON.stringify(req.body, null, 2));
+    // eBay sends notifications for various events (e.g., MARKETPLACE_ACCOUNT_DELETION)
+    // Currently we just acknowledge receipt without logging to reduce noise
+    // TODO: Implement actual handling if needed for specific notification types
     res.sendStatus(200);
 });
 

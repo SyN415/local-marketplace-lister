@@ -81,8 +81,18 @@ export class PcResaleService {
   /**
    * Get eBay valuations for extracted components
    */
+  /**
+   * Generate eBay search URL for a component
+   */
+  private generateEbaySearchUrl(componentName: string): string {
+    const encodedQuery = encodeURIComponent(componentName);
+    // eBay completed listings search for used items - shows sold prices for reference
+    return `https://www.ebay.com/sch/i.html?_nkw=${encodedQuery}&LH_Complete=1&LH_Sold=1&LH_ItemCondition=3000`;
+  }
+
   private async getComponentValuations(components: ExtractedComponents): Promise<ComponentValuation> {
     const breakdown: Record<string, number> = {};
+    const searchUrls: Record<string, string> = {};
     let total = 0;
     let pricedCount = 0;
     const confidenceScores: number[] = [];
@@ -95,7 +105,10 @@ export class PcResaleService {
 
       // Use the first (most specific) component found
       const componentName = compValues[0];
-      
+
+      // Always generate the search URL for the component
+      searchUrls[compType] = this.generateEbaySearchUrl(componentName);
+
       try {
         // Check cache first
         const cached = await this.getCachedValuation(componentName);
@@ -138,6 +151,7 @@ export class PcResaleService {
     return {
       totalAggregatedValue: Math.round(total * 100) / 100,
       componentBreakdown: breakdown,
+      componentSearchUrls: searchUrls,
       confidence: Math.round(avgConfidence * 100) / 100,
       componentsPriced: pricedCount,
     };
@@ -336,6 +350,15 @@ export class PcResaleService {
 
     if (error || !data) return null;
 
+    // Generate search URLs from extracted components
+    const extractedComponents = data.extracted_components || {};
+    const componentSearchUrls: Record<string, string> = {};
+    for (const [compType, compValues] of Object.entries(extractedComponents)) {
+      if (Array.isArray(compValues) && compValues.length > 0) {
+        componentSearchUrls[compType] = this.generateEbaySearchUrl(compValues[0]);
+      }
+    }
+
     return {
       listingPrice: parseFloat(data.listing_price),
       aggregateComponentValue: parseFloat(data.total_component_value || 0),
@@ -358,7 +381,7 @@ export class PcResaleService {
         sellerLocation: data.seller_location,
       },
       componentProfile: {
-        rawComponents: data.extracted_components || {},
+        rawComponents: extractedComponents,
         rawTitle: data.listing_title,
         estimatedTier: data.estimated_tier,
         missingSpecs: data.missing_specs || [],
@@ -366,6 +389,7 @@ export class PcResaleService {
       componentValuation: {
         totalAggregatedValue: parseFloat(data.total_component_value || 0),
         componentBreakdown: data.component_breakdown || {},
+        componentSearchUrls: componentSearchUrls,
         confidence: parseFloat(data.valuation_confidence || 0),
         componentsPriced: Object.keys(data.component_breakdown || {}).length,
       },

@@ -14,6 +14,7 @@ export interface CostBreakdown {
 export interface ComponentValuation {
   totalAggregatedValue: number;
   componentBreakdown: Record<string, number>;
+  componentSearchUrls: Record<string, string>;  // eBay search URLs for each component
   confidence: number;
   componentsPriced: number;
 }

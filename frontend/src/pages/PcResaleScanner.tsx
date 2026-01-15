@@ -45,6 +45,7 @@ interface AnalysisResult {
   };
   componentValuation: {
     componentBreakdown: Record<string, number>;
+    componentSearchUrls?: Record<string, string>;
     componentsPriced: number;
   };
 }
@@ -284,14 +285,32 @@ export default function PcResaleScannerPage() {
                     <Typography variant="subtitle2" className="mb-2">Component Valuations (eBay)</Typography>
                     <Table size="small" className="mb-4">
                       <TableBody>
-                        {Object.entries(analysis.componentValuation.componentBreakdown).map(([component, value]) => (
-                          <TableRow key={component}>
-                            <TableCell sx={{ textTransform: 'capitalize' }}>{component}</TableCell>
-                            <TableCell align="right" sx={{ color: value > 0 ? 'success.main' : 'text.secondary' }}>
-                              {value > 0 ? `$${value.toFixed(2)}` : 'No data'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {Object.entries(analysis.componentValuation.componentBreakdown).map(([component, value]) => {
+                          const searchUrl = analysis.componentValuation.componentSearchUrls?.[component];
+                          return (
+                            <TableRow key={component}>
+                              <TableCell sx={{ textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {component}
+                                {searchUrl && (
+                                  <Tooltip title="View eBay sold listings">
+                                    <IconButton
+                                      size="small"
+                                      href={searchUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      sx={{ padding: '2px' }}
+                                    >
+                                      <OpenInNew fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </TableCell>
+                              <TableCell align="right" sx={{ color: value > 0 ? 'success.main' : 'text.secondary' }}>
+                                {value > 0 ? `$${value.toFixed(2)}` : 'No data'}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                         <TableRow>
                           <TableCell><strong>Total Parts Value</strong></TableCell>
                           <TableCell align="right" sx={{ color: 'primary.main' }}>
