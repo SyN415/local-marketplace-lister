@@ -48,9 +48,10 @@ const COMPONENT_PATTERNS: Record<string, RegExp> = {
   psu: /\d{3,4}\s*[Ww](?:att)?(?:\s*(?:Gold|Bronze|Platinum|Titanium|80\+|Plus))?(?:\s*PSU)?|(?:PSU|Power\s+Supply)\s*[-:]?\s*\d{3,4}\s*[Ww]/gi,
 
   // Motherboard patterns - Intel/AMD chipsets
-  // Matches: Z590, B650, X570, H670, ROG Maximus XIII Hero Z590, etc.
-  // MUST include chipset identifier (Z/X/H/B + 3 digits)
-  motherboard: /(?:ROG\s+)?(?:Maximus|Strix|Crosshair)\s+(?:XIII|XII|XI|X|Hero|Extreme)?\s*[ZXHBzxhb]\d{3}|(?:TUF|Prime|MAG|AORUS|Taichi)\s+(?:Gaming\s+)?[ZXHBzxhb]\d{3}|(?:Asrock|ASUS|Gigabyte|MSI|Biostar)\s+[ZXHBzxhb]\d{3}|[ZXHBzxhb]\d{3}(?:\s+(?:Pro|Plus|Gaming|Elite|Wifi|AX))?/gi,
+  // Matches: Z590, B650, X570, H670, ROG Strix B550i, Asus ROG strix B550i Gaming Wifi, etc.
+  // Captures full model including brand, product line, chipset, form factor, and suffix
+  // Form factor suffixes: -I (ITX), -M (mATX), -F (no iGPU), -E (enhanced), -A (AMD specific)
+  motherboard: /(?:ASUS|Asrock|Gigabyte|MSI|Biostar)?\s*(?:ROG\s+)?(?:Strix|Maximus|Crosshair|TUF|Prime|MAG|AORUS|Taichi|Phantom|Pro4?|Steel\s*Legend)\s*(?:Gaming\s+)?[ZXHBzxhb]\d{3}[IMFEAimfea]?(?:\s+(?:Gaming|Pro|Plus|Elite|Wifi|AX|DDR4|DDR5))*|(?:TUF|Prime|MAG|AORUS|Taichi)\s+(?:Gaming\s+)?[ZXHBzxhb]\d{3}[IMFEAimfea]?(?:\s+(?:Gaming|Pro|Plus|Elite|Wifi|AX))*|(?:Asrock|ASUS|Gigabyte|MSI|Biostar)\s+[ZXHBzxhb]\d{3}[IMFEAimfea]?(?:\s+(?:Pro|Plus|Gaming|Elite|Wifi|AX))*|[ZXHBzxhb]\d{3}[IMFEAimfea]?(?:\s+(?:Pro|Plus|Gaming|Elite|Wifi|AX))*/gi,
 
   // Case patterns - specific model patterns to avoid over-matching
   // Matches: NZXT H510, Corsair 4000D, Hyte Y40, Lian Li O11, etc.

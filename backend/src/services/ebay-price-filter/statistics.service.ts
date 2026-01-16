@@ -302,38 +302,61 @@ export function calculateRobustPrice(items: FilteredItem[]): {
     return { bestEstimate: 0, method: 'none', statistics: null };
   }
 
-  // For price estimation, we weight by relevance scores
-  const relevanceWeighted = items
-    .filter(i => finalPrices.includes(i.price))
+  // For RESALE price estimation, we need conservative estimates
+  // eBay active listings tend to be priced ~10-15% higher than what items actually sell for
+  // Using 25th-30th percentile gives realistic "quick sale" pricing
+
+  const sorted = [...finalPrices].sort((a, b) => a - b);
+  const n = sorted.length;
+
+  // Calculate percentiles for conservative resale estimates
+  const p25Index = (n - 1) * 0.25;  // Q1 - very conservative
+  const p30Index = (n - 1) * 0.30;  // Slightly above Q1
+  const p35Index = (n - 1) * 0.35;  // Between Q1 and median
+
+  const p25 = interpolatePercentile(sorted, p25Index);
+  const p30 = interpolatePercentile(sorted, p30Index);
+  const p35 = interpolatePercentile(sorted, p35Index);
+
+  // Weight by relevance scores for items in lower third of price range
+  const lowerThirdThreshold = sorted[Math.floor(n / 3)] || statistics.median;
+  const lowerThirdItems = items
+    .filter(i => finalPrices.includes(i.price) && i.price <= lowerThirdThreshold)
     .reduce((sum, item) => ({
       weightedSum: sum.weightedSum + item.price * item.relevanceScore,
       totalWeight: sum.totalWeight + item.relevanceScore,
     }), { weightedSum: 0, totalWeight: 0 });
 
-  const weightedAvg = relevanceWeighted.totalWeight > 0
-    ? relevanceWeighted.weightedSum / relevanceWeighted.totalWeight
-    : statistics.mean;
+  const lowerWeightedAvg = lowerThirdItems.totalWeight > 0
+    ? lowerThirdItems.weightedSum / lowerThirdItems.totalWeight
+    : p25;
 
-  // Choose best estimate:
-  // - If data is consistent (low CV), use weighted average
-  // - If data is variable, use median (more robust)
+  // Choose best estimate based on data consistency
   const cv = statistics.standardDeviation / (statistics.mean || 1);
 
   let bestEstimate: number;
   let method: string;
 
-  if (cv <= 0.25) {
-    // Consistent data - weighted average
-    bestEstimate = weightedAvg;
-    method = 'relevance_weighted_average';
-  } else if (cv <= 0.4) {
-    // Moderate variation - blend of median and weighted average
-    bestEstimate = (statistics.median + weightedAvg) / 2;
-    method = 'blended_median_weighted';
+  if (n <= 3) {
+    // Very small sample: use Q1 (most conservative)
+    bestEstimate = p25;
+    method = 'p25_tiny_sample';
+  } else if (n <= 7) {
+    // Small sample: use 30th percentile
+    bestEstimate = p30;
+    method = 'p30_small_sample';
+  } else if (cv <= 0.15) {
+    // Very consistent data - use 35th percentile
+    bestEstimate = p35;
+    method = 'p35_consistent';
+  } else if (cv <= 0.30) {
+    // Moderate variation - blend of p25 and lower-weighted average
+    bestEstimate = (p25 + lowerWeightedAvg) / 2;
+    method = 'blended_p25_lower_weighted';
   } else {
-    // High variation - use median
-    bestEstimate = statistics.median;
-    method = 'median_robust';
+    // High variation - use Q1 to be very conservative
+    bestEstimate = statistics.q1;
+    method = 'q1_high_variance';
   }
 
   return {

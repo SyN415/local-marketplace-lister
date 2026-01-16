@@ -1688,10 +1688,27 @@
 
     const extractGpuModelToken = (text) => {
       const s = String(text || '');
-      // Match RTX/GTX/RX followed by model number, with optional Ti/Super/XT suffix
+
+      // Pattern 1: RTX/GTX/RX followed by model number, with optional Ti/Super/XT suffix
       // Examples: RTX 3070, GTX 1080 Ti, RX 5700 XT, RX 6500 XT
-      const m = s.match(/\b(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?\b/i);
-      return m ? m[0].toUpperCase().replace(/\s+/g, ' ') : '';
+      let m = s.match(/\b(?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?\b/i);
+      if (m) return m[0].toUpperCase().replace(/\s+/g, ' ');
+
+      // Pattern 2: Standalone NVIDIA model numbers with Ti/Super suffix (common in FB listings)
+      // Examples: "3060 TI", "3070Ti", "2080 SUPER", "1660 Super"
+      // Must have 4-digit number starting with 1-4 (GeForce range) + Ti/Super suffix
+      m = s.match(/\b([1234]\d{3})\s*(ti|super)\b/i);
+      if (m) return `RTX ${m[1]} ${m[2].toUpperCase()}`;
+
+      // Pattern 3: Just a 4-digit NVIDIA number (less reliable, only if clearly GPU context)
+      // Examples: "GPU: 3060", "Graphics: 2080"
+      // Only match if we're in a GPU-labeled context (caller should provide filtered text)
+      m = s.match(/\b([234]\d{3})\b/);
+      if (m && /gpu|graphics|video\s*card|geforce|nvidia/i.test(s)) {
+        return `RTX ${m[1]}`;
+      }
+
+      return '';
     };
 
     const extractCpuModelToken = (text) => {
@@ -1779,8 +1796,8 @@
       // Storage patterns
       let storageTok = '';
 
-      // Pattern 1: Explicit storage labels
-      const storageLabelMatch = text.match(/(?:storage|ssd|hdd|nvme)[:\s]+([^\n•,]+)/i);
+      // Pattern 1: Explicit storage labels (ST:, Storage:, SSD:, HDD:, NVMe:, NVME:, NMVE:)
+      const storageLabelMatch = text.match(/(?:st|storage|ssd|hdd|nvme|nmve|m\.?2)[:\s]+([^\n•]+)/i);
       if (storageLabelMatch) {
         const storageVal = storageLabelMatch[1].match(/\b(\d+)\s*(?:gb|tb)\b/i);
         if (storageVal) storageTok = storageVal[0].toUpperCase();
@@ -1788,11 +1805,47 @@
 
       // Pattern 2: "X TB" or "XXX GB" followed by SSD/HDD/NVME
       if (!storageTok) {
-        const storageMatch = text.match(/\b(\d+)\s*(tb|gb)\s*(?:ssd|hdd|nvme|m\.2)\b/i);
+        const storageMatch = text.match(/\b(\d+)\s*(tb|gb)\s*(?:ssd|hdd|nvme|nmve|m\.?2)\b/i);
         if (storageMatch) storageTok = `${storageMatch[1]}${storageMatch[2].toUpperCase()}`;
       }
 
+      // Pattern 3: Drive model names with capacity (Samsung 980, 970 Evo, etc.)
+      if (!storageTok) {
+        const driveModelMatch = text.match(/(?:samsung|wd|western\s*digital|seagate|crucial|kingston|sandisk)\s+(?:980|970|870|860|sn\d{3}|blue|black|red|green|p\d+|a\d+)[^0-9]*(\d+)\s*(tb|gb)/i);
+        if (driveModelMatch) storageTok = `${driveModelMatch[1]}${driveModelMatch[2].toUpperCase()}`;
+      }
+
+      // Pattern 4: Capacity followed by SSD/HDD/NVME keywords in same line
+      if (!storageTok) {
+        const storageReverseMatch = text.match(/(?:ssd|hdd|nvme|nmve|m\.?2)[^\d]*(\d+)\s*(tb|gb)/i);
+        if (storageReverseMatch) storageTok = `${storageReverseMatch[1]}${storageReverseMatch[2].toUpperCase()}`;
+      }
+
       if (storageTok) specs.storage = storageTok;
+
+      // PSU patterns (new!)
+      let psuTok = '';
+
+      // Pattern 1: Explicit PSU label
+      const psuLabelMatch = text.match(/psu[:\s]+([^\n•]+)/i);
+      if (psuLabelMatch) {
+        const psuVal = psuLabelMatch[1].match(/\b(\d{3,4})\s*(?:w|watts?)\b/i);
+        if (psuVal) psuTok = `${psuVal[1]}W`;
+      }
+
+      // Pattern 2: Wattage with 80+ rating
+      if (!psuTok) {
+        const psuMatch = text.match(/\b(\d{3,4})\s*(?:w|watts?)\s*(?:80\s*\+|80\s*plus|gold|bronze|platinum|titanium)/i);
+        if (psuMatch) psuTok = `${psuMatch[1]}W`;
+      }
+
+      // Pattern 3: Just wattage in PSU context
+      if (!psuTok) {
+        const psuWattMatch = text.match(/(?:power\s*supply|psu)[^\d]*(\d{3,4})\s*(?:w|watts?)/i);
+        if (psuWattMatch) psuTok = `${psuWattMatch[1]}W`;
+      }
+
+      if (psuTok) specs.psu = psuTok;
 
       // Screen size for monitors/TVs
       const screenMatch = text.match(/\b(\d{2,3})\s*(?:"|″|in\b|inch\b)/i);
@@ -3000,25 +3053,60 @@
       'desktop tower', 'computer build', 'pc build', 'gaming computer',
       'full build', 'complete build', 'gaming setup', 'workstation',
       'desktop computer', 'tower pc', 'gaming desktop', 'portable gaming',
-      'itx build', 'atx build', 'mini pc', 'sff pc'
+      'itx build', 'atx build', 'mini pc', 'sff pc', 'pc gamer', 'work station',
+      'gaming tower', 'desktop gaming'
     ];
 
     const hasKeyword = pcKeywords.some(kw => combinedText.includes(kw));
 
     // Check for multiple component types
     const specs = listing?.extractedSpecs || {};
-    // Improved regex patterns for component detection
-    const hasGpu = specs.gpu || /(?:rtx|gtx|rx)\s*\d{3,4}/i.test(combinedText) || /(?:geforce|radeon)/i.test(combinedText);
-    const hasCpu = specs.cpu || /(?:i[3579]-?\d{4,5}|ryzen\s*\d+|\d{4,5}x)/i.test(combinedText) || /(?:intel|amd)\s*(?:core|ryzen)/i.test(combinedText);
-    const hasRam = specs.ram || /\d+\s*gb\s*(?:ddr|ram)/i.test(combinedText) || /ddr[345]\s*ram/i.test(combinedText);
-    const hasStorage = specs.storage || /\d+\s*(?:tb|gb)\s*(?:ssd|hdd|nvme|m\.?2)/i.test(combinedText);
 
-    const componentCount = [hasGpu, hasCpu, hasRam, hasStorage].filter(Boolean).length;
+    // GPU detection: RTX/GTX/RX prefix OR standalone 4-digit model with Ti/Super OR labeled GPU field
+    const hasGpu = specs.gpu ||
+      /(?:rtx|gtx|rx)\s*\d{3,4}/i.test(combinedText) ||
+      /\bgpu[:\s]+[^\n]+/i.test(combinedText) ||
+      /\b[1234]\d{3}\s*(?:ti|super)\b/i.test(combinedText) ||
+      /(?:geforce|radeon|nvidia|graphics\s*card)/i.test(combinedText);
 
-    log(`isPcBuildListing: keyword=${hasKeyword}, gpu=${hasGpu}, cpu=${hasCpu}, ram=${hasRam}, storage=${hasStorage}, count=${componentCount}`);
+    // CPU detection
+    const hasCpu = specs.cpu ||
+      /(?:i[3579][-\s]?\d{4,5}|ryzen\s*[3579]?\s*\d{4})/i.test(combinedText) ||
+      /\bcpu[:\s]+[^\n]+/i.test(combinedText) ||
+      /(?:intel|amd)\s*(?:core|ryzen|xeon|threadripper)/i.test(combinedText);
 
-    // If 3+ component types are mentioned, likely a PC build
-    return hasKeyword || componentCount >= 3;
+    // RAM detection
+    const hasRam = specs.ram ||
+      /\d+\s*gb\s*(?:ddr|ram)/i.test(combinedText) ||
+      /\bram[:\s]+[^\n]+/i.test(combinedText) ||
+      /ddr[345]\s*\d+\s*gb/i.test(combinedText);
+
+    // Storage detection (including common typos like NMVE)
+    const hasStorage = specs.storage ||
+      /\d+\s*(?:tb|gb)\s*(?:ssd|hdd|nvme|nmve|m\.?2)/i.test(combinedText) ||
+      /(?:st|storage|ssd|hdd|nvme|nmve)[:\s]+[^\n]+\d+\s*(?:tb|gb)/i.test(combinedText) ||
+      /(?:samsung|wd|seagate|crucial)\s*\d{3}/i.test(combinedText);
+
+    // PSU detection (new!)
+    const hasPsu = specs.psu ||
+      /\d{3,4}\s*(?:w|watts?)\s*(?:80|gold|bronze|platinum)/i.test(combinedText) ||
+      /\bpsu[:\s]+[^\n]+/i.test(combinedText) ||
+      /power\s*supply/i.test(combinedText);
+
+    // Motherboard detection (new!)
+    const hasMobo = specs.motherboard ||
+      /motherboard[:\s]+[^\n]+/i.test(combinedText) ||
+      /\b[zxhb]\d{3}\b/i.test(combinedText) ||
+      /(?:asus|msi|gigabyte|asrock)\s*(?:rog|tuf|prime|mag|aorus)/i.test(combinedText);
+
+    const componentCount = [hasGpu, hasCpu, hasRam, hasStorage, hasPsu, hasMobo].filter(Boolean).length;
+
+    log(`isPcBuildListing: keyword=${hasKeyword}, gpu=${hasGpu}, cpu=${hasCpu}, ram=${hasRam}, storage=${hasStorage}, psu=${hasPsu}, mobo=${hasMobo}, count=${componentCount}`);
+
+    // If 2+ component types are mentioned AND (has GPU or CPU), likely a PC build
+    // Lowered threshold from 3 to 2 since we now check more component types
+    const hasCoreComponent = hasGpu || hasCpu;
+    return hasKeyword || (hasCoreComponent && componentCount >= 2) || componentCount >= 3;
   }
 
   // Request PC Resale Analysis from backend
