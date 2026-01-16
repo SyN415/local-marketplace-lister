@@ -34,9 +34,10 @@ const COMPONENT_PATTERNS: Record<string, RegExp> = {
   gpu: /(?:NVIDIA\s+)?(?:GeForce\s+)?(?:RTX|GTX)\s*\d{3,4}(?:\s*Ti|\s*Super)?|(?:EVGA|ASUS|MSI|Gigabyte|Zotac|PNY)\s+\d{4}\s*(?:Ti|Super)?|\d{4}\s*(?:Ti|Super)|(?:AMD\s+)?(?:Radeon\s+)?RX\s*\d{3,4}(?:\s*XT)?|(?:Tesla|Quadro)\s+\w+\d+|A\d{2}0\d?/gi,
 
   // RAM patterns - DDR3/4/5 with capacity and speed
-  // Matches: 32GB DDR4, 2x8GB DDR4 2400, 16GB RAM, DDR4 2X16(3600), 16x2, Corsair DDR4, etc.
-  // Added: DDR before capacity format, formats like 2X16, 16x2
-  ram: /\d+\s*[xX]\s*\d+\s*GB\s*DDR[345](?:[-\s@(]*\d{3,4})?|\d{1,3}\s*GB?\s*DDR[345](?:[-\s@(]*\d{3,4})?|DDR[345]\s*\d*[xX]?\d+(?:\s*GB)?(?:[-\s@(]*\d{3,4})?|\d{1,3}\s*GB\s+RAM|\d{1,2}\s*[xX]\s*\d{1,2}(?=\s|$|[,\n])/gi,
+  // Matches: 32GB DDR4, 2x8GB DDR4 2400, 16GB RAM, DDR4 RAM 16GB, DDR4 2X16(3600), 16x2,
+  // Corsair Vengeance DDR4 16GB (2x8GB) 3200MHz, Corsair DDR4, etc.
+  // Added: DDR4 RAM XGB format, brand name patterns (Corsair, G.Skill, Kingston, etc.)
+  ram: /(?:corsair|g\.?skill|kingston|crucial|patriot|teamgroup|team\s+group)\s+(?:vengeance|trident|ripjaws|fury|ballistix|viper|t-?force)?[^,\n]*?(\d+)\s*GB[^,\n]*DDR[345]|\d+\s*[xX]\s*\d+\s*GB\s*DDR[345](?:[-\s@(]*\d{3,4})?|\d{1,3}\s*GB?\s*DDR[345](?:[-\s@(]*\d{3,4})?|DDR[345]\s*(?:RAM\s+)?(?:\d+\s*[xX]\s*)?\d{1,3}\s*GB(?:[-\s@(]*\d{3,4})?|DDR[345]\s+RAM\s+\d{1,3}\s*GB(?:\s*\(\d+[xX]\d+GB\))?(?:\s*\d{3,4}MHz)?|\d{1,3}\s*GB\s+RAM|\d{1,2}\s*[xX]\s*\d{1,2}(?=\s|$|[,\n])/gi,
 
   // Storage patterns - SSD, HDD, NVMe with capacity
   // Matches: 2TB NVMe, 1TB SSD, 500GB M.2, 980 Pro 1TB, Samsung 970 Evo 2TB, etc.

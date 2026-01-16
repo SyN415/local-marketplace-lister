@@ -97,7 +97,9 @@ export class PcResaleService {
     let pricedCount = 0;
     const confidenceScores: number[] = [];
 
-    const componentTypes = ['gpu', 'cpu', 'motherboard', 'psu', 'ram', 'storage'] as const;
+    // Include cooling (AIOs like NZXT Kraken, Corsair H100i) for valuation
+    // Case is excluded as shipping costs often exceed value
+    const componentTypes = ['gpu', 'cpu', 'motherboard', 'psu', 'ram', 'storage', 'cooling'] as const;
 
     for (const compType of componentTypes) {
       const compValues = components[compType];

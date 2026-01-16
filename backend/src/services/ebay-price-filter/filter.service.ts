@@ -111,16 +111,64 @@ export function fuzzySimilarity(a: string, b: string): number {
 }
 
 /**
+ * Check if a GPU listing should be excluded due to variant mismatch
+ * e.g., exclude "2080 Ti" when searching for "2080 Super" or "2080" (non-Ti)
+ */
+function checkGpuVariantMismatch(title: string, query: string): string | null {
+  const titleLower = title.toLowerCase();
+  const queryLower = query.toLowerCase();
+
+  // Extract GPU model numbers and variants from query
+  const queryGpuMatch = queryLower.match(/(?:rtx|gtx|rx)\s*(\d{3,4})\s*(ti|super|xt)?/i);
+  if (!queryGpuMatch) return null;
+
+  const queryModel = queryGpuMatch[1];  // e.g., "2080"
+  const queryVariant = (queryGpuMatch[2] || '').toLowerCase();  // e.g., "super", "ti", or ""
+
+  // Extract GPU model from title
+  const titleGpuMatch = titleLower.match(/(?:rtx|gtx|rx)\s*(\d{3,4})\s*(ti|super|xt)?/i);
+  if (!titleGpuMatch) return null;
+
+  const titleModel = titleGpuMatch[1];
+  const titleVariant = (titleGpuMatch[2] || '').toLowerCase();
+
+  // Same base model number
+  if (queryModel !== titleModel) return null;  // Different model, let relevance scoring handle it
+
+  // Check for variant mismatch on same base model
+  // If query is "2080 Super" but title has "2080 Ti" -> exclude
+  // If query is "2080" (no variant) but title has "2080 Ti" -> exclude (Ti is more expensive)
+  // If query is "2080 Super" but title has "2080" (no variant) -> exclude (base model is cheaper)
+
+  if (queryVariant !== titleVariant) {
+    // Ti is typically most expensive, Super is mid, base is cheapest
+    // We want exact variant matches only
+    return `GPU variant mismatch: query has "${queryVariant || 'base'}" but title has "${titleVariant || 'base'}"`;
+  }
+
+  return null;
+}
+
+/**
  * Check if a title should be excluded based on keywords and patterns
  */
 export function checkExclusions(
   title: string,
   config: ComponentFilterConfig,
-  strictMode: boolean = false
+  strictMode: boolean = false,
+  query?: string  // Optional query for variant checking
 ): ExclusionResult {
   const titleLower = title.toLowerCase();
   const reasons: string[] = [];
   const softExclusions: string[] = [];
+
+  // GPU-specific: Check for variant mismatch (e.g., 2080 Ti vs 2080 Super)
+  if (config.componentType === 'GPU' && query) {
+    const variantMismatch = checkGpuVariantMismatch(title, query);
+    if (variantMismatch) {
+      reasons.push(variantMismatch);
+    }
+  }
 
   // Check common exclusion keywords
   for (const keyword of COMMON_EXCLUSION_KEYWORDS) {
@@ -330,8 +378,8 @@ export function filterItems(
       continue;
     }
 
-    // Check exclusions
-    const exclusion = checkExclusions(title, config, strictMode);
+    // Check exclusions (pass query for GPU variant matching)
+    const exclusion = checkExclusions(title, config, strictMode, query);
     if (exclusion.excluded) {
       if (debug) {
         console.log(`[PriceFilter] Excluded (keywords): "${title.slice(0, 60)}..." - Reasons: ${exclusion.reasons.slice(0, 2).join(', ')}`);

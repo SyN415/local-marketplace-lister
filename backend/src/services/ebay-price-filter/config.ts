@@ -317,6 +317,37 @@ export const GENERIC_CONFIG: ComponentFilterConfig = {
   },
 };
 
+// Cooling-specific configuration (AIOs, tower coolers)
+export const COOLING_CONFIG: ComponentFilterConfig = {
+  componentType: 'COOLING',
+  minPrice: 20,
+  maxPrice: 400,
+  ebayCategories: ['42000', '175673'],  // CPU Fans & Heatsinks, Components
+  requiredKeywords: [],
+  excludePatterns: [
+    /\bfan\s+only\b/i,  // Just the fan, no radiator/pump
+    /\bpump\s+only\b/i,  // Just the pump
+    /\bradiator\s+only\b/i,  // Just the radiator
+    /\bmounting\s+kit\b/i,
+    /\bbracket\s+only\b/i,
+    /\bthermal\s+paste\b/i,
+    /\breplacement\s+fan\b/i,
+  ],
+  excludeKeywords: [
+    ...COMMON_EXCLUSION_KEYWORDS,
+    'fan only', 'pump only', 'radiator only',
+    'mounting hardware', 'bracket kit',
+    'replacement part',
+  ],
+  minRelevanceScore: 0.35,
+  allowedConditions: STANDARD_CONDITIONS,
+  typicalPriceRanges: {
+    budget: { min: 20, max: 60 },    // Basic air coolers
+    midRange: { min: 50, max: 150 }, // Good air coolers, budget AIOs
+    highEnd: { min: 100, max: 350 }, // Premium AIOs (Kraken X63, H150i)
+  },
+};
+
 // Configuration map by component type
 export const COMPONENT_CONFIGS: Record<ComponentType, ComponentFilterConfig> = {
   GPU: GPU_CONFIG,
@@ -326,7 +357,7 @@ export const COMPONENT_CONFIGS: Record<ComponentType, ComponentFilterConfig> = {
   PSU: PSU_CONFIG,
   MOTHERBOARD: MOTHERBOARD_CONFIG,
   CASE: { ...GENERIC_CONFIG, componentType: 'CASE', minPrice: 30, maxPrice: 500 },
-  COOLING: { ...GENERIC_CONFIG, componentType: 'COOLING', minPrice: 15, maxPrice: 400 },
+  COOLING: COOLING_CONFIG,
   MONITOR: { ...GENERIC_CONFIG, componentType: 'MONITOR', minPrice: 50, maxPrice: 2000 },
   PERIPHERAL: { ...GENERIC_CONFIG, componentType: 'PERIPHERAL', minPrice: 10, maxPrice: 500 },
   GENERIC: GENERIC_CONFIG,
