@@ -229,8 +229,22 @@ export function checkExclusions(
     }
   }
 
-  // Check combo/bundle keywords - these are critical for CPUs/GPUs
+  // Check combo/bundle keywords - these are critical for ensuring single-item pricing
+  // But be more lenient for individual components - many legitimate listings contain these words
+  const componentSafeKeywords = [
+    'combo', 'bundle', 'kit', 'set',        // Too common in product names
+    'build', 'custom build', 'gaming build', 'pc build',  // "from my build" is common
+    'computer',                              // "computer graphics card" is normal
+    'pulled from',                           // Many used parts mention this
+    'from pc', 'from system',                // Same as above
+  ];
+  const isComponentType = ['GPU', 'CPU', 'RAM', 'STORAGE', 'COOLING', 'PSU', 'MOTHERBOARD'].includes(config.componentType);
+
   for (const keyword of COMBO_BUNDLE_KEYWORDS) {
+    // Skip overly broad keywords for component searches
+    if (isComponentType && componentSafeKeywords.includes(keyword.toLowerCase())) {
+      continue;
+    }
     if (titleLower.includes(keyword.toLowerCase())) {
       reasons.push(`Contains combo/bundle keyword: "${keyword}"`);
     }
@@ -433,7 +447,10 @@ export function filterItems(
     // Check exclusions (pass query for GPU variant matching)
     const exclusion = checkExclusions(title, config, strictMode, query);
     if (exclusion.excluded) {
-      if (debug) {
+      if (debug && config.componentType === 'GPU') {
+        // Extra verbose logging for GPU exclusions to debug filtering
+        console.log(`[PriceFilter] GPU Excluded: "${title.slice(0, 50)}..." @ $${price} - Reasons: ${exclusion.reasons.join(' | ')}`);
+      } else if (debug) {
         console.log(`[PriceFilter] Excluded (keywords): "${title.slice(0, 60)}..." - Reasons: ${exclusion.reasons.slice(0, 2).join(', ')}`);
       }
       exclusionKeywordCount++;

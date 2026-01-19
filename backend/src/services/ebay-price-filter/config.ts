@@ -127,7 +127,8 @@ export const GPU_CONFIG: ComponentFilterConfig = {
     ...COMMON_EXCLUSION_KEYWORDS,
     'waterblock', 'water block', 'ek block',  // Water cooling blocks only
     'bios mod', 'bios flash', 'modded bios',
-    'gaming pc', 'desktop pc', 'full system', 'complete system',
+    // Note: 'gaming pc', 'desktop pc' are too broad - handled by excludePatterns with word boundaries
+    'full system', 'complete system',
   ],
   minRelevanceScore: 0.40,  // Slightly increased
   allowedConditions: STANDARD_CONDITIONS,
