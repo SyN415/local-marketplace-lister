@@ -83,7 +83,7 @@
           </div>
         </div>
         
-        <div class="stats-grid">
+        <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
           <div class="stat-item active">
             <span class="stat-value" id="hud-active-count">--</span>
             <span class="stat-label">Watchlists</span>
@@ -91,10 +91,6 @@
           <div class="stat-item matches">
             <span class="stat-value" id="hud-match-count">--</span>
             <span class="stat-label">Matches</span>
-          </div>
-          <div class="stat-item roi">
-            <span class="stat-value" id="hud-roi-score">--</span>
-            <span class="stat-label">ROI Score</span>
           </div>
         </div>
 
@@ -191,14 +187,8 @@
   function loadStats() {
     if (!isExtensionContextValid()) return;
     try {
-      chrome.storage.local.get(['watchlistItems', 'lastProfitAnalysis'], (result) => {
+      chrome.storage.local.get(['watchlistItems'], (result) => {
         updateStatsUI(result.watchlistItems || []);
-        if (result.lastProfitAnalysis) {
-          const el = shadowRoot?.getElementById('hud-roi-score');
-          if (el && Number.isFinite(result.lastProfitAnalysis.roiScore)) {
-            el.textContent = result.lastProfitAnalysis.roiScore;
-          }
-        }
       });
     } catch {
       // ignore
@@ -239,14 +229,6 @@
             updateStatsUI(changes.watchlistItems.newValue);
           }
 
-          if (changes.lastProfitAnalysis) {
-            const next = changes.lastProfitAnalysis.newValue;
-            const el = shadowRoot?.getElementById('hud-roi-score');
-            if (el && next && Number.isFinite(next.roiScore)) {
-              el.textContent = next.roiScore;
-            }
-          }
-
           // Unified cross-tab match feed
           if (changes.recentMatches) {
             renderRecentMatches(changes.recentMatches.newValue || []);
@@ -261,7 +243,6 @@
     document.addEventListener('SMART_SCOUT_MATCH_FOUND', (e) => {
       triggerRadarPing();
       updateFeed(e.detail);
-      updateRoiScore(e.detail);
     });
 
     // Listen for enrichment updates (same-tab via EnrichmentBridge)
@@ -275,7 +256,6 @@
 
       triggerRadarPing();
       updateFeed(updated);
-      updateRoiScore(updated);
     });
 
     // Listen for cross-tab broadcasts
@@ -285,7 +265,6 @@
           if (msg?.action === 'SCOUT_MATCH_BROADCAST' && msg.match) {
             triggerRadarPing();
             updateFeed(msg.match);
-            updateRoiScore(msg.match);
           }
 
           // Back-compat: allow service worker to send enrichment updates directly
@@ -295,7 +274,6 @@
               const updated = { ...(payload.originalMatch || {}), ...(payload.patch || {}) };
               triggerRadarPing();
               updateFeed(updated);
-              updateRoiScore(updated);
             }
           }
         });
@@ -512,15 +490,6 @@
         meta: { error: String(err?.message || err) }
       };
     }
-  }
-
-  function updateRoiScore(match) {
-    if (!shadowRoot) return;
-    const el = shadowRoot.getElementById('hud-roi-score');
-    if (!el) return;
-
-    const analysis = analyzeProfit(match);
-    el.textContent = Number.isFinite(analysis.roiScore) ? analysis.roiScore : '--';
   }
 
   function updateFeed(match) {

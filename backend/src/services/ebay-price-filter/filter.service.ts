@@ -111,39 +111,77 @@ export function fuzzySimilarity(a: string, b: string): number {
 }
 
 /**
+ * Extract GPU model number and variant from text
+ * Handles formats with and without RTX/GTX prefix:
+ * - "RTX 3080 Ti" -> { model: "3080", variant: "ti" }
+ * - "3080 Ti Gaming OC" -> { model: "3080", variant: "ti" }
+ * - "GeForce 3080" -> { model: "3080", variant: "" }
+ */
+function extractGpuModelAndVariant(text: string): { model: string; variant: string } | null {
+  const textLower = text.toLowerCase();
+
+  // Pattern 1: With RTX/GTX/RX prefix (most reliable)
+  const prefixMatch = textLower.match(/(?:rtx|gtx|rx)\s*(\d{3,4})\s*(ti|super|xt)?/i);
+  if (prefixMatch) {
+    return {
+      model: prefixMatch[1],
+      variant: (prefixMatch[2] || '').toLowerCase()
+    };
+  }
+
+  // Pattern 2: Standalone 4-digit NVIDIA model (30xx, 40xx, 20xx, 10xx series)
+  // Look for model number followed by optional variant
+  // Must be 4-digit number in GPU range, not preceded by other numbers (like 12GB)
+  const standaloneMatch = textLower.match(/(?:^|[^0-9])([12340][0-9]{3})\s*(ti|super)?(?:\s|$|[^0-9a-z])/i);
+  if (standaloneMatch) {
+    const model = standaloneMatch[1];
+    // Validate it's a plausible GPU model (1xxx, 2xxx, 3xxx, 4xxx series)
+    const firstDigit = parseInt(model[0]);
+    if (firstDigit >= 1 && firstDigit <= 4) {
+      return {
+        model: model,
+        variant: (standaloneMatch[2] || '').toLowerCase()
+      };
+    }
+  }
+
+  // Pattern 3: AMD RX series without prefix (5700, 6800, 7900 etc)
+  const amdMatch = textLower.match(/(?:^|[^0-9])([567][0-9]{3})\s*(xt)?(?:\s|$|[^0-9a-z])/i);
+  if (amdMatch) {
+    return {
+      model: amdMatch[1],
+      variant: (amdMatch[2] || '').toLowerCase()
+    };
+  }
+
+  return null;
+}
+
+/**
  * Check if a GPU listing should be excluded due to variant mismatch
  * e.g., exclude "2080 Ti" when searching for "2080 Super" or "2080" (non-Ti)
  */
 function checkGpuVariantMismatch(title: string, query: string): string | null {
-  const titleLower = title.toLowerCase();
-  const queryLower = query.toLowerCase();
-
-  // Extract GPU model numbers and variants from query
-  const queryGpuMatch = queryLower.match(/(?:rtx|gtx|rx)\s*(\d{3,4})\s*(ti|super|xt)?/i);
-  if (!queryGpuMatch) return null;
-
-  const queryModel = queryGpuMatch[1];  // e.g., "2080"
-  const queryVariant = (queryGpuMatch[2] || '').toLowerCase();  // e.g., "super", "ti", or ""
+  // Extract GPU model from query
+  const queryGpu = extractGpuModelAndVariant(query);
+  if (!queryGpu) return null;
 
   // Extract GPU model from title
-  const titleGpuMatch = titleLower.match(/(?:rtx|gtx|rx)\s*(\d{3,4})\s*(ti|super|xt)?/i);
-  if (!titleGpuMatch) return null;
-
-  const titleModel = titleGpuMatch[1];
-  const titleVariant = (titleGpuMatch[2] || '').toLowerCase();
+  const titleGpu = extractGpuModelAndVariant(title);
+  if (!titleGpu) return null;
 
   // Same base model number
-  if (queryModel !== titleModel) return null;  // Different model, let relevance scoring handle it
+  if (queryGpu.model !== titleGpu.model) return null;  // Different model, let relevance scoring handle it
 
   // Check for variant mismatch on same base model
   // If query is "2080 Super" but title has "2080 Ti" -> exclude
   // If query is "2080" (no variant) but title has "2080 Ti" -> exclude (Ti is more expensive)
   // If query is "2080 Super" but title has "2080" (no variant) -> exclude (base model is cheaper)
 
-  if (queryVariant !== titleVariant) {
+  if (queryGpu.variant !== titleGpu.variant) {
     // Ti is typically most expensive, Super is mid, base is cheapest
     // We want exact variant matches only
-    return `GPU variant mismatch: query has "${queryVariant || 'base'}" but title has "${titleVariant || 'base'}"`;
+    return `GPU variant mismatch: query has "${queryGpu.variant || 'base'}" but title has "${titleGpu.variant || 'base'}"`;
   }
 
   return null;
