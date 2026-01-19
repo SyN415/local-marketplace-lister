@@ -164,14 +164,25 @@ function extractGpuModelAndVariant(text: string): { model: string; variant: stri
 function checkGpuVariantMismatch(title: string, query: string): string | null {
   // Extract GPU model from query
   const queryGpu = extractGpuModelAndVariant(query);
-  if (!queryGpu) return null;
+  if (!queryGpu) {
+    console.log(`[GPU-Filter] No GPU model found in query: "${query}"`);
+    return null;
+  }
 
   // Extract GPU model from title
   const titleGpu = extractGpuModelAndVariant(title);
-  if (!titleGpu) return null;
+  if (!titleGpu) {
+    console.log(`[GPU-Filter] No GPU model found in title: "${title.slice(0, 60)}..."`);
+    return null;
+  }
+
+  console.log(`[GPU-Filter] Comparing: query=${queryGpu.model}/${queryGpu.variant || 'base'} vs title=${titleGpu.model}/${titleGpu.variant || 'base'}`);
 
   // Same base model number
-  if (queryGpu.model !== titleGpu.model) return null;  // Different model, let relevance scoring handle it
+  if (queryGpu.model !== titleGpu.model) {
+    console.log(`[GPU-Filter] Different base model, skipping variant check`);
+    return null;  // Different model, let relevance scoring handle it
+  }
 
   // Check for variant mismatch on same base model
   // If query is "2080 Super" but title has "2080 Ti" -> exclude
@@ -181,9 +192,12 @@ function checkGpuVariantMismatch(title: string, query: string): string | null {
   if (queryGpu.variant !== titleGpu.variant) {
     // Ti is typically most expensive, Super is mid, base is cheapest
     // We want exact variant matches only
-    return `GPU variant mismatch: query has "${queryGpu.variant || 'base'}" but title has "${titleGpu.variant || 'base'}"`;
+    const reason = `GPU variant mismatch: query has "${queryGpu.variant || 'base'}" but title has "${titleGpu.variant || 'base'}"`;
+    console.log(`[GPU-Filter] EXCLUDING: ${reason}`);
+    return reason;
   }
 
+  console.log(`[GPU-Filter] Variant match OK`);
   return null;
 }
 
