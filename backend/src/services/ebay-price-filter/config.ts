@@ -23,7 +23,8 @@ export const COMMON_EXCLUSION_KEYWORDS = [
   'lot of', 'lots of', 'bundle of', 'bulk lot', 'wholesale lot',
   'grab bag', 'mystery box', 'random',
   'x lot', 'pc lot', 'mixed lot', 'assorted lot',
-  '2x', '3x', '4x', '5x', '6x', '8x', '10x',  // Multiple quantity indicators
+  // NOTE: Quantity indicators like "2x", "3x", "6x" are now in LOT_PATTERNS with word boundaries
+  // to avoid matching "GDDR6X" memory type in GPU titles
   'qty 2', 'qty 3', 'qty 4', 'qty 5', 'qty:',
   'set of 2', 'set of 3', 'set of 4', 'pack of',
   'pair of', 'pairs',
