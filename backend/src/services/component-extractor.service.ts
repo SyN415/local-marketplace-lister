@@ -7,6 +7,7 @@
 export interface ExtractedComponents {
   cpu?: string[];
   gpu?: string[];
+  gpuVram?: string[];  // GPU VRAM size (8GB, 10GB, 12GB, etc.)
   ram?: string[];
   storage?: string[];
   psu?: string[];
@@ -32,6 +33,11 @@ const COMPONENT_PATTERNS: Record<string, RegExp> = {
   // Matches: RTX 3080, 3080Ti, EVGA 3080ti, GTX 1080, RX 6800 XT, Radeon RX 580, etc.
   // For standalone numbers (no RTX/GTX prefix), require brand prefix OR Ti/Super suffix
   gpu: /(?:NVIDIA\s+)?(?:GeForce\s+)?(?:RTX|GTX)\s*\d{3,4}(?:\s*Ti|\s*Super)?|(?:EVGA|ASUS|MSI|Gigabyte|Zotac|PNY)\s+\d{4}\s*(?:Ti|Super)?|\d{4}\s*(?:Ti|Super)|(?:AMD\s+)?(?:Radeon\s+)?RX\s*\d{3,4}(?:\s*XT)?|(?:Tesla|Quadro)\s+\w+\d+|A\d{2}0\d?/gi,
+
+  // GPU VRAM patterns - captures VRAM size for GPUs
+  // Matches: 8GB, 10GB, 12GB, 16GB, 24GB (when in GPU context - not RAM which is DDR4/DDR5)
+  // We look for XGB followed by GDDR/GDDRX, or XGB near GPU keywords, or just common VRAM sizes
+  gpuVram: /\b(4|6|8|10|11|12|16|20|24|48)\s*GB\s*(?:GDDR[56X]?|VRAM|Video\s*(?:Memory|RAM))/gi,
 
   // RAM patterns - DDR3/4/5 with capacity and speed
   // Matches: 32GB DDR4, 2x8GB DDR4 2400, 16GB RAM, DDR4 RAM 16GB, DDR4 2X16(3600), 16x2,

@@ -106,7 +106,23 @@ export class PcResaleService {
       if (!compValues || compValues.length === 0) continue;
 
       // Use the first (most specific) component found
-      const componentName = compValues[0];
+      let componentName = compValues[0];
+
+      // For GPUs: append VRAM size for more accurate pricing if available
+      // e.g., "RTX 3080" becomes "RTX 3080 10GB" for more precise eBay search
+      if (compType === 'gpu' && components.gpuVram && components.gpuVram.length > 0) {
+        const vram = components.gpuVram[0];
+        // Extract just the number+GB part (e.g., "10GB GDDR6X" -> "10GB")
+        const vramMatch = vram.match(/(\d+)\s*GB/i);
+        if (vramMatch) {
+          const vramSize = `${vramMatch[1]}GB`;
+          // Only append if not already in component name
+          if (!componentName.toLowerCase().includes('gb')) {
+            componentName = `${componentName} ${vramSize}`;
+            console.log(`[GPU-VRAM] Enhanced GPU query: "${componentName}"`);
+          }
+        }
+      }
 
       // Always generate the search URL for the component
       searchUrls[compType] = this.generateEbaySearchUrl(componentName);
