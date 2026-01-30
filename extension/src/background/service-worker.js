@@ -380,14 +380,19 @@ async function handleMessage(request, sender) {
       case 'MULTIMODAL_ANALYZE_LISTING': {
         // Multi-modal item identification for eBay search optimization
         const listingData = request.listingData;
-        
-        console.log('[ServiceWorker] MULTIMODAL_ANALYZE_LISTING called with listing:', {
+
+        console.log('[ServiceWorker] MULTIMODAL_ANALYZE_LISTING received:', {
           url: listingData?.url,
           title: listingData?.title,
-          hasImages: !!(listingData?.imageDataUrls && listingData.imageDataUrls.length),
-          imageCount: listingData?.imageDataUrls?.length || 0
+          hasImageDataUrls: Array.isArray(listingData?.imageDataUrls),
+          imageDataUrlsCount: listingData?.imageDataUrls?.length || 0,
+          hasImageUrls: Array.isArray(listingData?.imageUrls),
+          imageUrlsCount: listingData?.imageUrls?.length || 0,
+          firstDataUrlType: listingData?.imageDataUrls?.[0]?.startsWith('data:') ? 'data-url' : 'http-url',
+          firstDataUrlPreview: listingData?.imageDataUrls?.[0]?.substring(0, 60) || 'none',
+          firstDataUrlLength: listingData?.imageDataUrls?.[0]?.length || 0
         });
-        
+
         if (!listingData) {
           console.error('[ServiceWorker] No listing data provided');
           return { success: false, error: 'No listing data provided' };

@@ -3984,7 +3984,15 @@
       return;
     }
 
-    chrome.runtime.sendMessage({
+    // Debug: Log what we're sending
+    log(`sendForAIAnalysis called with ${dataUrls.length} data URLs`);
+    if (dataUrls.length > 0) {
+      log(`First data URL type: ${dataUrls[0]?.startsWith('data:') ? 'data-url' : 'http-url'}`);
+      log(`First data URL preview: ${dataUrls[0]?.substring(0, 60)}...`);
+      log(`First data URL length: ${dataUrls[0]?.length || 0}`);
+    }
+
+    const messageData = {
       action: 'MULTIMODAL_ANALYZE_LISTING',
       listingData: {
         title: listing.title,
@@ -3993,8 +4001,18 @@
         imageDataUrls: dataUrls,
         attributes: listing.attributes,
         extractedSpecs: listing.extractedSpecs
+        // NOTE: NOT including imageUrls here to avoid confusion
       }
-    }, (response) => {
+    };
+
+    log(`Sending message to service worker: ${JSON.stringify({
+      action: messageData.action,
+      hasImageDataUrls: !!messageData.listingData.imageDataUrls,
+      imageDataUrlsCount: messageData.listingData.imageDataUrls?.length,
+      firstUrlType: messageData.listingData.imageDataUrls?.[0]?.startsWith('data:') ? 'data-url' : 'http-url'
+    })}`);
+
+    chrome.runtime.sendMessage(messageData, (response) => {
       if (chrome.runtime.lastError) {
         log('Resale analysis error: ' + chrome.runtime.lastError.message, 'error');
         renderResaleAnalysisOverlay(listing, priceData, {

@@ -28,12 +28,17 @@ class MultimodalIdentifier {
  */
 getCacheKey(listingData) {
   const url = (listingData?.url || '').split('?')[0];
-  // Include URL and image URLs in cache key to ensure different listings don't share cache
+  // Include URL and image source in cache key to ensure different listings don't share cache
   // Do NOT include timestamp here - that would prevent cache hits
   // Cache expiration is handled by the expiresAt field in the cache entry
+  // Use imageDataUrls if available (user-provided), otherwise imageUrls
+  const hasDataUrls = Array.isArray(listingData.imageDataUrls) && listingData.imageDataUrls.length > 0;
+  const imageSource = hasDataUrls
+    ? 'dataurl:' + listingData.imageDataUrls.length  // Different cache key for user-provided images
+    : (listingData.imageUrls || []).slice(0, 2).join(',');
   const parts = [
     url,
-    (listingData.imageUrls || []).slice(0, 2).join(',')
+    imageSource
   ];
   return parts.join('::').toLowerCase().slice(0, 200);
 }
@@ -92,12 +97,25 @@ getCacheKey(listingData) {
     }
 
     console.log('[MultimodalIdentifier] Starting multi-modal analysis');
+    console.log('[MultimodalIdentifier] Input data:', {
+      hasImageDataUrls: Array.isArray(listingData.imageDataUrls),
+      imageDataUrlsCount: listingData.imageDataUrls?.length || 0,
+      hasImageUrls: Array.isArray(listingData.imageUrls),
+      imageUrlsCount: listingData.imageUrls?.length || 0,
+      firstDataUrl: listingData.imageDataUrls?.[0]?.substring(0, 50) || 'none',
+      firstImageUrl: listingData.imageUrls?.[0]?.substring(0, 50) || 'none'
+    });
 
     // Step 1: Extract and analyze images (visual analysis)
     // Prefer in-page fetched data URLs when available (FB CDN often blocks backend fetching).
     const visualInputs = (Array.isArray(listingData.imageDataUrls) && listingData.imageDataUrls.length)
       ? listingData.imageDataUrls
       : (listingData.imageUrls || []);
+
+    console.log('[MultimodalIdentifier] Using visualInputs:', {
+      count: visualInputs.length,
+      type: visualInputs[0]?.startsWith('data:') ? 'data-url' : 'http-url'
+    });
 
     const visualAnalysis = await this.analyzeImages(
       visualInputs,
@@ -191,6 +209,8 @@ getCacheKey(listingData) {
 
       console.log('[MultimodalIdentifier] Sending payload to AI endpoint:', {
         imageCount: payload.images.length,
+        imageTypes: payload.images.map(img => img.startsWith('data:') ? 'data-url' : 'http-url'),
+        firstImagePreview: payload.images[0]?.substring(0, 50) + '...',
         hasTitle: !!payload.context.title,
         hasDescription: !!payload.context.description,
         hasAttributes: !!payload.context.attributes

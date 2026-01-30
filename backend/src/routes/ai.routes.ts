@@ -15,6 +15,13 @@ router.post('/analyze-listing', authMiddleware, async (req, res, next) => {
   try {
     const { images, context } = req.body;
 
+    console.log('[AI Routes] /analyze-listing received:', {
+      imageCount: images?.length || 0,
+      imageTypes: images?.map((img: string) => img?.startsWith('data:') ? 'data-url' : 'http-url') || [],
+      firstImagePreview: images?.[0]?.substring(0, 60) || 'none',
+      hasContext: !!context
+    });
+
     // Validate input
     if (!images || !Array.isArray(images) || images.length === 0) {
       return res.status(400).json({
