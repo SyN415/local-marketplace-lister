@@ -3738,12 +3738,6 @@
       </div>
     `;
 
-    // Close button handler
-    shadow.querySelector('.close-btn').addEventListener('click', () => {
-      overlayElement.remove();
-      overlayElement = null;
-    });
-
     const dropZone = shadow.querySelector('#image-drop-zone');
     const previewGrid = shadow.querySelector('#image-previews');
     const imageCountEl = shadow.querySelector('#image-count');
@@ -3769,62 +3763,141 @@
       e.stopPropagation();
       dropZone.classList.remove('drag-over');
 
+      log('Drop event received. DataTransfer types: ' + Array.from(e.dataTransfer.types).join(', '));
+
       const items = e.dataTransfer.items;
+      let foundImage = false;
+
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
+        log(`Drop item ${i}: type="${item.type}", kind="${item.kind}"`);
 
-        // Handle image files
+        // Handle image files (this works when dragging from file system or some apps)
         if (item.type.startsWith('image/')) {
           const file = item.getAsFile();
           if (file) {
+            log(`Got image file: ${file.name}, size: ${file.size}`);
             const dataUrl = await fileToDataUrl(file);
             if (dataUrl && collectedImages.length < 4) {
               collectedImages.push(dataUrl);
               addImagePreview(dataUrl);
+              foundImage = true;
             }
           }
         }
+      }
 
-        // Handle dragged HTML (contains img src)
-        if (item.type === 'text/html') {
-          item.getAsString(async (html) => {
-            const imgMatch = html.match(/src=["']([^"']+)["']/);
-            if (imgMatch && imgMatch[1]) {
-              log('Found image URL in dropped HTML: ' + imgMatch[1].substring(0, 50) + '...');
-              // Can't fetch cross-origin, but show a hint
-              updateDropZoneHint('Drag the image itself, not the link. Try: Right-click → Copy Image → Paste');
+      // If no direct image file, check for text/uri-list or text/html
+      if (!foundImage) {
+        // Try to get the image URL from various sources
+        const uriList = e.dataTransfer.getData('text/uri-list');
+        const textPlain = e.dataTransfer.getData('text/plain');
+        const textHtml = e.dataTransfer.getData('text/html');
+
+        log(`Drop data - URI: ${uriList?.substring(0, 50) || 'none'}, Plain: ${textPlain?.substring(0, 50) || 'none'}`);
+
+        // Extract image URL from HTML
+        let imageUrl = null;
+        if (textHtml) {
+          const imgMatch = textHtml.match(/src=["']([^"']+)["']/);
+          if (imgMatch && imgMatch[1]) {
+            imageUrl = imgMatch[1];
+          }
+        }
+        if (!imageUrl && uriList) {
+          imageUrl = uriList.split('\n')[0];
+        }
+        if (!imageUrl && textPlain && textPlain.startsWith('http')) {
+          imageUrl = textPlain;
+        }
+
+        if (imageUrl && (imageUrl.includes('fbcdn') || imageUrl.includes('scontent'))) {
+          log('Found Facebook image URL: ' + imageUrl.substring(0, 60) + '...');
+          updateDropZoneHint('⏳ Fetching image...');
+
+          // Try to fetch via background script
+          try {
+            const response = await new Promise((resolve) => {
+              chrome.runtime.sendMessage({
+                action: 'FETCH_IMAGE_AS_DATA_URL',
+                url: imageUrl
+              }, resolve);
+            });
+
+            if (response && response.success && response.dataUrl) {
+              log('Successfully fetched image via background script');
+              if (collectedImages.length < 4) {
+                collectedImages.push(response.dataUrl);
+                addImagePreview(response.dataUrl);
+                foundImage = true;
+              }
+            } else {
+              log('Background fetch failed: ' + (response?.error || 'unknown'));
+              updateDropZoneHint('❌ Cannot fetch Facebook images. Try: Right-click image → Copy Image → Ctrl+V here');
             }
-          });
+          } catch (err) {
+            log('Error fetching via background: ' + err.message);
+            updateDropZoneHint('❌ Cannot fetch Facebook images. Try: Right-click image → Copy Image → Ctrl+V here');
+          }
+        } else if (imageUrl) {
+          log('Found non-Facebook image URL: ' + imageUrl.substring(0, 60));
+          updateDropZoneHint('❌ Drag not supported. Try: Right-click image → Copy Image → Ctrl+V here');
         }
       }
 
       updateUI();
     });
 
-    // Handle paste (Ctrl+V or right-click paste)
-    document.addEventListener('paste', handlePaste);
+    // Handle paste - listen on window to catch all paste events
+    // Also make the drop zone focusable so paste works when it's focused
+    dropZone.setAttribute('tabindex', '0');
+    dropZone.focus();
 
     function handlePaste(e) {
+      log('Paste event received');
       const items = e.clipboardData?.items;
-      if (!items) return;
+      if (!items) {
+        log('No clipboard items');
+        return;
+      }
+
+      log(`Clipboard has ${items.length} items`);
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
+        log(`Clipboard item ${i}: type="${item.type}", kind="${item.kind}"`);
+
         if (item.type.startsWith('image/')) {
           e.preventDefault();
+          e.stopPropagation();
           const file = item.getAsFile();
           if (file) {
+            log(`Got image from clipboard: size=${file.size}`);
             fileToDataUrl(file).then(dataUrl => {
               if (dataUrl && collectedImages.length < 4) {
+                log('Added image from clipboard');
                 collectedImages.push(dataUrl);
                 addImagePreview(dataUrl);
                 updateUI();
               }
             });
           }
+          return; // Only handle first image
         }
       }
+
+      // If no image found, check for text that might be a URL
+      const text = e.clipboardData?.getData('text/plain');
+      if (text && text.startsWith('http')) {
+        log('Clipboard contains URL, not image data: ' + text.substring(0, 50));
+        updateDropZoneHint('❌ Copied URL, not image. Right-click image → "Copy Image" (not "Copy Image Address")');
+      }
     }
+
+    // Listen on multiple targets to ensure we catch paste events
+    window.addEventListener('paste', handlePaste, true);
+    document.addEventListener('paste', handlePaste, true);
+    dropZone.addEventListener('paste', handlePaste);
 
     function fileToDataUrl(file) {
       return new Promise((resolve) => {
@@ -3859,14 +3932,18 @@
       }
     }
 
+    // Cleanup function to remove all listeners
+    function cleanup() {
+      window.removeEventListener('paste', handlePaste, true);
+      document.removeEventListener('paste', handlePaste, true);
+      dropZone.removeEventListener('paste', handlePaste);
+    }
+
     // Analyze button
     analyzeBtn.addEventListener('click', () => {
       if (collectedImages.length === 0) return;
 
-      // Remove paste listener
-      document.removeEventListener('paste', handlePaste);
-
-      // Close drop zone overlay
+      cleanup();
       overlayElement.remove();
       overlayElement = null;
 
@@ -3877,12 +3954,19 @@
 
     // Text-only fallback
     textOnlyLink.addEventListener('click', () => {
-      document.removeEventListener('paste', handlePaste);
+      cleanup();
       overlayElement.remove();
       overlayElement = null;
 
       log('User chose text-only analysis');
       sendForAIAnalysis(listing, priceData, []);
+    });
+
+    // Close button cleanup
+    shadow.querySelector('.close-btn').addEventListener('click', () => {
+      cleanup();
+      overlayElement.remove();
+      overlayElement = null;
     });
   }
 
