@@ -2686,44 +2686,67 @@
     renderLoadingOverlay(listingData);
     
     // Step 0 (NEW): Best-effort inline image extraction for AI.
-    // FB image URLs (fbcdn/scontent) are often not publicly fetchable by the backend/LLM.
-    // We therefore fetch a couple images in-page and send as data URLs.
-    const fetchImageAsDataUrl = async (url, timeoutMs = 2500) => {
-      try {
-        if (!url || typeof url !== 'string') return null;
-        if (url.startsWith('data:image')) return url;
+    // FB image URLs (fbcdn/scontent) require cookies to access, so fetch() fails with 403.
+    // Canvas approach also fails due to CORS tainting.
+    // Solution: Send the image URLs to the backend and let it fetch with proper handling,
+    // OR use the extension's background script which has different CORS rules.
 
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), timeoutMs);
-        // Remove credentials: 'include' to avoid CORS issues with Facebook CDN
-        const resp = await fetch(url, { signal: controller.signal });
-        clearTimeout(t);
-        if (!resp.ok) return null;
-        const blob = await resp.blob();
+    // Helper to convert a single image URL to data URL via background script
+    const fetchImageViaBackground = (url, timeoutMs = 5000) => {
+      return new Promise((resolve) => {
+        if (!url || typeof url !== 'string') {
+          resolve(null);
+          return;
+        }
+        if (url.startsWith('data:image')) {
+          resolve(url);
+          return;
+        }
 
-        // Cap size to avoid huge payloads to service worker/backend.
-        // 800KB is a practical upper bound for quick analysis.
-        if (blob.size > 800_000) return null;
+        const timeout = setTimeout(() => {
+          log('Image fetch via background timed out');
+          resolve(null);
+        }, timeoutMs);
 
-        const dataUrl = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(blob);
+        if (!isExtensionContextValid()) {
+          clearTimeout(timeout);
+          resolve(null);
+          return;
+        }
+
+        chrome.runtime.sendMessage({
+          action: 'FETCH_IMAGE_AS_DATA_URL',
+          url: url
+        }, (response) => {
+          clearTimeout(timeout);
+          if (chrome.runtime.lastError) {
+            log('Background image fetch error: ' + chrome.runtime.lastError.message);
+            resolve(null);
+            return;
+          }
+          if (response && response.success && response.dataUrl) {
+            log(`Fetched image via background (${Math.round(response.dataUrl.length / 1024)}KB)`);
+            resolve(response.dataUrl);
+          } else {
+            log('Background image fetch failed: ' + (response?.error || 'unknown'));
+            resolve(null);
+          }
         });
-        return typeof dataUrl === 'string' ? dataUrl : null;
-      } catch {
-        return null;
-      }
+      });
     };
 
     const getListingForAnalysis = async () => {
       const urls = Array.isArray(listingData?.imageUrls) ? listingData.imageUrls : [];
       const dataUrls = [];
-      for (const u of urls.slice(0, 2)) {
-        const du = await fetchImageAsDataUrl(u);
+
+      // Try to fetch up to 3 images via background script
+      for (const u of urls.slice(0, 3)) {
+        const du = await fetchImageViaBackground(u);
         if (du) dataUrls.push(du);
       }
+
+      log(`Converted ${dataUrls.length}/${urls.length} images to data URLs`);
+
       return {
         ...listingData,
         imageDataUrls: dataUrls
@@ -3486,37 +3509,54 @@
         return;
       }
 
-      // Convert images to data URLs (bypass CORS)
-      const fetchImageAsDataUrl = async (url, timeoutMs = 3000) => {
-        try {
-          if (!url || typeof url !== 'string') return null;
-          if (url.startsWith('data:image')) return url;
+      // Convert images to data URLs via background script (bypasses CORS/403 issues)
+      const fetchImageViaBackground = (url, timeoutMs = 5000) => {
+        return new Promise((resolve) => {
+          if (!url || typeof url !== 'string') {
+            resolve(null);
+            return;
+          }
+          if (url.startsWith('data:image')) {
+            resolve(url);
+            return;
+          }
 
-          const controller = new AbortController();
-          const t = setTimeout(() => controller.abort(), timeoutMs);
-          const resp = await fetch(url, { signal: controller.signal });
-          clearTimeout(t);
-          if (!resp.ok) return null;
-          const blob = await resp.blob();
+          const timeout = setTimeout(() => {
+            log('Image fetch via background timed out');
+            resolve(null);
+          }, timeoutMs);
 
-          if (blob.size > 1_000_000) return null; // 1MB limit
+          if (!isExtensionContextValid()) {
+            clearTimeout(timeout);
+            resolve(null);
+            return;
+          }
 
-          const dataUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(blob);
+          chrome.runtime.sendMessage({
+            action: 'FETCH_IMAGE_AS_DATA_URL',
+            url: url
+          }, (response) => {
+            clearTimeout(timeout);
+            if (chrome.runtime.lastError) {
+              log('Background image fetch error: ' + chrome.runtime.lastError.message);
+              resolve(null);
+              return;
+            }
+            if (response && response.success && response.dataUrl) {
+              log(`Fetched image via background (${Math.round(response.dataUrl.length / 1024)}KB)`);
+              resolve(response.dataUrl);
+            } else {
+              log('Background image fetch failed: ' + (response?.error || 'unknown'));
+              resolve(null);
+            }
           });
-          return typeof dataUrl === 'string' ? dataUrl : null;
-        } catch {
-          return null;
-        }
+        });
       };
 
-      // Convert first 4 images
+      // Convert first 4 images via background script
       const dataUrls = [];
       for (const url of imageUrls.slice(0, 4)) {
-        const dataUrl = await fetchImageAsDataUrl(url);
+        const dataUrl = await fetchImageViaBackground(url);
         if (dataUrl) dataUrls.push(dataUrl);
       }
 

@@ -428,6 +428,59 @@ async function handleMessage(request, sender) {
         }
       }
 
+      case 'FETCH_IMAGE_AS_DATA_URL': {
+        // Fetch an image URL and convert to data URL
+        // Background script can fetch cross-origin images that content scripts cannot
+        const imageUrl = request.url;
+
+        if (!imageUrl || typeof imageUrl !== 'string') {
+          return { success: false, error: 'Invalid image URL' };
+        }
+
+        try {
+          console.log('[ServiceWorker] Fetching image:', imageUrl.substring(0, 100) + '...');
+
+          // Fetch with credentials to access Facebook CDN images
+          const response = await fetch(imageUrl, {
+            credentials: 'include',
+            headers: {
+              'Accept': 'image/*'
+            }
+          });
+
+          if (!response.ok) {
+            console.warn('[ServiceWorker] Image fetch failed:', response.status);
+            return { success: false, error: `HTTP ${response.status}` };
+          }
+
+          const blob = await response.blob();
+
+          // Check size limit (1MB)
+          if (blob.size > 1_000_000) {
+            console.warn('[ServiceWorker] Image too large:', blob.size);
+            return { success: false, error: 'Image too large' };
+          }
+
+          // Convert blob to data URL
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('FileReader failed'));
+            reader.readAsDataURL(blob);
+          });
+
+          if (typeof dataUrl === 'string' && dataUrl.length > 100) {
+            console.log('[ServiceWorker] Image converted to data URL:', Math.round(dataUrl.length / 1024) + 'KB');
+            return { success: true, dataUrl };
+          } else {
+            return { success: false, error: 'Invalid data URL result' };
+          }
+        } catch (error) {
+          console.error('[ServiceWorker] Image fetch error:', error.message);
+          return { success: false, error: error.message };
+        }
+      }
+
       case 'SYNC_WATCHLIST': {
         // Frontend calls this after adding/removing items to update local storage
         // Guard against circular references (can cause memory leaks / storage failures)
