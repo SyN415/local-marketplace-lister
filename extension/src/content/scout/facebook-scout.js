@@ -2687,65 +2687,95 @@
     
     // Step 0 (NEW): Best-effort inline image extraction for AI.
     // FB image URLs (fbcdn/scontent) require cookies to access, so fetch() fails with 403.
-    // Canvas approach also fails due to CORS tainting.
-    // Solution: Send the image URLs to the backend and let it fetch with proper handling,
-    // OR use the extension's background script which has different CORS rules.
+    // Solution: Find visible <img> elements in the DOM and try to capture via canvas.
+    // If canvas is tainted (CORS), we proceed without images (text-only analysis).
 
-    // Helper to convert a single image URL to data URL via background script
-    const fetchImageViaBackground = (url, timeoutMs = 5000) => {
-      return new Promise((resolve) => {
-        if (!url || typeof url !== 'string') {
-          resolve(null);
-          return;
-        }
-        if (url.startsWith('data:image')) {
-          resolve(url);
-          return;
+    // Helper to extract data URL from a visible DOM image element
+    const extractDataUrlFromDomImage = (imgElement) => {
+      try {
+        if (!imgElement || !imgElement.complete || imgElement.naturalWidth === 0) {
+          return null;
         }
 
-        const timeout = setTimeout(() => {
-          log('Image fetch via background timed out');
-          resolve(null);
-        }, timeoutMs);
+        const canvas = document.createElement('canvas');
+        const maxDim = 1024; // Limit size for payload
+        let w = imgElement.naturalWidth;
+        let h = imgElement.naturalHeight;
 
-        if (!isExtensionContextValid()) {
-          clearTimeout(timeout);
-          resolve(null);
-          return;
+        if (w > maxDim || h > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
         }
 
-        chrome.runtime.sendMessage({
-          action: 'FETCH_IMAGE_AS_DATA_URL',
-          url: url
-        }, (response) => {
-          clearTimeout(timeout);
-          if (chrome.runtime.lastError) {
-            log('Background image fetch error: ' + chrome.runtime.lastError.message);
-            resolve(null);
-            return;
-          }
-          if (response && response.success && response.dataUrl) {
-            log(`Fetched image via background (${Math.round(response.dataUrl.length / 1024)}KB)`);
-            resolve(response.dataUrl);
-          } else {
-            log('Background image fetch failed: ' + (response?.error || 'unknown'));
-            resolve(null);
-          }
-        });
-      });
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(imgElement, 0, 0, w, h);
+
+        // This will throw if canvas is tainted by CORS
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        if (dataUrl && dataUrl.length > 1000 && !dataUrl.startsWith('data:,')) {
+          return dataUrl;
+        }
+        return null;
+      } catch (e) {
+        // Canvas tainted by CORS - expected for cross-origin images
+        return null;
+      }
+    };
+
+    // Find and extract images directly from visible DOM elements
+    const extractImagesFromDom = () => {
+      const dataUrls = [];
+      const dialog = document.querySelector('[role="dialog"]');
+      const main = document.querySelector('[role="main"]');
+      const searchRoot = dialog || main || document.body;
+
+      // Find all product images in the listing
+      const selectors = [
+        'img[src*="scontent"]',
+        'img[src*="fbcdn"]',
+        '[aria-label*="photo"] img',
+        '[data-testid*="photo"] img'
+      ];
+
+      const allImages = searchRoot.querySelectorAll(selectors.join(', '));
+      const processedSrcs = new Set();
+
+      for (const img of allImages) {
+        // Skip small images (likely thumbnails or icons)
+        const rect = img.getBoundingClientRect();
+        if (rect.width < 100 || rect.height < 100) continue;
+
+        // Skip duplicates
+        const src = img.src || '';
+        const baseSrc = src.split('?')[0];
+        if (processedSrcs.has(baseSrc)) continue;
+        processedSrcs.add(baseSrc);
+
+        // Try to extract via canvas
+        const dataUrl = extractDataUrlFromDomImage(img);
+        if (dataUrl) {
+          log(`Extracted image from DOM (${Math.round(dataUrl.length / 1024)}KB)`);
+          dataUrls.push(dataUrl);
+          if (dataUrls.length >= 3) break; // Limit to 3 images
+        }
+      }
+
+      return dataUrls;
     };
 
     const getListingForAnalysis = async () => {
-      const urls = Array.isArray(listingData?.imageUrls) ? listingData.imageUrls : [];
-      const dataUrls = [];
+      // First, try to extract images directly from visible DOM elements
+      let dataUrls = extractImagesFromDom();
 
-      // Try to fetch up to 3 images via background script
-      for (const u of urls.slice(0, 3)) {
-        const du = await fetchImageViaBackground(u);
-        if (du) dataUrls.push(du);
+      if (dataUrls.length === 0) {
+        log('Could not extract images from DOM (CORS restriction). Proceeding with text-only analysis.');
+      } else {
+        log(`Extracted ${dataUrls.length} images from DOM for AI analysis`);
       }
-
-      log(`Converted ${dataUrls.length}/${urls.length} images to data URLs`);
 
       return {
         ...listingData,
@@ -3509,110 +3539,396 @@
         return;
       }
 
-      // Convert images to data URLs via background script (bypasses CORS/403 issues)
-      const fetchImageViaBackground = (url, timeoutMs = 5000) => {
-        return new Promise((resolve) => {
-          if (!url || typeof url !== 'string') {
-            resolve(null);
-            return;
-          }
-          if (url.startsWith('data:image')) {
-            resolve(url);
-            return;
+      // Extract images directly from visible DOM elements using canvas
+      const extractDataUrlFromDomImage = (imgElement) => {
+        try {
+          if (!imgElement || !imgElement.complete || imgElement.naturalWidth === 0) {
+            return null;
           }
 
-          const timeout = setTimeout(() => {
-            log('Image fetch via background timed out');
-            resolve(null);
-          }, timeoutMs);
+          const canvas = document.createElement('canvas');
+          const maxDim = 1024;
+          let w = imgElement.naturalWidth;
+          let h = imgElement.naturalHeight;
 
-          if (!isExtensionContextValid()) {
-            clearTimeout(timeout);
-            resolve(null);
-            return;
+          if (w > maxDim || h > maxDim) {
+            const scale = maxDim / Math.max(w, h);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
           }
 
-          chrome.runtime.sendMessage({
-            action: 'FETCH_IMAGE_AS_DATA_URL',
-            url: url
-          }, (response) => {
-            clearTimeout(timeout);
-            if (chrome.runtime.lastError) {
-              log('Background image fetch error: ' + chrome.runtime.lastError.message);
-              resolve(null);
-              return;
-            }
-            if (response && response.success && response.dataUrl) {
-              log(`Fetched image via background (${Math.round(response.dataUrl.length / 1024)}KB)`);
-              resolve(response.dataUrl);
-            } else {
-              log('Background image fetch failed: ' + (response?.error || 'unknown'));
-              resolve(null);
-            }
-          });
-        });
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(imgElement, 0, 0, w, h);
+
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          if (dataUrl && dataUrl.length > 1000 && !dataUrl.startsWith('data:,')) {
+            return dataUrl;
+          }
+          return null;
+        } catch (e) {
+          return null; // Canvas tainted by CORS
+        }
       };
 
-      // Convert first 4 images via background script
+      // Find visible product images in the DOM
       const dataUrls = [];
-      for (const url of imageUrls.slice(0, 4)) {
-        const dataUrl = await fetchImageViaBackground(url);
-        if (dataUrl) dataUrls.push(dataUrl);
+      const dialog = document.querySelector('[role="dialog"]');
+      const main = document.querySelector('[role="main"]');
+      const searchRoot = dialog || main || document.body;
+
+      const allImages = searchRoot.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]');
+      const processedSrcs = new Set();
+
+      for (const img of allImages) {
+        const rect = img.getBoundingClientRect();
+        if (rect.width < 100 || rect.height < 100) continue;
+
+        const src = img.src || '';
+        const baseSrc = src.split('?')[0];
+        if (processedSrcs.has(baseSrc)) continue;
+        processedSrcs.add(baseSrc);
+
+        const dataUrl = extractDataUrlFromDomImage(img);
+        if (dataUrl) {
+          log(`Extracted image from DOM for resale analysis (${Math.round(dataUrl.length / 1024)}KB)`);
+          dataUrls.push(dataUrl);
+          if (dataUrls.length >= 4) break;
+        }
       }
 
+      // If no images extracted, show drag & drop interface
       if (dataUrls.length === 0) {
-        log('Failed to convert any images to data URLs', 'warn');
-        renderResaleAnalysisOverlay(listing, priceData, {
-          error: 'Could not load images for analysis'
-        });
+        log('No images extracted (CORS restriction). Showing drag & drop interface.');
+        renderImageDropZone(listing, priceData);
         return;
       }
 
       log(`Sending ${dataUrls.length} images for AI resale analysis`);
 
-      // Send to background script for AI analysis
-      if (!isExtensionContextValid()) {
-        renderResaleAnalysisOverlay(listing, priceData, {
-          error: 'Extension context invalid'
-        });
-        return;
-      }
-
-      chrome.runtime.sendMessage({
-        action: 'MULTIMODAL_ANALYZE_LISTING',
-        listingData: {
-          title: listing.title,
-          description: listing.fullDescription || listing.description,
-          price: listing.price,
-          imageDataUrls: dataUrls,
-          attributes: listing.attributes,
-          extractedSpecs: listing.extractedSpecs
-        }
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          log('Resale analysis error: ' + chrome.runtime.lastError.message, 'error');
-          renderResaleAnalysisOverlay(listing, priceData, {
-            error: 'Failed to analyze: ' + chrome.runtime.lastError.message
-          });
-          return;
-        }
-
-        if (response && response.success) {
-          log('Resale analysis successful:', response);
-          renderResaleAnalysisOverlay(listing, priceData, response);
-        } else {
-          log('Resale analysis failed:', response?.error, 'warn');
-          renderResaleAnalysisOverlay(listing, priceData, {
-            error: response?.error || 'Analysis failed'
-          });
-        }
-      });
+      // Use shared function for AI analysis
+      sendForAIAnalysis(listing, priceData, dataUrls);
     } catch (e) {
       log('Error in requestResaleAnalysis: ' + e.message, 'error');
       renderResaleAnalysisOverlay(listing, priceData, {
         error: 'Unexpected error: ' + e.message
       });
     }
+  }
+
+  /**
+   * Render drag & drop interface for capturing images
+   * @param {Object} listing - Listing data
+   * @param {Object} priceData - Price intelligence data
+   */
+  function renderImageDropZone(listing, priceData) {
+    const shadow = createOverlayContainer();
+    const collectedImages = [];
+
+    shadow.innerHTML = `
+      <style>${getBaseStyles()}
+        .drop-zone {
+          border: 2px dashed #3b82f6;
+          border-radius: 12px;
+          padding: 24px 16px;
+          text-align: center;
+          background: rgba(59, 130, 246, 0.1);
+          transition: all 0.2s ease;
+          cursor: pointer;
+          min-height: 120px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .drop-zone.drag-over {
+          border-color: #10b981;
+          background: rgba(16, 185, 129, 0.15);
+          transform: scale(1.02);
+        }
+        .drop-zone-icon {
+          font-size: 32px;
+          margin-bottom: 4px;
+        }
+        .drop-zone-text {
+          font-size: 13px;
+          color: #94a3b8;
+        }
+        .drop-zone-hint {
+          font-size: 11px;
+          color: #64748b;
+          margin-top: 4px;
+        }
+        .image-preview-grid {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 12px;
+          justify-content: center;
+        }
+        .image-preview {
+          width: 60px;
+          height: 60px;
+          border-radius: 8px;
+          object-fit: cover;
+          border: 2px solid #3b82f6;
+        }
+        .image-count {
+          font-size: 12px;
+          color: #10b981;
+          font-weight: 500;
+          margin-top: 8px;
+        }
+        .analyze-btn-ready {
+          background: linear-gradient(135deg, #10b981, #059669) !important;
+        }
+        .text-only-option {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid #334155;
+          text-align: center;
+        }
+        .text-only-link {
+          font-size: 11px;
+          color: #64748b;
+          cursor: pointer;
+          text-decoration: underline;
+        }
+        .text-only-link:hover {
+          color: #94a3b8;
+        }
+      </style>
+
+      <div class="scout-card" style="max-width: 320px;">
+        <button class="close-btn" title="Close">&times;</button>
+
+        <div class="scout-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Drop Images Here
+        </div>
+
+        <div class="scout-message" style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">
+          Facebook images can't be captured automatically. Drag product images from the listing into the box below.
+        </div>
+
+        <div class="drop-zone" id="image-drop-zone">
+          <div class="drop-zone-icon">📷</div>
+          <div class="drop-zone-text">Drag & drop images here</div>
+          <div class="drop-zone-hint">or right-click image → Copy Image, then paste here</div>
+        </div>
+
+        <div class="image-preview-grid" id="image-previews"></div>
+        <div class="image-count" id="image-count" style="display: none;"></div>
+
+        <button class="scout-btn scout-btn-primary" id="analyze-btn" disabled style="margin-top: 12px; width: 100%;">
+          Drop images to analyze
+        </button>
+
+        <div class="text-only-option">
+          <span class="text-only-link" id="text-only-link">
+            Skip images → Text-only analysis
+          </span>
+        </div>
+      </div>
+    `;
+
+    // Close button handler
+    shadow.querySelector('.close-btn').addEventListener('click', () => {
+      overlayElement.remove();
+      overlayElement = null;
+    });
+
+    const dropZone = shadow.querySelector('#image-drop-zone');
+    const previewGrid = shadow.querySelector('#image-previews');
+    const imageCountEl = shadow.querySelector('#image-count');
+    const analyzeBtn = shadow.querySelector('#analyze-btn');
+    const textOnlyLink = shadow.querySelector('#text-only-link');
+
+    // Handle drag events
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+    });
+
+    // Handle drop
+    dropZone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+
+      const items = e.dataTransfer.items;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+
+        // Handle image files
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            const dataUrl = await fileToDataUrl(file);
+            if (dataUrl && collectedImages.length < 4) {
+              collectedImages.push(dataUrl);
+              addImagePreview(dataUrl);
+            }
+          }
+        }
+
+        // Handle dragged HTML (contains img src)
+        if (item.type === 'text/html') {
+          item.getAsString(async (html) => {
+            const imgMatch = html.match(/src=["']([^"']+)["']/);
+            if (imgMatch && imgMatch[1]) {
+              log('Found image URL in dropped HTML: ' + imgMatch[1].substring(0, 50) + '...');
+              // Can't fetch cross-origin, but show a hint
+              updateDropZoneHint('Drag the image itself, not the link. Try: Right-click → Copy Image → Paste');
+            }
+          });
+        }
+      }
+
+      updateUI();
+    });
+
+    // Handle paste (Ctrl+V or right-click paste)
+    document.addEventListener('paste', handlePaste);
+
+    function handlePaste(e) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            fileToDataUrl(file).then(dataUrl => {
+              if (dataUrl && collectedImages.length < 4) {
+                collectedImages.push(dataUrl);
+                addImagePreview(dataUrl);
+                updateUI();
+              }
+            });
+          }
+        }
+      }
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function addImagePreview(dataUrl) {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.className = 'image-preview';
+      previewGrid.appendChild(img);
+    }
+
+    function updateDropZoneHint(text) {
+      const hint = dropZone.querySelector('.drop-zone-hint');
+      if (hint) hint.textContent = text;
+    }
+
+    function updateUI() {
+      const count = collectedImages.length;
+      if (count > 0) {
+        imageCountEl.textContent = `${count} image${count > 1 ? 's' : ''} ready`;
+        imageCountEl.style.display = 'block';
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = `🔍 Analyze ${count} Image${count > 1 ? 's' : ''}`;
+        analyzeBtn.classList.add('analyze-btn-ready');
+        dropZone.querySelector('.drop-zone-text').textContent = count < 4 ? 'Add more images (optional)' : 'Max 4 images';
+      }
+    }
+
+    // Analyze button
+    analyzeBtn.addEventListener('click', () => {
+      if (collectedImages.length === 0) return;
+
+      // Remove paste listener
+      document.removeEventListener('paste', handlePaste);
+
+      // Close drop zone overlay
+      overlayElement.remove();
+      overlayElement = null;
+
+      // Proceed with AI analysis
+      log(`Sending ${collectedImages.length} user-provided images for AI analysis`);
+      sendForAIAnalysis(listing, priceData, collectedImages);
+    });
+
+    // Text-only fallback
+    textOnlyLink.addEventListener('click', () => {
+      document.removeEventListener('paste', handlePaste);
+      overlayElement.remove();
+      overlayElement = null;
+
+      log('User chose text-only analysis');
+      sendForAIAnalysis(listing, priceData, []);
+    });
+  }
+
+  /**
+   * Send images for AI analysis (shared by drop zone and direct extraction)
+   * @param {Object} listing - Listing data
+   * @param {Object} priceData - Price intelligence data
+   * @param {Array<string>} dataUrls - Array of image data URLs
+   */
+  function sendForAIAnalysis(listing, priceData, dataUrls) {
+    if (!isExtensionContextValid()) {
+      renderResaleAnalysisOverlay(listing, priceData, {
+        error: 'Extension context invalid'
+      });
+      return;
+    }
+
+    chrome.runtime.sendMessage({
+      action: 'MULTIMODAL_ANALYZE_LISTING',
+      listingData: {
+        title: listing.title,
+        description: listing.fullDescription || listing.description,
+        price: listing.price,
+        imageDataUrls: dataUrls,
+        attributes: listing.attributes,
+        extractedSpecs: listing.extractedSpecs
+      }
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        log('Resale analysis error: ' + chrome.runtime.lastError.message, 'error');
+        renderResaleAnalysisOverlay(listing, priceData, {
+          error: 'Failed to analyze: ' + chrome.runtime.lastError.message
+        });
+        return;
+      }
+
+      if (response && response.success) {
+        log('Resale analysis successful:', response);
+        renderResaleAnalysisOverlay(listing, priceData, response);
+      } else {
+        log('Resale analysis failed:', response?.error, 'warn');
+        renderResaleAnalysisOverlay(listing, priceData, {
+          error: response?.error || 'Analysis failed'
+        });
+      }
+    });
   }
 
   /**
@@ -3660,6 +3976,7 @@
 
     const hasError = !!analysis.error;
     const mergedData = analysis.mergedData || {};
+    const isTextOnly = analysis.mergedData?.analysisType === 'text-only' || analysis.analysisType === 'text-only';
 
     // Extract resale-focused data
     const condition = mergedData.condition || 'Unknown';
@@ -3706,6 +4023,7 @@
             <circle cx="12" cy="12" r="3"/>
           </svg>
           AI Resale Analysis
+          ${isTextOnly ? '<span style="font-size: 9px; background: #475569; padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 400;">TEXT ONLY</span>' : ''}
         </div>
 
         ${hasError ? `

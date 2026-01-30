@@ -95,8 +95,13 @@ export class AIService {
       throw new Error('AI service is not configured. Please check OPENROUTER_API_KEY.');
     }
 
+    // If no images provided, fall back to text-only analysis
     if (!imageUrls || imageUrls.length === 0) {
-      throw new Error('No images provided for analysis');
+      if (!context?.title && !context?.description) {
+        throw new Error('No images or text provided for analysis');
+      }
+      console.log('[AIService] No images available, using text-only analysis');
+      return await this.analyzeTextForSearchEnhanced(context.title || '', context.description || '');
     }
 
     try {
@@ -228,6 +233,95 @@ Output pure JSON only. Do not use markdown formatting.`
     if (normalized.includes('poor') || normalized.includes('parts') || normalized.includes('damaged')) return 'Poor';
 
     return 'Unknown';
+  }
+
+  /**
+   * Enhanced text-only analysis for resale buyers when images aren't available
+   * Extracts condition, color, and resale insights from text
+   * @param {string} title - The listing title
+   * @param {string} description - The listing description
+   * @returns {Promise<Object>} Enhanced analysis result with resale fields
+   */
+  async analyzeTextForSearchEnhanced(title: string, description: string): Promise<any> {
+    if (!this.openai) {
+      throw new Error('AI service is not configured. Please check OPENROUTER_API_KEY.');
+    }
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: "google/gemini-2.5-flash-lite-preview-09-2025",
+        messages: [
+          {
+            role: "user",
+            content: `You are an expert resale product analyst. Extract product information from the following listing text for resale buyers.
+
+Title: "${title}"
+Description: "${description.substring(0, 1000)}"
+
+Return a valid JSON object with the following fields:
+
+IDENTIFICATION:
+- brand: The manufacturer/brand name. Return null if not mentioned.
+- model: The specific model number or name. Return null if not mentioned.
+- category: The product category. Choose from: "computer", "laptop", "monitor", "phone", "tablet", "console", "gpu", "cpu", "audio", "camera", "furniture", "appliance", "clothing", "collectible", "tool", "sporting", "other".
+
+CONDITION (from text clues):
+- condition: If seller mentions condition, choose from: "New", "Like New", "Good", "Fair", "Poor". Default to "Unknown" if not mentioned.
+- conditionNotes: Array of condition-related phrases from the text.
+
+ATTRIBUTES:
+- color: Primary color if mentioned. Return null if not mentioned.
+- keyAttributes: Array of 3-5 key specs/dimensions mentioned.
+
+RESALE INSIGHTS:
+- estimatedAge: If mentioned. Choose from: "New/Current", "1-2 years", "3-5 years", "5+ years", "Unknown".
+- completeness: If mentioned. Choose from: "Complete with box", "Item only", "Missing accessories", "Unknown".
+- resaleFlags: Array of factors affecting resale value mentioned in text.
+
+- confidence: A number from 0 to 1. Lower confidence (0.3-0.5) since this is text-only analysis.
+- description: Brief resale-relevant summary.
+- analysisType: "text-only"
+
+Output pure JSON only.`
+          },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 800,
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('No content received from OpenAI');
+      }
+
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const result = JSON.parse(cleanContent);
+
+      return {
+        success: true,
+        analysisType: 'text-only',
+        // Identification
+        brand: result.brand || null,
+        model: result.model || null,
+        category: result.category || null,
+        // Condition Assessment
+        condition: this.normalizeCondition(result.condition),
+        conditionNotes: Array.isArray(result.conditionNotes) ? result.conditionNotes.slice(0, 5) : [],
+        // Visual Attributes
+        color: result.color || null,
+        keyAttributes: Array.isArray(result.keyAttributes) ? result.keyAttributes.slice(0, 5) : [],
+        // Resale Insights
+        estimatedAge: result.estimatedAge || 'Unknown',
+        completeness: result.completeness || 'Unknown',
+        resaleFlags: Array.isArray(result.resaleFlags) ? result.resaleFlags.slice(0, 5) : [],
+        // Lower confidence for text-only
+        confidence: typeof result.confidence === 'number' ? Math.min(0.6, Math.max(0.2, result.confidence)) : 0.4,
+        description: result.description || 'Text-only analysis (images unavailable)'
+      };
+    } catch (error) {
+      console.error('Error in text-only analysis:', error);
+      throw new Error('Failed to analyze listing text');
+    }
   }
 
   /**

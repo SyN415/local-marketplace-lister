@@ -687,6 +687,12 @@ getCacheKey(listingData) {
       result.mergedData.description = visualAnalysis.description;
     }
 
+    // Propagate analysis type (text-only when images weren't available)
+    if (visualAnalysis.analysisType === 'text-only') {
+      result.mergedData.analysisType = 'text-only';
+      result.sources.push('text_only_fallback');
+    }
+
     // Calculate overall confidence
     result.confidence = Math.max(visualConfidence, textualConfidence);
 
