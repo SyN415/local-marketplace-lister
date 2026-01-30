@@ -80,11 +80,12 @@ export class AIService {
   }
 
   /**
-   * Analyze a listing with multiple images for eBay search optimization
+   * Analyze a listing with multiple images for eBay search optimization and resale assessment
    * This is used by the multi-modal item identification pipeline
+   * Enhanced for resale buyers with condition, color, and quality assessment
    * @param {Array<string>} imageUrls - Array of image URLs to analyze
    * @param {Object} context - Additional context (title, description, etc.)
-   * @returns {Promise<Object>} Analysis result with brand, model, category, and key attributes
+   * @returns {Promise<Object>} Analysis result with brand, model, category, condition, color, and quality indicators
    */
   async analyzeListingForSearch(imageUrls: string[], context?: {
     title?: string;
@@ -99,8 +100,8 @@ export class AIService {
     }
 
     try {
-      // Prepare image content (limit to first 3 images for efficiency)
-      const imageContent = imageUrls.slice(0, 3).map(url => ({
+      // Prepare image content (limit to first 4 images for better analysis)
+      const imageContent = imageUrls.slice(0, 4).map(url => ({
         type: "image_url" as const,
         image_url: {
           url: url.startsWith('data:') ? url : url,
@@ -124,26 +125,47 @@ export class AIService {
             content: [
               {
                 type: "text",
-                text: `You are an expert product identifier specializing in e-commerce search optimization. Your task is to analyze product images and extract key identifiers for eBay search queries.
+                text: `You are an expert resale product analyst specializing in marketplace flipping and e-commerce. Your task is to analyze product images for resale buyers who need accurate identification and condition assessment for pricing.
 
 ${contextText}
 
 Analyze the provided images and return a valid JSON object with the following fields:
-- brand: The manufacturer/brand name (e.g., "Samsung", "Apple", "Dell", "Sony"). Return null if not clearly identifiable.
-- model: The specific model number or name (e.g., "RTX 4070", "iPhone 15 Pro", "PS5", "27GL850"). Return null if not clearly identifiable.
-- category: The product category (e.g., "monitor", "laptop", "phone", "console", "speaker", "camera", "furniture", "appliance"). Return null if not clearly identifiable.
-- keyAttributes: An array of 3-5 key attributes/specs visible in the images (e.g., ["27 inch", "4K", "144Hz", "IPS panel", "USB-C"]). Focus on specs that would help with eBay search.
-- confidence: A number from 0 to 1 indicating your confidence in the identification. Higher if brand/model are clearly visible.
-- description: A brief 1-2 sentence description of what you see.
 
-IMPORTANT GUIDELINES:
-1. Only extract brand/model if you are confident (confidence >= 0.6). Otherwise return null.
-2. For electronics, prioritize: GPU model, CPU model, screen size, resolution, refresh rate.
-3. For phones: brand, model, storage capacity, color.
-4. For monitors: brand, size, resolution, refresh rate, panel type.
-5. For furniture: type, material, color, dimensions.
-6. Keep keyAttributes concise and search-friendly (2-4 words each).
-7. If images are blurry or unclear, set confidence low and return null for uncertain fields.
+IDENTIFICATION:
+- brand: The manufacturer/brand name (e.g., "Samsung", "Apple", "Dell", "NVIDIA"). Return null if not clearly identifiable.
+- model: The specific model number or name (e.g., "RTX 4070", "iPhone 15 Pro", "PS5", "27GL850"). Return null if not clearly identifiable.
+- category: The product category. Choose from: "computer", "laptop", "monitor", "phone", "tablet", "console", "gpu", "cpu", "audio", "camera", "furniture", "appliance", "clothing", "collectible", "tool", "sporting", "other".
+
+CONDITION ASSESSMENT (Critical for resale pricing):
+- condition: Assess the item's condition. Choose from:
+  * "New" - Sealed/unopened, original packaging visible
+  * "Like New" - Opened but pristine, no visible wear
+  * "Good" - Minor cosmetic wear, fully functional appearance
+  * "Fair" - Noticeable wear, scratches, or marks but appears functional
+  * "Poor" - Significant damage, heavy wear, or missing parts visible
+- conditionNotes: Array of specific observations about condition (e.g., ["minor scratches on screen", "original box included", "missing stand", "yellowing on plastic"]).
+
+VISUAL ATTRIBUTES:
+- color: Primary color of the item (e.g., "Black", "White", "Silver", "Space Gray", "Red"). Return null if unclear.
+- keyAttributes: Array of 3-5 key specs visible in images (e.g., ["27 inch", "4K", "144Hz", "IPS panel", "RGB lighting"]).
+
+RESALE INSIGHTS:
+- estimatedAge: Estimated age of the item. Choose from: "New/Current", "1-2 years", "3-5 years", "5+ years", "Vintage", "Unknown".
+- completeness: What's visible in terms of accessories/packaging. Choose from: "Complete with box", "Item only", "Missing accessories", "Partial/Bundle", "Unknown".
+- resaleFlags: Array of factors that affect resale value (e.g., ["original packaging", "rare color", "discontinued model", "cosmetic damage", "smoking environment", "pet hair visible", "aftermarket parts"]).
+
+CONFIDENCE:
+- confidence: A number from 0 to 1 indicating your overall confidence in the identification.
+- description: A brief 1-2 sentence description focused on resale relevance.
+
+IMPORTANT GUIDELINES FOR RESALE ANALYSIS:
+1. Be conservative with condition - buyers prefer underselling condition than overselling.
+2. Look for: scratches, dents, discoloration, dust, missing parts, cable condition, screen damage.
+3. Note if original packaging, manuals, or accessories are visible.
+4. For electronics: check for model numbers on labels, stickers, or engravings.
+5. For gaming PCs: identify visible components (GPU brand/model, RGB, case brand).
+6. Flag anything that would affect resale value negatively or positively.
+7. If images are low quality or unclear, set confidence low and note this in conditionNotes.
 
 Output pure JSON only. Do not use markdown formatting.`
               },
@@ -152,7 +174,7 @@ Output pure JSON only. Do not use markdown formatting.`
           },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 800,
+        max_tokens: 1200,
       });
 
       const content = response.choices[0].message.content;
@@ -164,13 +186,24 @@ Output pure JSON only. Do not use markdown formatting.`
       const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
       const result = JSON.parse(cleanContent);
 
-      // Validate and normalize the result
+      // Validate and normalize the result with enhanced fields
       return {
         success: true,
+        // Identification
         brand: result.brand || null,
         model: result.model || null,
         category: result.category || null,
+        // Condition Assessment
+        condition: this.normalizeCondition(result.condition),
+        conditionNotes: Array.isArray(result.conditionNotes) ? result.conditionNotes.slice(0, 5) : [],
+        // Visual Attributes
+        color: result.color || null,
         keyAttributes: Array.isArray(result.keyAttributes) ? result.keyAttributes.slice(0, 5) : [],
+        // Resale Insights
+        estimatedAge: result.estimatedAge || 'Unknown',
+        completeness: result.completeness || 'Unknown',
+        resaleFlags: Array.isArray(result.resaleFlags) ? result.resaleFlags.slice(0, 5) : [],
+        // Confidence
         confidence: typeof result.confidence === 'number' ? Math.min(1, Math.max(0, result.confidence)) : 0.5,
         description: result.description || null
       };
@@ -178,6 +211,23 @@ Output pure JSON only. Do not use markdown formatting.`
       console.error('Error analyzing listing for search:', error);
       throw new Error('Failed to analyze listing for search optimization');
     }
+  }
+
+  /**
+   * Normalize condition string to standard values
+   */
+  private normalizeCondition(condition: string | null | undefined): string {
+    if (!condition) return 'Unknown';
+
+    const normalized = condition.toLowerCase().trim();
+
+    if (normalized.includes('new') && !normalized.includes('like')) return 'New';
+    if (normalized.includes('like new') || normalized.includes('mint') || normalized.includes('excellent')) return 'Like New';
+    if (normalized.includes('good') || normalized.includes('great')) return 'Good';
+    if (normalized.includes('fair') || normalized.includes('acceptable') || normalized.includes('used')) return 'Fair';
+    if (normalized.includes('poor') || normalized.includes('parts') || normalized.includes('damaged')) return 'Poor';
+
+    return 'Unknown';
   }
 
   /**

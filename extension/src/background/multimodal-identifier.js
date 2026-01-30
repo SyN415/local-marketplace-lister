@@ -129,22 +129,35 @@ getCacheKey(listingData) {
 
   /**
    * Step 1: Visual Analysis - Analyze images via OpenRouter API
+   * Enhanced for resale buyers with condition, color, and quality assessment
    * @param {Array<string>} imageUrls - Array of image URLs
-   * @returns {Promise<Object>} Visual analysis result
+   * @param {Object} context - Additional context (title, description, etc.)
+   * @returns {Promise<Object>} Visual analysis result with resale-focused fields
    */
   async analyzeImages(imageUrls, context) {
     const result = {
       success: false,
       confidence: 0,
+      // Identification
       brand: null,
       model: null,
       category: null,
+      // Condition Assessment (NEW)
+      condition: null,
+      conditionNotes: [],
+      // Visual Attributes (NEW)
+      color: null,
       keyAttributes: [],
+      // Resale Insights (NEW)
+      estimatedAge: null,
+      completeness: null,
+      resaleFlags: [],
+      // Meta
       description: null,
       error: null
     };
 
-    console.log('[MultimodalIdentifier] analyzeImages called with', imageUrls.length, 'images');
+    console.log('[MultimodalIdentifier] analyzeImages called with', imageUrls?.length || 0, 'images');
 
     // Fallback: No images available
     if (!imageUrls || imageUrls.length === 0) {
@@ -153,8 +166,8 @@ getCacheKey(listingData) {
       return result;
     }
 
-    // Use first 3 images (primary + 2 alternates) for analysis
-    const imagesToAnalyze = imageUrls.slice(0, 3);
+    // Use first 4 images for better analysis (increased from 3)
+    const imagesToAnalyze = imageUrls.slice(0, 4);
     console.log('[MultimodalIdentifier] Analyzing', imagesToAnalyze.length, 'images');
 
     try {
@@ -177,7 +190,7 @@ getCacheKey(listingData) {
       };
 
       console.log('[MultimodalIdentifier] Sending payload to AI endpoint:', {
-        hasImages: payload.images.length > 0,
+        imageCount: payload.images.length,
         hasTitle: !!payload.context.title,
         hasDescription: !!payload.context.description,
         hasAttributes: !!payload.context.attributes
@@ -211,18 +224,40 @@ getCacheKey(listingData) {
       console.log('[MultimodalIdentifier] AI response data:', data);
 
       if (data.success && data.analysis) {
+        const analysis = data.analysis;
+
         result.success = true;
-        result.confidence = data.analysis.confidence || 0.5;
-        result.brand = data.analysis.brand || null;
-        result.model = data.analysis.model || null;
-        result.category = data.analysis.category || null;
-        result.keyAttributes = data.analysis.keyAttributes || [];
-        result.description = data.analysis.description || null;
+        result.confidence = analysis.confidence || 0.5;
+
+        // Identification
+        result.brand = analysis.brand || null;
+        result.model = analysis.model || null;
+        result.category = analysis.category || null;
+
+        // Condition Assessment (NEW)
+        result.condition = analysis.condition || null;
+        result.conditionNotes = Array.isArray(analysis.conditionNotes) ? analysis.conditionNotes : [];
+
+        // Visual Attributes (NEW)
+        result.color = analysis.color || null;
+        result.keyAttributes = Array.isArray(analysis.keyAttributes) ? analysis.keyAttributes : [];
+
+        // Resale Insights (NEW)
+        result.estimatedAge = analysis.estimatedAge || null;
+        result.completeness = analysis.completeness || null;
+        result.resaleFlags = Array.isArray(analysis.resaleFlags) ? analysis.resaleFlags : [];
+
+        // Meta
+        result.description = analysis.description || null;
+
         console.log('[MultimodalIdentifier] Visual analysis successful:', {
           brand: result.brand,
           model: result.model,
           category: result.category,
-          confidence: result.confidence
+          condition: result.condition,
+          color: result.color,
+          confidence: result.confidence,
+          resaleFlags: result.resaleFlags
         });
       } else {
         console.warn('[MultimodalIdentifier] AI analysis failed:', data.error);
@@ -539,11 +574,23 @@ getCacheKey(listingData) {
       sources: [],
       fallbackUsed: false,
       mergedData: {
+        // Identification
         brand: null,
         model: null,
         category: null,
         keyAttributes: [],
-        specs: {}
+        specs: {},
+        // Condition Assessment (NEW for resale)
+        condition: null,
+        conditionNotes: [],
+        // Visual Attributes (NEW for resale)
+        color: null,
+        // Resale Insights (NEW for resale)
+        estimatedAge: null,
+        completeness: null,
+        resaleFlags: [],
+        // Meta
+        description: null
       }
     };
 
@@ -553,6 +600,7 @@ getCacheKey(listingData) {
       visualBrand: visualAnalysis.brand,
       visualModel: visualAnalysis.model,
       visualCategory: visualAnalysis.category,
+      visualCondition: visualAnalysis.condition,
       textualConfidence: textualAnalysis.confidence,
       textualBrand: textualAnalysis.brand,
       textualModel: textualAnalysis.model,
@@ -600,6 +648,45 @@ getCacheKey(listingData) {
     // Merge specs (textual takes precedence for structured data)
     result.mergedData.specs = { ...textualAnalysis.specs };
 
+    // === RESALE-FOCUSED FIELDS (Visual analysis only) ===
+
+    // Condition: Visual AI is the authoritative source for condition assessment
+    if (visualAnalysis.success && visualAnalysis.condition) {
+      result.mergedData.condition = visualAnalysis.condition;
+      result.sources.push('visual_condition');
+    }
+
+    // Condition Notes: All observations from visual analysis
+    if (visualAnalysis.conditionNotes && visualAnalysis.conditionNotes.length > 0) {
+      result.mergedData.conditionNotes = visualAnalysis.conditionNotes.slice(0, 5);
+    }
+
+    // Color: Visual analysis is authoritative for color
+    if (visualAnalysis.color) {
+      result.mergedData.color = visualAnalysis.color;
+      result.sources.push('visual_color');
+    }
+
+    // Estimated Age: Visual analysis provides this
+    if (visualAnalysis.estimatedAge) {
+      result.mergedData.estimatedAge = visualAnalysis.estimatedAge;
+    }
+
+    // Completeness: What's visible in terms of packaging/accessories
+    if (visualAnalysis.completeness) {
+      result.mergedData.completeness = visualAnalysis.completeness;
+    }
+
+    // Resale Flags: Factors affecting resale value
+    if (visualAnalysis.resaleFlags && visualAnalysis.resaleFlags.length > 0) {
+      result.mergedData.resaleFlags = visualAnalysis.resaleFlags.slice(0, 5);
+    }
+
+    // Description: Prefer visual analysis description if available
+    if (visualAnalysis.description) {
+      result.mergedData.description = visualAnalysis.description;
+    }
+
     // Calculate overall confidence
     result.confidence = Math.max(visualConfidence, textualConfidence);
 
@@ -613,7 +700,13 @@ getCacheKey(listingData) {
       fallbackUsed: result.fallbackUsed,
       mergedBrand: result.mergedData.brand,
       mergedModel: result.mergedData.model,
-      mergedCategory: result.mergedData.category
+      mergedCategory: result.mergedData.category,
+      // Resale fields
+      condition: result.mergedData.condition,
+      color: result.mergedData.color,
+      estimatedAge: result.mergedData.estimatedAge,
+      completeness: result.mergedData.completeness,
+      resaleFlags: result.mergedData.resaleFlags
     });
 
     // Determine if fallback was used

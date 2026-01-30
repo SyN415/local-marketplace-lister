@@ -1634,31 +1634,230 @@
   }
 
   // NEW: Extract image URLs from the listing
+  /**
+   * Transform Facebook image URL to maximum resolution
+   * Facebook CDN URLs contain size parameters that can be upgraded
+   * @param {string} url - Original image URL
+   * @returns {string} High-resolution URL
+   */
+  function upgradeToHighResolution(url) {
+    if (!url || typeof url !== 'string') return url;
+
+    try {
+      // Pattern 1: stp=dst-jpg_sWIDTHxHEIGHT (e.g., stp=dst-jpg_s960x960)
+      let upgraded = url.replace(/stp=dst-jpg_s\d+x\d+/g, 'stp=dst-jpg_s2048x2048');
+
+      // Pattern 2: _WIDTHxHEIGHT_ in path (e.g., _960x960_)
+      upgraded = upgraded.replace(/_\d+x\d+_/g, '_2048x2048_');
+
+      // Pattern 3: /sWIDTHxHEIGHT/ in path
+      upgraded = upgraded.replace(/\/s\d+x\d+\//g, '/s2048x2048/');
+
+      // Pattern 4: p\d+x\d+ parameter (e.g., p960x960)
+      upgraded = upgraded.replace(/p\d+x\d+/g, 'p2048x2048');
+
+      // Pattern 5: Remove size constraints entirely if present as query param
+      // This sometimes gives the original full-size image
+      if (upgraded.includes('?')) {
+        const [base, query] = upgraded.split('?');
+        const params = new URLSearchParams(query);
+        // Remove common size-limiting params
+        params.delete('_nc_cat');
+        params.delete('_nc_sid');
+        // Keep essential params
+        const newQuery = params.toString();
+        upgraded = newQuery ? `${base}?${newQuery}` : base;
+      }
+
+      return upgraded;
+    } catch (e) {
+      return url; // Return original on error
+    }
+  }
+
+  /**
+   * Extract background-image URL from CSS style
+   * @param {string} style - CSS style string
+   * @returns {string|null} Extracted URL or null
+   */
+  function extractBackgroundImageUrl(style) {
+    if (!style) return null;
+    const match = style.match(/url\(["']?(.*?)["']?\)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Check if an image URL is likely a product image (not UI element)
+   * @param {string} url - Image URL
+   * @param {Element} element - DOM element (optional)
+   * @returns {boolean}
+   */
+  function isProductImage(url, element = null) {
+    if (!url) return false;
+
+    // Must be from Facebook CDN
+    if (!url.includes('fbcdn') && !url.includes('scontent')) return false;
+
+    // Skip known non-product patterns
+    const skipPatterns = [
+      /emoji/i,
+      /profile/i,
+      /avatar/i,
+      /icon/i,
+      /logo/i,
+      /badge/i,
+      /reaction/i,
+      /sticker/i,
+      /placeholder/i,
+      /static/i,
+      /rsrc\.php/i,  // Facebook static resources
+    ];
+
+    if (skipPatterns.some(p => p.test(url))) return false;
+
+    // Check element dimensions if available
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      // Product images are typically larger than 100x100
+      if (rect.width < 100 && rect.height < 100) return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Wait for image to fully load (handles lazy loading)
+   * @param {HTMLImageElement} img - Image element
+   * @param {number} timeoutMs - Timeout in milliseconds
+   * @returns {Promise<boolean>} Whether image loaded successfully
+   */
+  function waitForImageLoad(img, timeoutMs = 2000) {
+    return new Promise(resolve => {
+      // Check if already loaded
+      if (img.complete && img.naturalWidth > 0) {
+        resolve(true);
+        return;
+      }
+
+      // Check data-visualcompletion attribute (Facebook's lazy load indicator)
+      if (img.getAttribute('data-visualcompletion') === 'complete') {
+        resolve(true);
+        return;
+      }
+
+      const timeout = setTimeout(() => resolve(false), timeoutMs);
+
+      // Watch for load event
+      img.addEventListener('load', () => {
+        clearTimeout(timeout);
+        resolve(true);
+      }, { once: true });
+
+      // Watch for data-visualcompletion change
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.attributeName === 'data-visualcompletion' &&
+              img.getAttribute('data-visualcompletion') === 'complete') {
+            observer.disconnect();
+            clearTimeout(timeout);
+            resolve(true);
+            return;
+          }
+        }
+      });
+      observer.observe(img, { attributes: true });
+    });
+  }
+
+  /**
+   * Enhanced image extraction with high-res upgrade and multiple source support
+   * @returns {Array<string>} Array of high-resolution image URLs
+   */
   function extractImageUrls() {
     try {
-      const imageUrls = [];
-      const main = document.querySelector('[role="main"]') || document.body;
-      
-      // Look for main listing images - usually high quality images
-      const images = main.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]');
-      
+      const imageUrls = new Set();
+      const dialog = document.querySelector('[role="dialog"]');
+      const main = document.querySelector('[role="main"]');
+      const searchRoot = dialog || main || document.body;
+
+      // Strategy 1: Standard img elements from Facebook CDN
+      const images = searchRoot.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]');
+
       for (const img of images) {
         const src = img.src || img.getAttribute('data-src') || '';
-        if (!src) continue;
-        
-        // Skip small thumbnails, icons, profile pics
+        if (!src || !isProductImage(src, img)) continue;
+
+        // Check dimensions - prefer larger images
         const width = img.naturalWidth || parseInt(img.getAttribute('width') || '0');
         const height = img.naturalHeight || parseInt(img.getAttribute('height') || '0');
-        
-        // Only include images that appear to be product images (larger size)
-        if (width > 200 || height > 200 || src.includes('s1080x1080') || src.includes('s960x960')) {
-          imageUrls.push(src);
+        const rect = img.getBoundingClientRect();
+
+        // Include if: has good dimensions OR URL indicates decent size
+        const hasGoodDimensions = width > 200 || height > 200 || rect.width > 200 || rect.height > 200;
+        const urlIndicatesSize = /s(960|1080|1200|1440|2048)x/i.test(src);
+
+        if (hasGoodDimensions || urlIndicatesSize) {
+          const highResUrl = upgradeToHighResolution(src);
+          imageUrls.add(highResUrl);
         }
       }
-      
-      // Deduplicate and limit
-      const uniqueUrls = [...new Set(imageUrls)].slice(0, 5);
-      return uniqueUrls;
+
+      // Strategy 2: Background images (Facebook sometimes uses CSS backgrounds)
+      const bgImageElements = searchRoot.querySelectorAll('[role="img"] div[style*="background-image"], [data-imgperflogname] [style*="background-image"]');
+
+      for (const el of bgImageElements) {
+        const style = el.getAttribute('style') || '';
+        const bgUrl = extractBackgroundImageUrl(style);
+
+        if (bgUrl && isProductImage(bgUrl, el)) {
+          const highResUrl = upgradeToHighResolution(bgUrl);
+          imageUrls.add(highResUrl);
+        }
+      }
+
+      // Strategy 3: Data attributes that might contain image URLs
+      const dataImgElements = searchRoot.querySelectorAll('[data-src*="fbcdn"], [data-src*="scontent"]');
+
+      for (const el of dataImgElements) {
+        const dataSrc = el.getAttribute('data-src');
+        if (dataSrc && isProductImage(dataSrc, el)) {
+          const highResUrl = upgradeToHighResolution(dataSrc);
+          imageUrls.add(highResUrl);
+        }
+      }
+
+      // Strategy 4: Look for image carousel/gallery containers
+      const carouselImages = searchRoot.querySelectorAll('[aria-label*="photo"] img, [aria-label*="image"] img, [data-testid*="photo"] img');
+
+      for (const img of carouselImages) {
+        const src = img.src || img.getAttribute('data-src') || '';
+        if (src && isProductImage(src, img)) {
+          const highResUrl = upgradeToHighResolution(src);
+          imageUrls.add(highResUrl);
+        }
+      }
+
+      // Convert to array, deduplicate by base URL (ignore query params for dedup)
+      const uniqueUrls = [];
+      const seenBases = new Set();
+
+      for (const url of imageUrls) {
+        const baseUrl = url.split('?')[0];
+        if (!seenBases.has(baseUrl)) {
+          seenBases.add(baseUrl);
+          uniqueUrls.push(url);
+        }
+      }
+
+      // Sort by likely quality (prefer URLs with larger size indicators)
+      uniqueUrls.sort((a, b) => {
+        const sizeA = (a.match(/s(\d+)x\d+/) || [])[1] || 0;
+        const sizeB = (b.match(/s(\d+)x\d+/) || [])[1] || 0;
+        return parseInt(sizeB) - parseInt(sizeA);
+      });
+
+      log(`Extracted ${uniqueUrls.length} high-res image URLs`);
+      return uniqueUrls.slice(0, 8); // Allow more images for better AI analysis
     } catch (e) {
       log('Error extracting images: ' + e?.message, 'warn');
       return [];
@@ -2565,7 +2764,10 @@
       // Determine which query to use
       let query;
       let querySource;
-      
+
+      // Extract AI-analyzed data for enhanced price intelligence
+      const aiMergedData = analysisResponse?.mergedData || {};
+
       if (analysisResponse && analysisResponse.success && analysisResponse.query) {
         // Use AI-optimized query from multi-modal analysis
         query = analysisResponse.query;
@@ -2577,13 +2779,43 @@
         querySource = 'fallback_traditional';
         log(`Using fallback query: "${query}"`);
       }
-      
-      // Step 2: Request price intelligence with the optimized query
+
+      // Enrich listing data with AI-extracted fields for better price filtering
+      const enrichedItem = {
+        ...listingData,
+        // AI-extracted identification (override if AI has higher confidence data)
+        brand: aiMergedData.brand || listingData.attributes?.Brand || null,
+        model: aiMergedData.model || listingData.attributes?.Model || null,
+        // AI-extracted condition for price filtering
+        condition: aiMergedData.condition || listingData.attributes?.Condition || null,
+        // AI-extracted visual attributes
+        color: aiMergedData.color || null,
+        category: aiMergedData.category || null,
+        // Resale insights from AI
+        estimatedAge: aiMergedData.estimatedAge || null,
+        completeness: aiMergedData.completeness || null,
+        conditionNotes: aiMergedData.conditionNotes || [],
+        resaleFlags: aiMergedData.resaleFlags || [],
+        // AI confidence score
+        aiConfidence: analysisResponse?.confidence || 0,
+        // Store full AI analysis for later use (resale analysis button)
+        _aiAnalysis: analysisResponse
+      };
+
+      log('Enriched item for price intelligence:', {
+        brand: enrichedItem.brand,
+        model: enrichedItem.model,
+        condition: enrichedItem.condition,
+        color: enrichedItem.color,
+        aiConfidence: enrichedItem.aiConfidence
+      });
+
+      // Step 2: Request price intelligence with the optimized query and AI-enriched data
       safeSendMessage({
         action: 'GET_PRICE_INTELLIGENCE',
         query,
         currentPrice: listingData.price,
-        item: listingData,
+        item: enrichedItem,
         querySource: querySource
       }, (response) => {
         // Ignore if the user navigated away while the request was in flight.
@@ -2594,19 +2826,19 @@
           return;
         }
         log('Price intelligence response:', response);
-        
+
         if (response && response.requiresAuth) {
           // User needs to authenticate
-          renderAuthRequiredOverlay(listingData, response.message);
+          renderAuthRequiredOverlay(enrichedItem, response.message);
         } else if (response && response.found) {
-          // Success - render the price comparison
-          renderOverlay(listingData, response);
+          // Success - render the price comparison with AI-enriched listing data
+          renderOverlay(enrichedItem, response);
         } else if (response && response.error) {
           // Error occurred
-          renderErrorOverlay(listingData, response.error);
+          renderErrorOverlay(enrichedItem, response.error);
         } else {
           // No data found
-          renderNoDataOverlay(listingData);
+          renderNoDataOverlay(enrichedItem);
         }
       });
       });
@@ -2791,6 +3023,131 @@
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
+      /* Resale Analysis Styles */
+      .resale-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        padding: 8px 12px;
+        margin-top: 10px;
+        background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .resale-btn:hover {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+        transform: translateY(-1px);
+      }
+      .resale-btn:disabled {
+        background: #374151;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .condition-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+      .condition-new { background: #22c55e; color: white; }
+      .condition-like-new { background: #10b981; color: white; }
+      .condition-good { background: #eab308; color: #1a1a2e; }
+      .condition-fair { background: #f97316; color: white; }
+      .condition-poor { background: #ef4444; color: white; }
+      .condition-unknown { background: #6b7280; color: white; }
+      .resale-section {
+        border-top: 1px solid #334155;
+        margin-top: 12px;
+        padding-top: 12px;
+      }
+      .resale-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+        font-size: 12px;
+      }
+      .resale-label {
+        color: #94a3b8;
+      }
+      .resale-value {
+        color: #e2e8f0;
+        font-weight: 500;
+      }
+      .resale-flags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 8px;
+      }
+      .resale-flag {
+        padding: 2px 8px;
+        background: rgba(251, 191, 36, 0.2);
+        border: 1px solid rgba(251, 191, 36, 0.5);
+        border-radius: 4px;
+        font-size: 10px;
+        color: #fbbf24;
+      }
+      .resale-flag.positive {
+        background: rgba(34, 197, 94, 0.2);
+        border-color: rgba(34, 197, 94, 0.5);
+        color: #22c55e;
+      }
+      .resale-flag.negative {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.5);
+        color: #ef4444;
+      }
+      .condition-notes {
+        margin-top: 8px;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 6px;
+        font-size: 11px;
+        color: #94a3b8;
+      }
+      .condition-notes ul {
+        margin: 0;
+        padding-left: 16px;
+      }
+      .condition-notes li {
+        margin: 2px 0;
+      }
+      .ai-confidence {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        font-size: 10px;
+        color: #64748b;
+      }
+      .confidence-bar {
+        flex: 1;
+        height: 4px;
+        background: #374151;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .confidence-fill {
+        height: 100%;
+        background: #60a5fa;
+        transition: width 0.3s;
+      }
+      .adjusted-price {
+        color: #a78bfa;
+        font-weight: 600;
+      }
     `;
   }
 
@@ -2941,19 +3298,38 @@
 
   function renderOverlay(listing, priceData) {
     const shadow = createOverlayContainer();
-    
-    // Calculate deal metrics
-    const spread = listing.price ? (priceData.avgPrice - listing.price) : null;
+
+    // Store priceData for resale analysis to use later
+    listing._priceData = priceData;
+
+    // Extract AI-analyzed condition data (if available from enriched listing)
+    const aiCondition = listing.condition || null;
+    const aiBrand = listing.brand || null;
+    const aiModel = listing.model || null;
+    const aiConfidence = listing.aiConfidence || 0;
+    const hasAiData = aiCondition || aiBrand || aiModel;
+
+    // Calculate condition-adjusted pricing if AI condition is available
+    const conditionMultiplier = aiCondition ? getConditionMultiplier(aiCondition) : 1.0;
+    const adjustedAvgPrice = priceData.avgPrice * conditionMultiplier;
+    const adjustedLowPrice = priceData.lowPrice * conditionMultiplier;
+    const adjustedHighPrice = priceData.highPrice * conditionMultiplier;
+
+    // Calculate deal metrics using condition-adjusted pricing for more accurate assessment
+    const useAdjustedPricing = aiCondition && aiCondition !== 'New' && aiCondition !== 'Unknown';
+    const effectiveAvgPrice = useAdjustedPricing ? adjustedAvgPrice : priceData.avgPrice;
+
+    const spread = listing.price ? (effectiveAvgPrice - listing.price) : null;
     const spreadPct = listing.price ? ((spread / listing.price) * 100) : null;
-    const dealRating = calculateDealRating(listing.price, priceData);
+    const dealRating = calculateDealRating(listing.price, { ...priceData, avgPrice: effectiveAvgPrice });
 
     // Render card
     shadow.innerHTML = `
       <style>${getBaseStyles()}</style>
-      
+
       <div class="scout-card">
         <button class="close-btn" title="Close">&times;</button>
-        
+
         <div class="scout-header">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/>
@@ -2962,31 +3338,74 @@
           Smart Scout Price Check
           ${priceData.stale ? '<span style="color: #facc15; font-size: 10px;">(cached)</span>' : ''}
         </div>
-        
-        <div class="price-row">
-          <span class="price-label">eBay Avg:</span>
-          <span class="price-value ebay-price">$${priceData.avgPrice.toFixed(0)}</span>
-        </div>
-        
-        <div class="price-row">
-          <span class="price-label">eBay Range:</span>
-          <span class="price-value" style="font-size: 14px; color: #94a3b8;">
-            $${priceData.lowPrice.toFixed(0)} - $${priceData.highPrice.toFixed(0)}
-          </span>
-        </div>
-        
+
+        <!-- AI-Detected Info (if available) -->
+        ${hasAiData ? `
+          <div style="text-align: center; margin-bottom: 10px; padding: 8px; background: rgba(99, 102, 241, 0.1); border-radius: 6px;">
+            ${aiBrand || aiModel ? `
+              <div style="font-size: 12px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px;">
+                ${aiBrand || ''} ${aiModel || ''}
+              </div>
+            ` : ''}
+            ${aiCondition ? `
+              <span class="condition-badge ${getConditionClass(aiCondition)}" style="font-size: 11px;">
+                ${aiCondition === 'New' ? '✨' : aiCondition === 'Like New' ? '👍' : aiCondition === 'Good' ? '👌' : aiCondition === 'Fair' ? '⚠️' : aiCondition === 'Poor' ? '⚡' : '❓'}
+                ${aiCondition}
+              </span>
+              <span style="font-size: 10px; color: #64748b; margin-left: 6px;">
+                AI ${Math.round(aiConfidence * 100)}%
+              </span>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Condition-Adjusted Pricing (Primary - for resale accuracy) -->
+        ${useAdjustedPricing ? `
+          <div class="price-row">
+            <span class="price-label">Resale Value:</span>
+            <span class="price-value ebay-price">$${adjustedAvgPrice.toFixed(0)}</span>
+          </div>
+          <div class="price-row">
+            <span class="price-label">Resale Range:</span>
+            <span class="price-value" style="font-size: 14px; color: #94a3b8;">
+              $${adjustedLowPrice.toFixed(0)} - $${adjustedHighPrice.toFixed(0)}
+            </span>
+          </div>
+          <div style="font-size: 10px; color: #64748b; text-align: center; margin-bottom: 8px;">
+            Based on ${aiCondition} condition (×${conditionMultiplier.toFixed(2)})
+          </div>
+
+          <!-- Raw eBay Avg (for reference) -->
+          <div class="price-row" style="opacity: 0.7;">
+            <span class="price-label" style="font-size: 11px;">eBay Avg (all):</span>
+            <span class="price-value" style="font-size: 13px; color: #94a3b8;">$${priceData.avgPrice.toFixed(0)}</span>
+          </div>
+        ` : `
+          <!-- Raw eBay Pricing (when no condition adjustment) -->
+          <div class="price-row">
+            <span class="price-label">eBay Avg:</span>
+            <span class="price-value ebay-price">$${priceData.avgPrice.toFixed(0)}</span>
+          </div>
+          <div class="price-row">
+            <span class="price-label">eBay Range:</span>
+            <span class="price-value" style="font-size: 14px; color: #94a3b8;">
+              $${priceData.lowPrice.toFixed(0)} - $${priceData.highPrice.toFixed(0)}
+            </span>
+          </div>
+        `}
+
         ${listing.price ? `
           <div class="price-row">
             <span class="price-label">Spread:</span>
             <span class="price-value ${spread >= 0 ? 'spread-positive' : 'spread-negative'}">
-              ${spread >= 0 ? '+' : ''}$${Math.abs(spread).toFixed(0)} 
+              ${spread >= 0 ? '+' : ''}$${Math.abs(spread).toFixed(0)}
               (${spreadPct >= 0 ? '+' : ''}${spreadPct.toFixed(0)}%)
             </span>
           </div>
-          
+
           <div class="deal-meter">
             <div class="meter-bar">
-              <div class="meter-fill ${dealRating >= 70 ? 'good' : dealRating >= 40 ? 'okay' : 'poor'}" 
+              <div class="meter-fill ${dealRating >= 70 ? 'good' : dealRating >= 40 ? 'okay' : 'poor'}"
                    style="width: ${dealRating}%"></div>
             </div>
             <div class="deal-label">
@@ -2994,7 +3413,16 @@
             </div>
           </div>
         ` : ''}
-        
+
+        <!-- Resale Analysis Button -->
+        <button class="resale-btn" id="resale-analyze-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          ${hasAiData ? 'View Full Resale Analysis' : 'Analyze for Resale'}
+        </button>
+
         ${isPcBuildListing(listing) ? `
           <button class="scout-link pc-partout-btn" style="background: #7c3aed; border: none; cursor: pointer; margin-bottom: 8px;">
             🖥️ Part-Out Analysis →
@@ -3015,12 +3443,357 @@
       overlayElement = null;
     });
 
+    // Add Resale Analysis button handler
+    const resaleBtn = shadow.querySelector('#resale-analyze-btn');
+    if (resaleBtn) {
+      resaleBtn.addEventListener('click', () => {
+        resaleBtn.disabled = true;
+        resaleBtn.innerHTML = `
+          <div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>
+          Analyzing...
+        `;
+        requestResaleAnalysis(listing, priceData);
+      });
+    }
+
     // Add PC Part-Out Analysis button handler - opens Jiggly directly
     const partoutBtn = shadow.querySelector('.pc-partout-btn');
     if (partoutBtn) {
       partoutBtn.addEventListener('click', () => {
         partoutBtn.textContent = '🚀 Opening...';
         requestPcResaleAnalysis(listing);
+      });
+    }
+  }
+
+  /**
+   * Request detailed resale analysis using AI vision
+   * @param {Object} listing - Listing data with images
+   * @param {Object} priceData - Price intelligence data
+   */
+  async function requestResaleAnalysis(listing, priceData) {
+    log('Requesting resale analysis for listing...');
+
+    try {
+      // Extract image URLs and convert to data URLs for AI analysis
+      const imageUrls = listing.imageUrls || extractImageUrls();
+
+      if (!imageUrls || imageUrls.length === 0) {
+        log('No images available for resale analysis', 'warn');
+        renderResaleAnalysisOverlay(listing, priceData, {
+          error: 'No images available for analysis'
+        });
+        return;
+      }
+
+      // Convert images to data URLs (bypass CORS)
+      const fetchImageAsDataUrl = async (url, timeoutMs = 3000) => {
+        try {
+          if (!url || typeof url !== 'string') return null;
+          if (url.startsWith('data:image')) return url;
+
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), timeoutMs);
+          const resp = await fetch(url, { signal: controller.signal });
+          clearTimeout(t);
+          if (!resp.ok) return null;
+          const blob = await resp.blob();
+
+          if (blob.size > 1_000_000) return null; // 1MB limit
+
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+          return typeof dataUrl === 'string' ? dataUrl : null;
+        } catch {
+          return null;
+        }
+      };
+
+      // Convert first 4 images
+      const dataUrls = [];
+      for (const url of imageUrls.slice(0, 4)) {
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (dataUrl) dataUrls.push(dataUrl);
+      }
+
+      if (dataUrls.length === 0) {
+        log('Failed to convert any images to data URLs', 'warn');
+        renderResaleAnalysisOverlay(listing, priceData, {
+          error: 'Could not load images for analysis'
+        });
+        return;
+      }
+
+      log(`Sending ${dataUrls.length} images for AI resale analysis`);
+
+      // Send to background script for AI analysis
+      if (!isExtensionContextValid()) {
+        renderResaleAnalysisOverlay(listing, priceData, {
+          error: 'Extension context invalid'
+        });
+        return;
+      }
+
+      chrome.runtime.sendMessage({
+        action: 'MULTIMODAL_ANALYZE_LISTING',
+        listingData: {
+          title: listing.title,
+          description: listing.fullDescription || listing.description,
+          price: listing.price,
+          imageDataUrls: dataUrls,
+          attributes: listing.attributes,
+          extractedSpecs: listing.extractedSpecs
+        }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          log('Resale analysis error: ' + chrome.runtime.lastError.message, 'error');
+          renderResaleAnalysisOverlay(listing, priceData, {
+            error: 'Failed to analyze: ' + chrome.runtime.lastError.message
+          });
+          return;
+        }
+
+        if (response && response.success) {
+          log('Resale analysis successful:', response);
+          renderResaleAnalysisOverlay(listing, priceData, response);
+        } else {
+          log('Resale analysis failed:', response?.error, 'warn');
+          renderResaleAnalysisOverlay(listing, priceData, {
+            error: response?.error || 'Analysis failed'
+          });
+        }
+      });
+    } catch (e) {
+      log('Error in requestResaleAnalysis: ' + e.message, 'error');
+      renderResaleAnalysisOverlay(listing, priceData, {
+        error: 'Unexpected error: ' + e.message
+      });
+    }
+  }
+
+  /**
+   * Get condition multiplier for price adjustment
+   * @param {string} condition - Condition string
+   * @returns {number} Multiplier (0.0 to 1.0)
+   */
+  function getConditionMultiplier(condition) {
+    const multipliers = {
+      'New': 1.0,
+      'Like New': 0.90,
+      'Good': 0.75,
+      'Fair': 0.60,
+      'Poor': 0.40,
+      'Unknown': 0.80
+    };
+    return multipliers[condition] || 0.80;
+  }
+
+  /**
+   * Get condition badge class
+   * @param {string} condition - Condition string
+   * @returns {string} CSS class name
+   */
+  function getConditionClass(condition) {
+    const classes = {
+      'New': 'condition-new',
+      'Like New': 'condition-like-new',
+      'Good': 'condition-good',
+      'Fair': 'condition-fair',
+      'Poor': 'condition-poor',
+      'Unknown': 'condition-unknown'
+    };
+    return classes[condition] || 'condition-unknown';
+  }
+
+  /**
+   * Render resale analysis overlay with AI insights
+   * @param {Object} listing - Listing data
+   * @param {Object} priceData - Price intelligence data
+   * @param {Object} analysis - AI analysis result
+   */
+  function renderResaleAnalysisOverlay(listing, priceData, analysis) {
+    const shadow = createOverlayContainer();
+
+    const hasError = !!analysis.error;
+    const mergedData = analysis.mergedData || {};
+
+    // Extract resale-focused data
+    const condition = mergedData.condition || 'Unknown';
+    const conditionNotes = mergedData.conditionNotes || [];
+    const color = mergedData.color || null;
+    const estimatedAge = mergedData.estimatedAge || 'Unknown';
+    const completeness = mergedData.completeness || 'Unknown';
+    const resaleFlags = mergedData.resaleFlags || [];
+    const confidence = analysis.confidence || 0;
+    const brand = mergedData.brand || null;
+    const model = mergedData.model || null;
+    const category = mergedData.category || null;
+
+    // Calculate condition-adjusted price
+    const conditionMultiplier = getConditionMultiplier(condition);
+    const adjustedAvgPrice = priceData?.avgPrice ? (priceData.avgPrice * conditionMultiplier) : null;
+    const adjustedLowPrice = priceData?.lowPrice ? (priceData.lowPrice * conditionMultiplier) : null;
+    const adjustedHighPrice = priceData?.highPrice ? (priceData.highPrice * conditionMultiplier) : null;
+
+    // Calculate adjusted spread
+    const adjustedSpread = listing.price && adjustedAvgPrice
+      ? (adjustedAvgPrice - listing.price) : null;
+
+    // Categorize resale flags
+    const positiveFlags = resaleFlags.filter(f =>
+      /original|complete|rare|pristine|mint|sealed|box|manual/i.test(f)
+    );
+    const negativeFlags = resaleFlags.filter(f =>
+      /damage|scratch|missing|wear|smoke|pet|broken|crack/i.test(f)
+    );
+    const neutralFlags = resaleFlags.filter(f =>
+      !positiveFlags.includes(f) && !negativeFlags.includes(f)
+    );
+
+    shadow.innerHTML = `
+      <style>${getBaseStyles()}</style>
+
+      <div class="scout-card" style="max-width: 340px;">
+        <button class="close-btn" title="Close">&times;</button>
+
+        <div class="scout-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          AI Resale Analysis
+        </div>
+
+        ${hasError ? `
+          <div class="scout-message" style="color: #f87171;">
+            ⚠️ ${analysis.error}
+          </div>
+          <button class="scout-btn scout-btn-secondary" id="retry-resale-btn">
+            Try Again
+          </button>
+        ` : `
+          <!-- Identification Section -->
+          ${brand || model ? `
+            <div style="text-align: center; margin-bottom: 12px;">
+              <div style="font-size: 14px; font-weight: 600; color: #e2e8f0;">
+                ${brand || ''} ${model || ''}
+              </div>
+              ${category ? `<div style="font-size: 11px; color: #64748b; text-transform: capitalize;">${category}</div>` : ''}
+            </div>
+          ` : ''}
+
+          <!-- Condition Badge -->
+          <div style="text-align: center; margin-bottom: 12px;">
+            <span class="condition-badge ${getConditionClass(condition)}">
+              ${condition === 'New' ? '✨' : condition === 'Like New' ? '👍' : condition === 'Good' ? '👌' : condition === 'Fair' ? '⚠️' : condition === 'Poor' ? '⚡' : '❓'}
+              ${condition}
+            </span>
+            ${color ? `<span style="margin-left: 8px; font-size: 12px; color: #94a3b8;">📎 ${color}</span>` : ''}
+          </div>
+
+          <!-- Adjusted Pricing Section -->
+          <div class="resale-section">
+            <div style="font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase;">
+              Condition-Adjusted Pricing
+            </div>
+
+            ${adjustedAvgPrice !== null ? `
+              <div class="resale-row">
+                <span class="resale-label">Adjusted Avg:</span>
+                <span class="adjusted-price">$${adjustedAvgPrice.toFixed(0)}</span>
+              </div>
+              <div class="resale-row">
+                <span class="resale-label">Adjusted Range:</span>
+                <span class="resale-value" style="font-size: 11px;">
+                  $${adjustedLowPrice?.toFixed(0) || '?'} - $${adjustedHighPrice?.toFixed(0) || '?'}
+                </span>
+              </div>
+              ${adjustedSpread !== null ? `
+                <div class="resale-row">
+                  <span class="resale-label">Adj. Spread:</span>
+                  <span class="resale-value ${adjustedSpread >= 0 ? 'spread-positive' : 'spread-negative'}">
+                    ${adjustedSpread >= 0 ? '+' : ''}$${Math.abs(adjustedSpread).toFixed(0)}
+                  </span>
+                </div>
+              ` : ''}
+              <div class="resale-row" style="opacity: 0.7;">
+                <span class="resale-label">Multiplier:</span>
+                <span class="resale-value" style="font-size: 10px;">×${conditionMultiplier.toFixed(2)} (${condition})</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Resale Insights -->
+          <div class="resale-section">
+            <div style="font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase;">
+              Resale Insights
+            </div>
+
+            <div class="resale-row">
+              <span class="resale-label">Est. Age:</span>
+              <span class="resale-value">${estimatedAge}</span>
+            </div>
+            <div class="resale-row">
+              <span class="resale-label">Completeness:</span>
+              <span class="resale-value">${completeness}</span>
+            </div>
+          </div>
+
+          <!-- Resale Flags -->
+          ${resaleFlags.length > 0 ? `
+            <div class="resale-flags">
+              ${positiveFlags.map(f => `<span class="resale-flag positive">${f}</span>`).join('')}
+              ${neutralFlags.map(f => `<span class="resale-flag">${f}</span>`).join('')}
+              ${negativeFlags.map(f => `<span class="resale-flag negative">${f}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Condition Notes -->
+          ${conditionNotes.length > 0 ? `
+            <div class="condition-notes">
+              <div style="font-weight: 500; margin-bottom: 4px;">Condition Notes:</div>
+              <ul>
+                ${conditionNotes.slice(0, 4).map(note => `<li>${note}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+
+          <!-- AI Confidence -->
+          <div class="ai-confidence">
+            <span>AI Confidence:</span>
+            <div class="confidence-bar">
+              <div class="confidence-fill" style="width: ${(confidence * 100).toFixed(0)}%;"></div>
+            </div>
+            <span>${(confidence * 100).toFixed(0)}%</span>
+          </div>
+        `}
+
+        <a class="scout-link"
+           href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(listing.title)}&LH_Sold=1&LH_Complete=1"
+           target="_blank"
+           style="margin-top: 12px;">
+          View eBay comps →
+        </a>
+      </div>
+    `;
+
+    // Add close button handler
+    shadow.querySelector('.close-btn').addEventListener('click', () => {
+      overlayElement.remove();
+      overlayElement = null;
+    });
+
+    // Add retry button handler if error
+    const retryBtn = shadow.querySelector('#retry-resale-btn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = 'Retrying...';
+        requestResaleAnalysis(listing, priceData);
       });
     }
   }
