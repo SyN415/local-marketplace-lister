@@ -829,7 +829,7 @@ getCacheKey(listingData) {
       const fallbackTitle = this.sanitizeTitle(listingData.title || '');
       if (fallbackTitle.length >= 5) {
         queryParts.push(fallbackTitle);
-        result.sources.push('fallback_title');
+        // Note: 'fallback_title' source is tracked in mergeAnalyses, not here
       }
     }
 
