@@ -3528,16 +3528,9 @@
     log('Requesting resale analysis for listing...');
 
     try {
-      // Extract image URLs and convert to data URLs for AI analysis
+      // Extract image URLs - we'll try to get data URLs from DOM
       const imageUrls = listing.imageUrls || extractImageUrls();
-
-      if (!imageUrls || imageUrls.length === 0) {
-        log('No images available for resale analysis', 'warn');
-        renderResaleAnalysisOverlay(listing, priceData, {
-          error: 'No images available for analysis'
-        });
-        return;
-      }
+      log(`Found ${imageUrls?.length || 0} image URLs in listing`);
 
       // Extract images directly from visible DOM elements using canvas
       const extractDataUrlFromDomImage = (imgElement) => {
@@ -3577,8 +3570,10 @@
       const dialog = document.querySelector('[role="dialog"]');
       const main = document.querySelector('[role="main"]');
       const searchRoot = dialog || main || document.body;
+      log(`Searching for images in: ${dialog ? 'dialog' : main ? 'main' : 'body'}`);
 
       const allImages = searchRoot.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]');
+      log(`Found ${allImages.length} Facebook CDN images in DOM`);
       const processedSrcs = new Set();
 
       for (const img of allImages) {
@@ -3598,7 +3593,9 @@
         }
       }
 
-      // If no images extracted, show drag & drop interface
+      log(`Extracted ${dataUrls.length} data URLs from DOM images`);
+
+      // If no images extracted (CORS restriction), show drag & drop interface
       if (dataUrls.length === 0) {
         log('No images extracted (CORS restriction). Showing drag & drop interface.');
         renderImageDropZone(listing, priceData);
